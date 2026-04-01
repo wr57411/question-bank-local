@@ -1,0 +1,13 @@
+node_modules/
+ios/
+.DS_Store
+*.log
+playwright-report/
+test-results/
+
+# Android build outputs (keep source, not build artifacts)
+android/app/build/
+android/.gradle/
+android/.idea/
+android/local.properties
+android/*.iml
