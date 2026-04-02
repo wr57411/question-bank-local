@@ -393,6 +393,45 @@
     </div>
 </div>
 
+<!-- 登录/注册弹窗 -->
+<div id="login-modal" class="modal" onclick="if(event.target===this)closeLoginModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3 id="login-modal-title">登录</h3>
+        <div class="form-group"><label>服务器地址</label><input type="text" id="server-url" placeholder="例如 http://192.168.1.100:3001" /></div>
+        <div class="form-group"><label>手机号</label><input type="tel" id="login-phone" placeholder="输入手机号" /></div>
+        <div class="form-group"><label>密码</label><input type="password" id="login-password" placeholder="输入密码" /></div>
+        <div id="login-error" style="color:#ef4444;font-size:13px;margin-bottom:10px;display:none"></div>
+        <div class="btn-group">
+            <button onclick="doLogin()" id="btn-do-login">登录</button>
+            <button class="secondary" onclick="doRegister()" id="btn-do-register">注册</button>
+        </div>
+        <div class="btn-group" style="margin-top:8px"><button class="secondary" onclick="closeLoginModal()">取消</button></div>
+    </div>
+</div>
+
+<!-- 同步设置弹窗 -->
+<div id="sync-modal" class="modal" onclick="if(event.target===this)closeSyncModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3>☁️ 云端同步</h3>
+        <div style="font-size:13px;color:#888;margin-bottom:14px">
+            已登录: <b id="sync-user-name" style="color:#333"></b>
+        </div>
+        <div class="form-group">
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+                <input type="checkbox" id="auto-sync-toggle" style="width:auto" onchange="toggleAutoSync(this.checked)">
+                <span style="font-size:14px">数据变更时自动同步到云端</span>
+            </div>
+        </div>
+        <button onclick="doSync()" style="width:100%;margin-bottom:8px">🔄 立即同步</button>
+        <button onclick="doSyncDown()" style="width:100%;background:#f59e0b;margin-bottom:8px">📥 从云端下载</button>
+        <div id="sync-status" style="font-size:13px;color:#888;margin:8px 0"></div>
+        <div class="btn-group" style="margin-top:14px">
+            <button class="secondary" onclick="closeSyncModal()">关闭</button>
+            <button class="danger" onclick="doLogout()" style="padding:8px 14px;font-size:13px">退出登录</button>
+        </div>
+    </div>
+</div>
+
 <script src="db.js"></script>
 <script>
 let currentQuestionId = null, allTags = [], allQuestions = [], trashedQuestions = [];
