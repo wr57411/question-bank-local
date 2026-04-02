@@ -1304,6 +1304,200 @@ showBackupModal = function() {
     _origShowBackupModal();
     updateBaiduUI();
 };
+
+// ========== 登录/云端同步 ==========
+
+let apiToken = localStorage.getItem('apiToken') || '';
+let serverUrl = localStorage.getItem('serverUrl') || '';
+let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
+let autoSyncEnabled = localStorage.getItem('autoSync') === '1';
+
+function apiHeaders() {
+    return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiToken };
+}
+
+async function apiCall(path, method = 'GET', body = null) {
+    if (!serverUrl) throw new Error('未配置服务器地址');
+    const opts = { method, headers: apiHeaders() };
+    if (body) opts.body = JSON.stringify(body);
+    const resp = await fetch(serverUrl + path, opts);
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.error || '请求失败');
+    return data;
+}
+
+function updateLoginUI() {
+    const btn = document.getElementById('login-btn');
+    const status = document.getElementById('user-status');
+    if (currentUser) {
+        btn.textContent = '☁️ ' + (currentUser.nickname || currentUser.phone || '已登录');
+        btn.onclick = () => showSyncModal();
+        status.textContent = '已登录 · 云端同步可用';
+    } else {
+        btn.textContent = '👤 登录';
+        btn.onclick = () => showLoginModal();
+        status.textContent = '数据存储在本地，无需联网';
+    }
+}
+
+function showLoginModal() {
+    document.getElementById('server-url').value = serverUrl;
+    document.getElementById('login-phone').value = localStorage.getItem('lastPhone') || '';
+    document.getElementById('login-error').style.display = 'none';
+    document.getElementById('login-modal').classList.add('active');
+}
+function closeLoginModal() { document.getElementById('login-modal').classList.remove('active'); }
+
+function showSyncModal() {
+    document.getElementById('sync-user-name').textContent = currentUser?.nickname || currentUser?.phone || '';
+    document.getElementById('auto-sync-toggle').checked = autoSyncEnabled;
+    const lastSync = localStorage.getItem('lastSyncTime');
+    document.getElementById('sync-status').textContent = lastSync ? '上次同步: ' + new Date(lastSync).toLocaleString() : '尚未同步';
+    document.getElementById('sync-modal').classList.add('active');
+}
+function closeSyncModal() { document.getElementById('sync-modal').classList.remove('active'); }
+
+async function doLogin() {
+    const url = document.getElementById('server-url').value.trim().replace(/\/$/, '');
+    const phone = document.getElementById('login-phone').value.trim();
+    const password = document.getElementById('login-password').value;
+    if (!url || !phone || !password) { showLoginError('请填写完整信息'); return; }
+    try {
+        const data = await fetch(url + '/api/login', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone, password })
+        }).then(r => r.json());
+        if (data.error) { showLoginError(data.error); return; }
+        serverUrl = url; apiToken = data.token; currentUser = data;
+        localStorage.setItem('serverUrl', url);
+        localStorage.setItem('apiToken', data.token);
+        localStorage.setItem('currentUser', JSON.stringify(data));
+        localStorage.setItem('lastPhone', phone);
+        closeLoginModal(); updateLoginUI();
+        showStatus('登录成功', 'success');
+    } catch (e) { showLoginError('连接失败: ' + e.message); }
+}
+
+async function doRegister() {
+    const url = document.getElementById('server-url').value.trim().replace(/\/$/, '');
+    const phone = document.getElementById('login-phone').value.trim();
+    const password = document.getElementById('login-password').value;
+    if (!url || !phone || !password) { showLoginError('请填写完整信息'); return; }
+    try {
+        const data = await fetch(url + '/api/register', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone, password })
+        }).then(r => r.json());
+        if (data.error) { showLoginError(data.error); return; }
+        serverUrl = url; apiToken = data.token; currentUser = data;
+        localStorage.setItem('serverUrl', url);
+        localStorage.setItem('apiToken', data.token);
+        localStorage.setItem('currentUser', JSON.stringify(data));
+        localStorage.setItem('lastPhone', phone);
+        closeLoginModal(); updateLoginUI();
+        showStatus('注册成功', 'success');
+    } catch (e) { showLoginError('连接失败: ' + e.message); }
+}
+
+function showLoginError(msg) {
+    const el = document.getElementById('login-error');
+    el.textContent = msg; el.style.display = 'block';
+}
+
+function doLogout() {
+    if (!confirm('确定退出登录？本地数据不会删除。')) return;
+    apiToken = ''; currentUser = null;
+    localStorage.removeItem('apiToken');
+    localStorage.removeItem('currentUser');
+    autoSyncEnabled = false; localStorage.setItem('autoSync', '0');
+    closeSyncModal(); updateLoginUI();
+    showStatus('已退出登录', 'success');
+}
+
+// 同步：本地 → 云端
+async function doSync() {
+    if (!currentUser) { showStatus('请先登录', 'error'); return; }
+    try {
+        document.getElementById('sync-status').textContent = '正在同步...';
+
+        // 同步标签
+        const localTags = await dbGetAllTags();
+        for (const tag of localTags) {
+            await apiCall('/api/tags', 'POST', tag);
+        }
+
+        // 同步题目
+        const localQs = await dbGetAllQuestions();
+        for (const q of localQs) {
+            await apiCall('/api/questions', 'POST', {
+                id: q.id,
+                question_image_url: q.question_image_url,
+                answer_image_url: q.answer_image_url,
+                layout_type: q.layout_type || 0,
+                tag_ids: q.question_tags.map(qt => qt.tags.id)
+            });
+        }
+
+        // 同步试卷
+        const localPapers = await dbGetAllPapers();
+        for (const p of localPapers) {
+            await apiCall('/api/papers', 'POST', { id: p.id, name: p.name, tag_ids: [] });
+        }
+
+        localStorage.setItem('lastSyncTime', new Date().toISOString());
+        document.getElementById('sync-status').textContent = '上次同步: ' + new Date().toLocaleString();
+        showStatus('同步完成', 'success');
+    } catch (e) { showStatus('同步失败: ' + e.message, 'error'); }
+}
+
+// 同步：云端 → 本地
+async function doSyncDown() {
+    if (!currentUser) { showStatus('请先登录', 'error'); return; }
+    const existingQs = await dbGetAllQuestions();
+    if (existingQs.length > 0 && !confirm('当前有 ' + existingQs.length + ' 道本地题目，从云端下载将覆盖同名数据。\n\n确定继续？')) return;
+    try {
+        document.getElementById('sync-status').textContent = '正在下载...';
+
+        const tags = await apiCall('/api/tags');
+        for (const t of tags) await dbTags.setItem(t.id, t);
+
+        const questions = await apiCall('/api/questions');
+        for (const q of questions) {
+            await dbQuestions.setItem(q.id, {
+                id: q.id, question_image_url: q.question_image_url,
+                answer_image_url: q.answer_image_url, layout_type: q.layout_type || 0,
+                created_at: q.created_at, updated_at: q.updated_at
+            });
+            for (const qt of (q.question_tags || [])) {
+                await dbQuestionTags.setItem(q.id + '_' + qt.tags.id, { question_id: q.id, tag_id: qt.tags.id });
+            }
+        }
+
+        const papers = await apiCall('/api/papers');
+        for (const p of papers) await dbPapers.setItem(p.id, p);
+
+        await refreshAll();
+        localStorage.setItem('lastSyncTime', new Date().toISOString());
+        document.getElementById('sync-status').textContent = '上次同步: ' + new Date().toLocaleString();
+        showStatus('下载完成: ' + questions.length + ' 题', 'success');
+    } catch (e) { showStatus('下载失败: ' + e.message, 'error'); }
+}
+
+function toggleAutoSync(enabled) {
+    autoSyncEnabled = enabled;
+    localStorage.setItem('autoSync', enabled ? '1' : '0');
+    if (enabled) doSync();
+}
+
+// 包装数据操作，自动同步
+const _origDoAutoBackup2 = doAutoBackup;
+doAutoBackup = async function() {
+    await _origDoAutoBackup2();
+    if (autoSyncEnabled && currentUser) doSync();
+};
+
+// 初始化登录状态
+updateLoginUI();
 </script>
 </body>
 </html>
