@@ -115,7 +115,12 @@
 </head>
 <body>
 <div class="container">
-    <header><h1>本地题库</h1><p>数据存储在本地，无需联网</p></header>
+    <header>
+        <div style="display:flex;justify-content:space-between;align-items:center">
+            <div><h1>本地题库</h1><p id="user-status">数据存储在本地，无需联网</p></div>
+            <button id="login-btn" onclick="showLoginModal()" style="padding:8px 16px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-size:13px">👤 登录</button>
+        </div>
+    </header>
     <div class="toolbar">
         <button class="success" onclick="exportAllData()">导出备份</button>
         <button style="background:#f59e0b" onclick="showBackupModal()">☁️ 备份设置</button>
