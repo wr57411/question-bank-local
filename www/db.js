@@ -158,8 +158,16 @@ async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layout
   const qImg = await compressImage(questionFile);
   let aImg = null;
   if (answerFile) aImg = await compressImage(answerFile);
+  
+  // 远程同步：上传图片到服务器
+  let qImgUrl = qImg, aImgUrl = aImg;
+  if (_syncEnabled) {
+    qImgUrl = await _uploadImage(qImg);
+    if (aImg) aImgUrl = await _uploadImage(aImg);
+  }
+  
   const question = {
-    id, question_image_url: qImg, answer_image_url: aImg,
+    id, question_image_url: qImgUrl, answer_image_url: aImgUrl,
     layout_type: layoutType || 0,
     created_at: new Date().toISOString(), updated_at: new Date().toISOString()
   };
@@ -167,17 +175,27 @@ async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layout
   for (const tagId of selectedTagIds) {
     await dbQuestionTags.setItem(`${id}_${tagId}`, { question_id: id, tag_id: tagId });
   }
+  
+  // 远程同步：创建题目
+  if (_syncEnabled) {
+    _remoteCall('/api/questions', 'POST', {
+      id, question_image_url: qImgUrl, answer_image_url: aImgUrl,
+      layout_type: layoutType || 0, tag_ids: selectedTagIds
+    });
+  }
   return question;
 }
 
 async function dbSoftDeleteQuestion(questionId) {
   const q = await dbQuestions.getItem(questionId);
   if (q) { q.deleted_at = new Date().toISOString(); await dbQuestions.setItem(questionId, q); }
+  if (_syncEnabled) _remoteCall('/api/questions/' + questionId, 'DELETE');
 }
 
 async function dbRestoreQuestion(questionId) {
   const q = await dbQuestions.getItem(questionId);
   if (q) { delete q.deleted_at; await dbQuestions.setItem(questionId, q); }
+  if (_syncEnabled) _remoteCall('/api/questions/' + questionId + '/restore', 'POST');
 }
 
 async function dbPermanentDeleteQuestion(questionId) {
@@ -188,10 +206,12 @@ async function dbPermanentDeleteQuestion(questionId) {
   const pqRemove = [];
   await dbPaperQuestions.iterate((v, key) => { if (v.question_id === questionId) pqRemove.push(key); });
   for (const k of pqRemove) await dbPaperQuestions.removeItem(k);
+  if (_syncEnabled) _remoteCall('/api/questions/' + questionId + '/permanent', 'DELETE');
 }
 
 async function dbAddTagToQuestion(questionId, tagId) {
   await dbQuestionTags.setItem(`${questionId}_${tagId}`, { question_id: questionId, tag_id: tagId });
+  if (_syncEnabled) _remoteCall('/api/questions/' + questionId + '/tags', 'POST', { tag_id: tagId });
 }
 
 // ========== 试卷 CRUD ==========
