@@ -235,19 +235,19 @@ async function dbCreatePaper(name, selectedTagIds) {
     const qIds = new Set();
     await dbQuestionTags.iterate((qt) => {
       if (selectedTagIds.includes(qt.tag_id)) {
-        // 只加入未删除的题目
         dbQuestions.getItem(qt.question_id).then(q => {
           if (q && !q.deleted_at) qIds.add(qt.question_id);
         });
       }
     });
-    // 等待上面的异步操作完成
     await new Promise(r => setTimeout(r, 50));
     let n = 1;
     for (const qId of qIds) {
       await dbPaperQuestions.setItem(`${id}_${qId}`, { paper_id: id, question_id: qId, order_num: n++ });
     }
   }
+  // 远程同步：创建试卷
+  if (_syncEnabled) _remoteCall('/api/papers', 'POST', { id, name, tag_ids: selectedTagIds });
   return paper;
 }
 
@@ -256,6 +256,7 @@ async function dbDeletePaper(paperId) {
   const toRemove = [];
   await dbPaperQuestions.iterate((v, key) => { if (v.paper_id === paperId) toRemove.push(key); });
   for (const k of toRemove) await dbPaperQuestions.removeItem(k);
+  if (_syncEnabled) _remoteCall('/api/papers/' + paperId, 'DELETE');
 }
 
 async function dbGetPaperQuestions(paperId) {
