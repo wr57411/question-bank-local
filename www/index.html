@@ -455,6 +455,9 @@ const Camera = isNative ? window.Capacitor.Plugins.Camera : null;
 document.addEventListener("DOMContentLoaded", async () => { 
     // 初始化远程同步
     initRemoteSync(serverUrl, apiToken, syncEnabled);
+    // 恢复实时同步开关状态
+    const syncToggle = document.getElementById('sync-toggle');
+    if (syncToggle) syncToggle.checked = syncEnabled;
     await refreshAll(); 
 });
 
@@ -1498,6 +1501,13 @@ function toggleAutoSync(enabled) {
     autoSyncEnabled = enabled;
     localStorage.setItem('autoSync', enabled ? '1' : '0');
     if (enabled) doSync();
+}
+
+function toggleSync(enabled) {
+    syncEnabled = enabled;
+    localStorage.setItem('syncEnabled', enabled ? '1' : '0');
+    initRemoteSync(serverUrl, apiToken, syncEnabled);
+    showStatus(enabled ? '实时同步已开启' : '实时同步已关闭', 'success');
 }
 
 // 包装数据操作，自动同步
