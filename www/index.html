@@ -419,7 +419,11 @@
         <div class="form-group">
             <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
                 <input type="checkbox" id="auto-sync-toggle" style="width:auto" onchange="toggleAutoSync(this.checked)">
-                <span style="font-size:14px">数据变更时自动同步到云端</span>
+                <span style="font-size:14px">登录时自动同步</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid #eee;margin-top:8px">
+                <input type="checkbox" id="sync-toggle" style="width:auto" onchange="toggleSync(this.checked)">
+                <span style="font-size:14px">实时同步（每次操作自动推送）</span>
             </div>
         </div>
         <button onclick="doSync()" style="width:100%;margin-bottom:8px">🔄 立即同步</button>
