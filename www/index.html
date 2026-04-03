@@ -1308,9 +1308,12 @@ showBackupModal = function() {
 // ========== 登录/云端同步 ==========
 
 let apiToken = localStorage.getItem('apiToken') || '';
-let serverUrl = localStorage.getItem('serverUrl') || '';
+let serverUrl = localStorage.getItem('serverUrl') || 'https://2rhrc4519570.vicp.fun';
 let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
 let autoSyncEnabled = localStorage.getItem('autoSync') === '1';
+
+// 同步开关 - 每次操作自动同步到服务器
+let syncEnabled = localStorage.getItem('syncEnabled') === '1';
 
 function apiHeaders() {
     return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiToken };
