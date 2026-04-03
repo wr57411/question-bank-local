@@ -86,14 +86,12 @@ async function _remoteCall(path, method = 'GET', body = null) {
 async function _uploadImage(base64Data) {
   if (!_syncEnabled || !_serverUrl) return base64Data;
   try {
+    const form = new FormData();
+    form.append('file', dataURLtoBlob(base64Data), 'image.jpg');
     const resp = await fetch(_serverUrl + '/api/upload', {
       method: 'POST',
       headers: { 'Authorization': 'Bearer ' + _apiToken },
-      body: base64Data.split(',')[1] ? (() => {
-        const form = new FormData();
-        form.append('file', dataURLtoBlob(base64Data), 'image.jpg');
-        return form;
-      })() : null
+      body: form
     });
     if (resp.ok) {
       const data = await resp.json();
