@@ -448,7 +448,11 @@ let newTagContext = null;
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const Camera = isNative ? window.Capacitor.Plugins.Camera : null;
 
-document.addEventListener("DOMContentLoaded", async () => { await refreshAll(); });
+document.addEventListener("DOMContentLoaded", async () => { 
+    // 初始化远程同步
+    initRemoteSync(serverUrl, apiToken, syncEnabled);
+    await refreshAll(); 
+});
 
 async function refreshAll() { await loadTags(); await loadQuestions(); await loadPapers(); }
 
