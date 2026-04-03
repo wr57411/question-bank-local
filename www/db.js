@@ -58,6 +58,59 @@ async function _buildTagIndex() {
   return qtByQuestionId;
 }
 
+// ========== 远程同步 ==========
+
+// 远程同步开关（由index.html控制）
+let _syncEnabled = false;
+let _serverUrl = '';
+let _apiToken = '';
+
+function initRemoteSync(serverUrl, apiToken, syncEnabled) {
+  _serverUrl = serverUrl;
+  _apiToken = apiToken;
+  _syncEnabled = syncEnabled && !!apiToken;
+}
+
+// 远程调用
+async function _remoteCall(path, method = 'GET', body = null) {
+  if (!_syncEnabled || !_serverUrl) return null;
+  try {
+    const opts = { method, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _apiToken } };
+    if (body) opts.body = JSON.stringify(body);
+    const resp = await fetch(_serverUrl + path, opts);
+    return await resp.json();
+  } catch (e) { console.warn('远程同步失败:', e.message); return null; }
+}
+
+// 上传图片到服务器
+async function _uploadImage(base64Data) {
+  if (!_syncEnabled || !_serverUrl) return base64Data;
+  try {
+    const resp = await fetch(_serverUrl + '/api/upload', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + _apiToken },
+      body: base64Data.split(',')[1] ? (() => {
+        const form = new FormData();
+        form.append('file', dataURLtoBlob(base64Data), 'image.jpg');
+        return form;
+      })() : null
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      return data.url;
+    }
+  } catch (e) { console.warn('图片上传失败:', e.message); }
+  return base64Data;
+}
+
+// Base64转Blob
+function dataURLtoBlob(dataurl) {
+  const arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1];
+  const bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+  while (n--) u8arr[n] = bstr.charCodeAt(n);
+  return new Blob([u8arr], { type: mime });
+}
+
 // ========== 标签 CRUD ==========
 
 async function dbGetAllTags() {
@@ -70,6 +123,7 @@ async function dbCreateTag(name, color) {
   const id = generateId();
   const tag = { id, name, color: color || '#3B82F6', created_at: new Date().toISOString() };
   await dbTags.setItem(id, tag);
+  if (_syncEnabled) _remoteCall('/api/tags', 'POST', tag);
   return tag;
 }
 
@@ -78,6 +132,7 @@ async function dbDeleteTag(tagId) {
   const toRemove = [];
   await dbQuestionTags.iterate((v, key) => { if (v.tag_id === tagId) toRemove.push(key); });
   for (const k of toRemove) await dbQuestionTags.removeItem(k);
+  if (_syncEnabled) _remoteCall('/api/tags/' + tagId, 'DELETE');
 }
 
 // ========== 题目 CRUD ==========
