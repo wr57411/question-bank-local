@@ -339,7 +339,10 @@
                 <input type="checkbox" id="auto-backup-toggle" style="width:auto" onchange="toggleAutoBackup(this.checked)">
                 <span style="font-size:14px">每次修改数据后自动备份到设备</span>
             </div>
-            <small style="color:#888;font-size:12px">iOS 同步到 iCloud，Android 保存到 Download 目录（卸载不丢失）</small>
+            <small style="color:#888;font-size:12px">iOS 同步到 iCloud，Android 可自定义备份位置</small>
+        </div>
+        <div id="backup-path-info" style="font-size:13px;color:#888;margin-bottom:10px">
+            文件将保存在 <b>Download/question-bank-backup.json</b>
         </div>
         <div class="form-group">
             <button onclick="saveBackupToDevice()" style="width:100%">💾 保存备份到设备</button>
@@ -986,17 +989,25 @@ function showStatus(msg, type) {
 
 const Filesystem = isNative ? window.Capacitor.Plugins.Filesystem : null;
 const isAndroid = isNative && window.Capacitor.getPlatform() === 'android';
-// Android: 外部存储根目录 + Download 路径（卸载不丢失）
-// iOS: Documents 目录（iCloud 自动同步）
-const BACKUP_PATH = isAndroid ? 'Download/question-bank-backup.json' : 'question-bank-backup.json';
-const BACKUP_DIR = isAndroid ? 'EXTERNAL_STORAGE' : 'Documents';
-let autoBackupEnabled = false;
+// Android + iOS: Documents 目录
+//   Android: /data/data/com.questionbank.local/files/Documents/ (应用沙箱，卸载保留)
+//   iOS: iCloud Drive 可访问
+function getBackupPath() {
+    const custom = localStorage.getItem('backupPath');
+    return custom ? custom + '/question-bank-backup.json' : 'question-bank-backup.json';
+}
+function getBackupDir() { return 'DOCUMENTS'; }
 
 function showBackupModal() {
     const toggle = document.getElementById("auto-backup-toggle");
     autoBackupEnabled = localStorage.getItem('autoBackup') === '1';
     toggle.checked = autoBackupEnabled;
     updateBackupStatus();
+    const info = document.getElementById("backup-path-info");
+    if (info) {
+        const custom = localStorage.getItem('backupPath');
+        info.innerHTML = custom ? '备份到 <b>' + custom + '/</b> 目录下' : '文件将保存在 <b>Documents/question-bank-backup.json</b>';
+    }
     document.getElementById("backup-modal").classList.add("active");
 }
 function closeBackupModal() { document.getElementById("backup-modal").classList.remove("active"); }
@@ -1018,7 +1029,7 @@ async function doAutoBackup() {
     try {
         const data = await buildBackupData();
         const content = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-        await Filesystem.writeFile({ path: BACKUP_PATH, data: content, directory: BACKUP_DIR, recursive: true });
+        await Filesystem.writeFile({ path: getBackupPath(), data: content, directory: getBackupDir() });
         localStorage.setItem('lastBackupTime', new Date().toISOString());
     } catch (e) { console.error("自动备份失败:", e); }
 }
@@ -1038,11 +1049,12 @@ async function saveBackupToDevice() {
         const data = await buildBackupData();
         if (isNative && Filesystem) {
             const content = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-            await Filesystem.writeFile({ path: BACKUP_PATH, data: content, directory: BACKUP_DIR, recursive: true });
+            const backupDir = getBackupDir();
+            const backupPath = getBackupPath();
+            await Filesystem.writeFile({ path: backupPath, data: content, directory: backupDir });
             localStorage.setItem('lastBackupTime', new Date().toISOString());
             updateBackupStatus();
-            const loc = isAndroid ? 'Download 目录' : 'iCloud';
-            showStatus("备份已保存到 " + loc, "success");
+            showStatus("备份已保存", "success");
         } else {
             const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
@@ -1057,12 +1069,12 @@ async function loadBackupFromDevice() {
     const existingQs = await dbGetAllQuestions();
     const existingCount = existingQs.length;
 
-    // 有数据时先确认
     if (existingCount > 0 && !confirm("当前已有 " + existingCount + " 道题目，加载备份将覆盖同名数据。\n\n确定要继续吗？")) return;
 
     try {
         if (isNative && Filesystem) {
-            const result = await Filesystem.readFile({ path: BACKUP_PATH, directory: BACKUP_DIR });
+            const backupDir = getBackupDir();
+            const result = await Filesystem.readFile({ path: 'question-bank-backup.json', directory: backupDir });
             const json = decodeURIComponent(escape(atob(result.data)));
             const data = JSON.parse(json);
             const backupCount = data.questions?.length || 0;
