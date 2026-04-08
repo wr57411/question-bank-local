@@ -5,8 +5,8 @@ const config: CapacitorConfig = {
   appName: '本地题库',
   webDir: 'www',
   server: {
-    androidScheme: 'https',
-    iosScheme: 'https'
+    androidScheme: 'http',
+    iosScheme: 'http'
   },
   ios: {
     contentInset: 'automatic',

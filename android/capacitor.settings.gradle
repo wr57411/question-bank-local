@@ -10,3 +10,6 @@ project(':capacitor-camera').projectDir = new File('../node_modules/@capacitor/c
 
 include ':capacitor-filesystem'
 project(':capacitor-filesystem').projectDir = new File('../node_modules/@capacitor/filesystem/android')
+
+include ':hotend-capacitor-file-picker'
+project(':hotend-capacitor-file-picker').projectDir = new File('../node_modules/@hotend/capacitor-file-picker/android')

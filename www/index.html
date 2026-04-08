@@ -444,8 +444,10 @@
 let currentQuestionId = null, allTags = [], allQuestions = [], trashedQuestions = [];
 let activeFilterTags = [];
 let cropper = null, currentCropTarget = null;
+let cropSessionId = 0;
 let croppedImages = { question: null, answer: null };
 let originalImages = { question: null, answer: null };
+let suggestedCropRects = { question: null, answer: null };
 let selectedQuestions = new Set();
 let questionBasket = new Set();
 let detailIndex = -1, filteredList = [];
@@ -454,6 +456,9 @@ let newTagContext = null;
 
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const Camera = isNative ? window.Capacitor.Plugins.Camera : null;
+const platformName = isNative && window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : '';
+const isAndroidNative = platformName === 'android';
+const SmartCapture = isAndroidNative && window.Capacitor.Plugins ? window.Capacitor.Plugins.SmartCapture : null;
 
 document.addEventListener("DOMContentLoaded", async () => { 
     // 初始化远程同步
@@ -461,7 +466,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     // 恢复实时同步开关状态
     const syncToggle = document.getElementById('sync-toggle');
     if (syncToggle) syncToggle.checked = syncEnabled;
-    await refreshAll(); 
+    await refreshAll();
+    restartSyncPolling();
+    if (currentUser && autoSyncEnabled && syncEnabled) queueAutoSync(true);
 });
 
 async function refreshAll() { await loadTags(); await loadQuestions(); await loadPapers(); }
@@ -475,11 +482,26 @@ function showTab(tabName, btn) {
 
 // ========== 相机/相册 ==========
 async function takePhoto(target) {
+    if (isAndroidNative && SmartCapture && typeof SmartCapture.captureQuestion === 'function') {
+        try {
+            const photo = await SmartCapture.captureQuestion();
+            originalImages[target] = photo.webPath || photo.path;
+            croppedImages[target] = photo.webPath || photo.path;
+            suggestedCropRects[target] = photo.cropRect || null;
+            startCrop(target, suggestedCropRects[target]);
+            return;
+        } catch (e) {
+            const message = e && e.message ? e.message : String(e || '');
+            if (/cancel/i.test(message)) return;
+            showStatus("智能拍照失败，已回退普通拍照", "error");
+        }
+    }
     if (isNative && Camera) {
         try {
             const photo = await Camera.getPhoto({ quality: 85, allowEditing: false, resultType: 'dataUrl', source: 'CAMERA', direction: 'REAR' });
             originalImages[target] = photo.dataUrl; croppedImages[target] = photo.dataUrl;
-            startCrop(target);
+            suggestedCropRects[target] = null;
+            startCrop(target, null);
         } catch (e) { if (e.message !== 'User cancelled photos app') showStatus("拍照失败: " + e.message, "error"); }
     } else {
         const input = document.createElement('input');
@@ -489,7 +511,8 @@ async function takePhoto(target) {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     originalImages[target] = ev.target.result; croppedImages[target] = e.target.files[0];
-                    startCrop(target);
+                    suggestedCropRects[target] = null;
+                    startCrop(target, null);
                 };
                 reader.readAsDataURL(e.target.files[0]);
             }
@@ -502,7 +525,8 @@ async function pickFromGallery(target) {
         try {
             const photo = await Camera.getPhoto({ quality: 85, allowEditing: false, resultType: 'dataUrl', source: 'PHOTOS' });
             originalImages[target] = photo.dataUrl; croppedImages[target] = photo.dataUrl;
-            startCrop(target);
+            suggestedCropRects[target] = null;
+            startCrop(target, null);
         } catch (e) { if (e.message !== 'User cancelled photos app') showStatus("选择图片失败: " + e.message, "error"); }
     } else {
         const input = document.createElement('input');
@@ -512,7 +536,8 @@ async function pickFromGallery(target) {
                 const reader = new FileReader();
                 reader.onload = (ev) => {
                     originalImages[target] = ev.target.result; croppedImages[target] = e.target.files[0];
-                    startCrop(target);
+                    suggestedCropRects[target] = null;
+                    startCrop(target, null);
                 };
                 reader.readAsDataURL(e.target.files[0]);
             }
@@ -535,6 +560,7 @@ function handleFileSelect(e, target) {
 }
 function removeImage(target) {
     croppedImages[target] = null; originalImages[target] = null;
+    suggestedCropRects[target] = null;
     document.getElementById(target + "-preview-wrap").style.display = "none";
     document.getElementById(target + "-preview-label").classList.add("hidden");
 }
@@ -583,19 +609,8 @@ async function captureAndCropOne(label) {
     if (!dataUrl) return null;
 
     // 2. 打开裁剪弹窗，等待用户确认
-    return new Promise((resolve, reject) => {
-        _cropResolve = resolve;
-        currentCropTarget = '_crossPageCrop';
-        const ci = document.getElementById("crop-image");
-        document.getElementById("crop-modal").classList.add("active");
-        ci.onload = () => {
-            if (cropper) { cropper.destroy(); cropper = null; }
-            setTimeout(() => {
-                try { cropper = new Cropper(ci, { viewMode: 3, dragMode: "move", autoCropArea: 0.9, cropBoxMovable: true, cropBoxResizable: true, background: false, modal: true }); }
-                catch(e) { console.error(e); }
-            }, 100);
-        };
-        ci.src = dataUrl;
+    return new Promise((resolve) => {
+        openCropModal(dataUrl, '_crossPageCrop', resolve);
     });
 }
 
@@ -651,17 +666,220 @@ function selectLayout(el, val) {
 }
 
 // ========== 裁剪 ==========
-function startCrop(target) {
-    const d = originalImages[target];
-    if (!d) { showStatus("请先选择图片", "error"); return; }
+function clampValue(v, min, max) {
+    return Math.max(min, Math.min(max, v));
+}
+function smoothSeries(values, radius) {
+    if (!values.length || radius <= 0) return values.slice();
+    const prefix = new Array(values.length + 1).fill(0);
+    for (let i = 0; i < values.length; i++) prefix[i + 1] = prefix[i] + values[i];
+    return values.map((_, i) => {
+        const start = Math.max(0, i - radius);
+        const end = Math.min(values.length - 1, i + radius);
+        return (prefix[end + 1] - prefix[start]) / (end - start + 1);
+    });
+}
+function getOtsuThreshold(histogram, totalPixels) {
+    let total = 0;
+    for (let i = 0; i < histogram.length; i++) total += i * histogram[i];
+    let backgroundWeight = 0;
+    let backgroundSum = 0;
+    let bestVariance = -1;
+    let threshold = 180;
+    for (let i = 0; i < histogram.length; i++) {
+        backgroundWeight += histogram[i];
+        if (!backgroundWeight) continue;
+        const foregroundWeight = totalPixels - backgroundWeight;
+        if (!foregroundWeight) break;
+        backgroundSum += i * histogram[i];
+        const backgroundMean = backgroundSum / backgroundWeight;
+        const foregroundMean = (total - backgroundSum) / foregroundWeight;
+        const variance = backgroundWeight * foregroundWeight * Math.pow(backgroundMean - foregroundMean, 2);
+        if (variance > bestVariance) {
+            bestVariance = variance;
+            threshold = i;
+        }
+    }
+    return threshold;
+}
+function collectRanges(flags, maxGap) {
+    const ranges = [];
+    let start = -1;
+    let gap = 0;
+    for (let i = 0; i < flags.length; i++) {
+        if (flags[i]) {
+            if (start === -1) start = i;
+            gap = 0;
+            continue;
+        }
+        if (start === -1) continue;
+        if (gap < maxGap) {
+            gap++;
+            continue;
+        }
+        ranges.push({ start, end: i - gap - 1 });
+        start = -1;
+        gap = 0;
+    }
+    if (start !== -1) ranges.push({ start, end: flags.length - 1 - gap });
+    return ranges.filter(range => range.end >= range.start);
+}
+function expandRect(rect, padX, padY, maxWidth, maxHeight) {
+    const x = clampValue(rect.x - padX, 0, maxWidth);
+    const y = clampValue(rect.y - padY, 0, maxHeight);
+    const right = clampValue(rect.x + rect.width + padX, 0, maxWidth);
+    const bottom = clampValue(rect.y + rect.height + padY, 0, maxHeight);
+    return { x, y, width: right - x, height: bottom - y };
+}
+async function detectCenterQuestionRect(image) {
+    const naturalWidth = image.naturalWidth || image.width;
+    const naturalHeight = image.naturalHeight || image.height;
+    if (!naturalWidth || !naturalHeight) return null;
+    const maxDimension = 960;
+    const scale = Math.min(1, maxDimension / Math.max(naturalWidth, naturalHeight));
+    const width = Math.max(240, Math.round(naturalWidth * scale));
+    const height = Math.max(240, Math.round(naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    ctx.drawImage(image, 0, 0, width, height);
+    const imageData = ctx.getImageData(0, 0, width, height);
+    const pixels = imageData.data;
+    const histogram = new Array(256).fill(0);
+    const gray = new Uint8Array(width * height);
+    let mean = 0;
+    for (let i = 0, p = 0; i < pixels.length; i += 4, p++) {
+        const value = Math.round(pixels[i] * 0.299 + pixels[i + 1] * 0.587 + pixels[i + 2] * 0.114);
+        gray[p] = value;
+        histogram[value]++;
+        mean += value;
+    }
+    mean /= gray.length || 1;
+    let threshold = getOtsuThreshold(histogram, gray.length);
+    threshold = clampValue(Math.round(Math.min(threshold, mean - 12)), 90, 210);
+    const marginX = Math.round(width * 0.05);
+    const marginY = Math.round(height * 0.03);
+    const activeWidth = Math.max(1, width - marginX * 2);
+    const rowCounts = new Array(height).fill(0);
+    for (let y = marginY; y < height - marginY; y++) {
+        let count = 0;
+        for (let x = marginX; x < width - marginX; x++) {
+            if (gray[y * width + x] < threshold) count++;
+        }
+        rowCounts[y] = count;
+    }
+    const smoothedRows = smoothSeries(rowCounts, Math.max(3, Math.round(height / 200)));
+    const maxRow = smoothedRows.reduce((m, v) => Math.max(m, v), 0);
+    if (!maxRow) return null;
+    const rowThreshold = Math.max(activeWidth * 0.01, maxRow * 0.18);
+    const activeRows = smoothedRows.map(value => value >= rowThreshold);
+    const rowRanges = collectRanges(activeRows, Math.max(8, Math.round(height * 0.018)));
+    let bestRect = null;
+    let bestScore = -Infinity;
+    for (const range of rowRanges) {
+        const bandHeight = range.end - range.start + 1;
+        if (bandHeight < Math.round(height * 0.035)) continue;
+        const colCounts = new Array(width).fill(0);
+        for (let y = range.start; y <= range.end; y++) {
+            for (let x = marginX; x < width - marginX; x++) {
+                if (gray[y * width + x] < threshold) colCounts[x]++;
+            }
+        }
+        const smoothedCols = smoothSeries(colCounts, Math.max(2, Math.round(width / 180)));
+        const maxCol = smoothedCols.reduce((m, v) => Math.max(m, v), 0);
+        if (!maxCol) continue;
+        const colThreshold = Math.max(bandHeight * 0.035, maxCol * 0.16);
+        let left = -1;
+        let right = -1;
+        for (let x = marginX; x < width - marginX; x++) {
+            if (smoothedCols[x] >= colThreshold) {
+                left = x;
+                break;
+            }
+        }
+        for (let x = width - marginX - 1; x >= marginX; x--) {
+            if (smoothedCols[x] >= colThreshold) {
+                right = x;
+                break;
+            }
+        }
+        if (left === -1 || right === -1 || right <= left) continue;
+        const rect = expandRect({
+            x: left,
+            y: range.start,
+            width: right - left + 1,
+            height: bandHeight
+        }, Math.round(width * 0.035), Math.round(height * 0.02), width, height);
+        const widthRatio = rect.width / width;
+        const heightRatio = rect.height / height;
+        if (widthRatio < 0.12 || heightRatio < 0.04 || heightRatio > 0.65) continue;
+        const centerX = rect.x + rect.width / 2;
+        const centerY = rect.y + rect.height / 2;
+        const distanceX = Math.abs(centerX - width / 2) / (width / 2);
+        const distanceY = Math.abs(centerY - height / 2) / (height / 2);
+        const centerScore = 1 - Math.min(1, distanceX * 0.7 + distanceY * 1.2);
+        const sizeScore = Math.max(0, 1 - Math.abs(heightRatio - 0.18) / 0.18) * 0.6 + Math.max(0, 1 - Math.abs(widthRatio - 0.45) / 0.45) * 0.4;
+        const score = centerScore * 0.68 + sizeScore * 0.32;
+        if (score > bestScore) {
+            bestScore = score;
+            bestRect = rect;
+        }
+    }
+    if (!bestRect) return null;
+    const scaleX = naturalWidth / width;
+    const scaleY = naturalHeight / height;
+    return {
+        x: Math.round(bestRect.x * scaleX),
+        y: Math.round(bestRect.y * scaleY),
+        width: Math.round(bestRect.width * scaleX),
+        height: Math.round(bestRect.height * scaleY)
+    };
+}
+function createCropperWithRect(image, rect, sessionId) {
+    const instance = new Cropper(image, {
+        viewMode: 3,
+        dragMode: "move",
+        autoCropArea: 0.9,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        background: false,
+        modal: true,
+        ready() {
+            if (sessionId !== cropSessionId || !rect) return;
+            try { instance.setData(rect); } catch (e) { console.error(e); }
+        }
+    });
+    cropper = instance;
+}
+function isValidCropRect(rect) {
+    return !!(rect && Number.isFinite(rect.x) && Number.isFinite(rect.y) && Number.isFinite(rect.width) && Number.isFinite(rect.height) && rect.width > 0 && rect.height > 0);
+}
+function openCropModal(dataUrl, target, resolveCrop, preferredRect) {
     currentCropTarget = target;
+    _cropResolve = resolveCrop || null;
     const ci = document.getElementById("crop-image");
     document.getElementById("crop-modal").classList.add("active");
-    ci.onload = () => {
-        if (cropper) { cropper.destroy(); cropper = null; }
-        setTimeout(() => { try { cropper = new Cropper(ci, { viewMode: 3, dragMode: "move", autoCropArea: 0.9, cropBoxMovable: true, cropBoxResizable: true, background: false, modal: true }); } catch(e) { console.error(e); } }, 100);
+    if (cropper) { cropper.destroy(); cropper = null; }
+    const sessionId = ++cropSessionId;
+    ci.onload = null;
+    ci.onload = async () => {
+        if (sessionId !== cropSessionId) return;
+        let rect = isValidCropRect(preferredRect) ? preferredRect : null;
+        if (!rect) {
+            try { rect = await detectCenterQuestionRect(ci); } catch (e) { console.error(e); }
+        }
+        if (sessionId !== cropSessionId) return;
+        try { createCropperWithRect(ci, rect, sessionId); } catch (e) { console.error(e); }
     };
-    ci.src = d;
+    ci.src = dataUrl;
+}
+function startCrop(target, preferredRect) {
+    const d = originalImages[target];
+    if (!d) { showStatus("请先选择图片", "error"); return; }
+    const rect = isValidCropRect(preferredRect) ? preferredRect : suggestedCropRects[target];
+    openCropModal(d, target, null, rect);
 }
 function confirmCrop() {
     if (!cropper) return;
@@ -681,10 +899,13 @@ function confirmCrop() {
     document.getElementById(currentCropTarget + "-preview-wrap").style.display = "inline-block";
     document.getElementById(currentCropTarget + "-preview-label").classList.remove("hidden");
     croppedImages[currentCropTarget] = dataUrl; originalImages[currentCropTarget] = dataUrl;
+    if (suggestedCropRects[currentCropTarget] !== undefined) suggestedCropRects[currentCropTarget] = null;
 }
 function cancelCrop() {
     document.getElementById("crop-modal").classList.remove("active");
+    cropSessionId++;
     if (cropper) { cropper.destroy(); cropper = null; }
+    document.getElementById("crop-image").onload = null;
     if (_cropResolve) { _cropResolve(null); _cropResolve = null; }
 }
 function rotateCrop(deg) { if (cropper) cropper.rotate(deg); }
@@ -1115,8 +1336,14 @@ const _origPermDel = dbPermanentDeleteQuestion;
 dbPermanentDeleteQuestion = async function(...args) { const r = await _origPermDel(...args); doAutoBackup(); return r; };
 const _origCreateTag = dbCreateTag;
 dbCreateTag = async function(...args) { const r = await _origCreateTag(...args); doAutoBackup(); return r; };
+const _origDeleteTag = dbDeleteTag;
+dbDeleteTag = async function(...args) { const r = await _origDeleteTag(...args); doAutoBackup(); return r; };
+const _origAddTagToQuestion = dbAddTagToQuestion;
+dbAddTagToQuestion = async function(...args) { const r = await _origAddTagToQuestion(...args); doAutoBackup(); return r; };
 const _origCreatePaper = dbCreatePaper;
 dbCreatePaper = async function(...args) { const r = await _origCreatePaper(...args); doAutoBackup(); return r; };
+const _origDeletePaper = dbDeletePaper;
+dbDeletePaper = async function(...args) { const r = await _origDeletePaper(...args); doAutoBackup(); return r; };
 
 // 初始化时加载自动备份设置
 autoBackupEnabled = localStorage.getItem('autoBackup') === '1';
@@ -1333,13 +1560,40 @@ showBackupModal = function() {
 let apiToken = localStorage.getItem('apiToken') || '';
 let serverUrl = localStorage.getItem('serverUrl') || 'https://2rhrc4519570.vicp.fun';
 let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
-let autoSyncEnabled = localStorage.getItem('autoSync') === '1';
+let autoSyncEnabled = localStorage.getItem('autoSync') !== '0';
 
 // 同步开关 - 每次操作自动同步到服务器
-let syncEnabled = localStorage.getItem('syncEnabled') === '1';
+let syncEnabled = localStorage.getItem('syncEnabled') !== '0';
+let syncInFlight = false;
+let syncQueued = false;
+let syncTimer = null;
+let syncPollTimer = null;
+const SYNC_DEBOUNCE_MS = 800;
+const SYNC_POLL_MS = 4000;
 
 function apiHeaders() {
     return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiToken };
+}
+
+function setSyncStatus(text) {
+    const el = document.getElementById('sync-status');
+    if (el) el.textContent = text;
+}
+
+function canSync() {
+    return !!(currentUser && syncEnabled && apiToken && serverUrl);
+}
+
+function getSyncCursor() {
+    return localStorage.getItem('syncCursor') || '';
+}
+
+function setSyncCursor(value) {
+    if (value) localStorage.setItem('syncCursor', value);
+}
+
+function clearSyncCursor() {
+    localStorage.removeItem('syncCursor');
 }
 
 async function apiCall(path, method = 'GET', body = null) {
@@ -1377,6 +1631,7 @@ function closeLoginModal() { document.getElementById('login-modal').classList.re
 function showSyncModal() {
     document.getElementById('sync-user-name').textContent = currentUser?.nickname || currentUser?.phone || '';
     document.getElementById('auto-sync-toggle').checked = autoSyncEnabled;
+    document.getElementById('sync-toggle').checked = syncEnabled;
     const lastSync = localStorage.getItem('lastSyncTime');
     document.getElementById('sync-status').textContent = lastSync ? '上次同步: ' + new Date(lastSync).toLocaleString() : '尚未同步';
     document.getElementById('sync-modal').classList.add('active');
@@ -1399,7 +1654,11 @@ async function doLogin() {
         localStorage.setItem('apiToken', data.token);
         localStorage.setItem('currentUser', JSON.stringify(data));
         localStorage.setItem('lastPhone', phone);
+        initRemoteSync(serverUrl, apiToken, syncEnabled);
+        clearSyncCursor();
         closeLoginModal(); updateLoginUI();
+        restartSyncPolling();
+        if (autoSyncEnabled && syncEnabled) queueAutoSync(true);
         showStatus('登录成功', 'success');
     } catch (e) { showLoginError('连接失败: ' + e.message); }
 }
@@ -1420,7 +1679,11 @@ async function doRegister() {
         localStorage.setItem('apiToken', data.token);
         localStorage.setItem('currentUser', JSON.stringify(data));
         localStorage.setItem('lastPhone', phone);
+        initRemoteSync(serverUrl, apiToken, syncEnabled);
+        clearSyncCursor();
         closeLoginModal(); updateLoginUI();
+        restartSyncPolling();
+        if (autoSyncEnabled && syncEnabled) queueAutoSync(true);
         showStatus('注册成功', 'success');
     } catch (e) { showLoginError('连接失败: ' + e.message); }
 }
@@ -1435,90 +1698,126 @@ function doLogout() {
     apiToken = ''; currentUser = null;
     localStorage.removeItem('apiToken');
     localStorage.removeItem('currentUser');
-    autoSyncEnabled = false; localStorage.setItem('autoSync', '0');
+    localStorage.removeItem('lastSyncTime');
+    clearSyncCursor();
+    stopSyncPolling();
     closeSyncModal(); updateLoginUI();
     showStatus('已退出登录', 'success');
 }
 
-// 同步：本地 → 云端
-async function doSync() {
-    if (!currentUser) { showStatus('请先登录', 'error'); return; }
-    try {
-        document.getElementById('sync-status').textContent = '正在同步...';
-
-        // 同步标签
-        const localTags = await dbGetAllTags();
-        for (const tag of localTags) {
-            await apiCall('/api/tags', 'POST', tag);
-        }
-
-        // 同步题目
-        const localQs = await dbGetAllQuestions();
-        for (const q of localQs) {
-            await apiCall('/api/questions', 'POST', {
-                id: q.id,
-                question_image_url: q.question_image_url,
-                answer_image_url: q.answer_image_url,
-                layout_type: q.layout_type || 0,
-                tag_ids: q.question_tags.map(qt => qt.tags.id)
-            });
-        }
-
-        // 同步试卷
-        const localPapers = await dbGetAllPapers();
-        for (const p of localPapers) {
-            await apiCall('/api/papers', 'POST', { id: p.id, name: p.name, tag_ids: [] });
-        }
-
-        localStorage.setItem('lastSyncTime', new Date().toISOString());
-        document.getElementById('sync-status').textContent = '上次同步: ' + new Date().toLocaleString();
-        showStatus('同步完成', 'success');
-    } catch (e) { showStatus('同步失败: ' + e.message, 'error'); }
+function stopSyncPolling() {
+    if (syncTimer) {
+        clearTimeout(syncTimer);
+        syncTimer = null;
+    }
+    if (syncPollTimer) {
+        clearInterval(syncPollTimer);
+        syncPollTimer = null;
+    }
 }
 
-// 同步：云端 → 本地
-async function doSyncDown() {
-    if (!currentUser) { showStatus('请先登录', 'error'); return; }
-    const existingQs = await dbGetAllQuestions();
-    if (existingQs.length > 0 && !confirm('当前有 ' + existingQs.length + ' 道本地题目，从云端下载将覆盖同名数据。\n\n确定继续？')) return;
+function restartSyncPolling() {
+    stopSyncPolling();
+    if (!autoSyncEnabled || !canSync()) return;
+    syncPollTimer = setInterval(() => { runSync({ silent: true }); }, SYNC_POLL_MS);
+}
+
+function queueAutoSync(immediate = false) {
+    if (!autoSyncEnabled || !canSync()) return;
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => { runSync({ silent: true }); }, immediate ? 0 : SYNC_DEBOUNCE_MS);
+}
+
+async function runSync({ forceFullPull = false, skipPush = false, silent = false } = {}) {
+    if (!currentUser) {
+        if (!silent) showStatus('请先登录', 'error');
+        return false;
+    }
+    if (!syncEnabled) {
+        if (!silent) showStatus('请先开启实时同步', 'error');
+        return false;
+    }
+    if (syncInFlight) {
+        syncQueued = true;
+        return false;
+    }
+
+    syncInFlight = true;
     try {
-        document.getElementById('sync-status').textContent = '正在下载...';
+        setSyncStatus(skipPush ? '正在下载...' : '正在同步...');
 
-        const tags = await apiCall('/api/tags');
-        for (const t of tags) await dbTags.setItem(t.id, t);
-
-        const questions = await apiCall('/api/questions');
-        for (const q of questions) {
-            await dbQuestions.setItem(q.id, {
-                id: q.id, question_image_url: q.question_image_url,
-                answer_image_url: q.answer_image_url, layout_type: q.layout_type || 0,
-                created_at: q.created_at, updated_at: q.updated_at
-            });
-            for (const qt of (q.question_tags || [])) {
-                await dbQuestionTags.setItem(q.id + '_' + qt.tags.id, { question_id: q.id, tag_id: qt.tags.id });
-            }
+        if (!skipPush) {
+            const payload = await dbBuildSyncPayload();
+            const pushResp = await apiCall('/api/sync/push', 'POST', payload);
+            await dbFinalizeSuccessfulSync(pushResp.applied || {});
         }
 
-        const papers = await apiCall('/api/papers');
-        for (const p of papers) await dbPapers.setItem(p.id, p);
-
+        const pullResp = await apiCall('/api/sync/pull');
+        await dbApplyRemoteSnapshot(pullResp);
         await refreshAll();
-        localStorage.setItem('lastSyncTime', new Date().toISOString());
-        document.getElementById('sync-status').textContent = '上次同步: ' + new Date().toLocaleString();
-        showStatus('下载完成: ' + questions.length + ' 题', 'success');
-    } catch (e) { showStatus('下载失败: ' + e.message, 'error'); }
+
+        const syncTime = pullResp.now || new Date().toISOString();
+        localStorage.setItem('lastSyncTime', syncTime);
+        setSyncCursor(syncTime);
+        setSyncStatus('上次同步: ' + new Date(syncTime).toLocaleString());
+
+        if (!silent) showStatus(skipPush ? '下载完成' : '同步完成', 'success');
+        return true;
+    } catch (e) {
+        setSyncStatus((skipPush ? '下载' : '同步') + '失败: ' + e.message);
+        if (!silent) showStatus((skipPush ? '下载' : '同步') + '失败: ' + e.message, 'error');
+        return false;
+    } finally {
+        syncInFlight = false;
+        if (syncQueued && canSync()) {
+            syncQueued = false;
+            setTimeout(() => { runSync({ silent: true }); }, 0);
+        } else {
+            syncQueued = false;
+        }
+    }
+}
+
+// 同步：本地 → 云端 + 云端 → 本地
+async function doSync() {
+    return runSync({ silent: false });
+}
+
+// 强制从云端拉取最新数据
+async function doSyncDown() {
+    if (!currentUser) { showStatus('请先登录', 'error'); return false; }
+    if (!confirm('将以服务器上的数据为准，重建当前手机上的本地缓存。\n\n如果这台手机有还没同步到服务器的数据，请先不要继续。\n\n确定继续吗？')) return false;
+    try {
+        setSyncStatus('正在从云端重建数据...');
+        const pullResp = await apiCall('/api/sync/pull');
+        await dbReplaceWithRemoteSnapshot(pullResp);
+        await refreshAll();
+        const syncTime = pullResp.now || new Date().toISOString();
+        localStorage.setItem('lastSyncTime', syncTime);
+        setSyncCursor(syncTime);
+        setSyncStatus('上次同步: ' + new Date(syncTime).toLocaleString());
+        showStatus('已按服务器数据重建本地缓存', 'success');
+        return true;
+    } catch (e) {
+        setSyncStatus('下载失败: ' + e.message);
+        showStatus('下载失败: ' + e.message, 'error');
+        return false;
+    }
 }
 
 function toggleAutoSync(enabled) {
     autoSyncEnabled = enabled;
     localStorage.setItem('autoSync', enabled ? '1' : '0');
-    if (enabled) doSync();
+    restartSyncPolling();
+    if (enabled) queueAutoSync(true);
 }
 
 function toggleSync(enabled) {
     syncEnabled = enabled;
     localStorage.setItem('syncEnabled', enabled ? '1' : '0');
     initRemoteSync(serverUrl, apiToken, syncEnabled);
+    restartSyncPolling();
+    if (enabled) queueAutoSync(true);
     showStatus(enabled ? '实时同步已开启' : '实时同步已关闭', 'success');
 }
 
@@ -1526,7 +1825,7 @@ function toggleSync(enabled) {
 const _origDoAutoBackup2 = doAutoBackup;
 doAutoBackup = async function() {
     await _origDoAutoBackup2();
-    if (autoSyncEnabled && currentUser) doSync();
+    queueAutoSync();
 };
 
 // 初始化登录状态
