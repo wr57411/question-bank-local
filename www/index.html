@@ -56,11 +56,20 @@
         .cropper-view-box{outline:none!important}
         .cropper-crop-box{touch-action:none}
 
-        /* 只显示 4 个角点，隐藏上下左右边点 */
-        .cropper-point.point-n,
-        .cropper-point.point-e,
-        .cropper-point.point-s,
-        .cropper-point.point-w { display: none !important; }
+        .cropper-line,.cropper-face,.cropper-center{display:none!important;pointer-events:none!important}
+        .cropper-point.point-n,.cropper-point.point-e,.cropper-point.point-s,.cropper-point.point-w{display:none!important}
+        .cropper-point.point-ne,.cropper-point.point-nw,.cropper-point.point-sw,.cropper-point.point-se{opacity:0!important;pointer-events:none!important}
+        #crop-interaction-layer{position:absolute;inset:0;z-index:40;pointer-events:none}
+        .crop-hit-corner{position:absolute;pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;width:72px;height:72px;border-radius:18px}
+        .crop-hit-corner::before{content:"";position:absolute;box-sizing:border-box;border:0 solid rgba(255,255,255,.98);filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))}
+        .crop-hit-corner.corner-nw::before{right:2px;bottom:2px;border-top-width:3px;border-left-width:3px;width:28px;height:28px;border-radius:10px 0 0 0}
+        .crop-hit-corner.corner-ne::before{left:2px;bottom:2px;border-top-width:3px;border-right-width:3px;width:28px;height:28px;border-radius:0 10px 0 0}
+        .crop-hit-corner.corner-sw::before{right:2px;top:2px;border-bottom-width:3px;border-left-width:3px;width:28px;height:28px;border-radius:0 0 0 10px}
+        .crop-hit-corner.corner-se::before{left:2px;top:2px;border-bottom-width:3px;border-right-width:3px;width:28px;height:28px;border-radius:0 0 10px 0}
+        .crop-hit-corner.active{background:rgba(255,255,255,.06)}
+        .crop-hit-corner.active::before{border-width:4px;border-color:#fff;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7))}
+        .crop-move-zone{position:absolute;pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;background:transparent}
+        .crop-move-zone.active{background:rgba(255,255,255,.05)}
         .tag-container{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
         .tag{display:inline-flex;align-items:center;padding:4px 12px;background:#e5e7eb;border-radius:15px;font-size:12px;gap:4px}
         .tag .remove{cursor:pointer;color:#888;font-size:14px;line-height:1}
@@ -445,6 +454,10 @@ let currentQuestionId = null, allTags = [], allQuestions = [], trashedQuestions 
 let activeFilterTags = [];
 let cropper = null, currentCropTarget = null;
 let cropSessionId = 0;
+let cropInteractionLayer = null, cropMoveZone = null;
+let cropCornerZones = {};
+let cropGestureState = null;
+let cropInteractionFrame = 0;
 let croppedImages = { question: null, answer: null };
 let originalImages = { question: null, answer: null };
 let suggestedCropRects = { question: null, answer: null };
@@ -456,9 +469,6 @@ let newTagContext = null;
 
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const Camera = isNative ? window.Capacitor.Plugins.Camera : null;
-const platformName = isNative && window.Capacitor.getPlatform ? window.Capacitor.getPlatform() : '';
-const isAndroidNative = platformName === 'android';
-const SmartCapture = isAndroidNative && window.Capacitor.Plugins ? window.Capacitor.Plugins.SmartCapture : null;
 
 document.addEventListener("DOMContentLoaded", async () => { 
     // 初始化远程同步
@@ -482,20 +492,6 @@ function showTab(tabName, btn) {
 
 // ========== 相机/相册 ==========
 async function takePhoto(target) {
-    if (isAndroidNative && SmartCapture && typeof SmartCapture.captureQuestion === 'function') {
-        try {
-            const photo = await SmartCapture.captureQuestion();
-            originalImages[target] = photo.webPath || photo.path;
-            croppedImages[target] = photo.webPath || photo.path;
-            suggestedCropRects[target] = photo.cropRect || null;
-            startCrop(target, suggestedCropRects[target]);
-            return;
-        } catch (e) {
-            const message = e && e.message ? e.message : String(e || '');
-            if (/cancel/i.test(message)) return;
-            showStatus("智能拍照失败，已回退普通拍照", "error");
-        }
-    }
     if (isNative && Camera) {
         try {
             const photo = await Camera.getPhoto({ quality: 85, allowEditing: false, resultType: 'dataUrl', source: 'CAMERA', direction: 'REAR' });
@@ -837,18 +833,230 @@ async function detectCenterQuestionRect(image) {
         height: Math.round(bestRect.height * scaleY)
     };
 }
+function getDefaultCropRect(image) {
+    const naturalWidth = image.naturalWidth || image.width;
+    const naturalHeight = image.naturalHeight || image.height;
+    if (!naturalWidth || !naturalHeight) return null;
+    return { x: 0, y: 0, width: naturalWidth, height: naturalHeight };
+}
+function destroyCropInteractionLayer() {
+    if (cropInteractionFrame) {
+        cancelAnimationFrame(cropInteractionFrame);
+        cropInteractionFrame = 0;
+    }
+    if (cropGestureState) {
+        document.removeEventListener("pointermove", updateCropGesture, true);
+        document.removeEventListener("pointerup", endCropGesture, true);
+        document.removeEventListener("pointercancel", endCropGesture, true);
+        const activeElement = cropGestureState.activeElement;
+        if (activeElement && cropGestureState.pointerId !== undefined && activeElement.releasePointerCapture) {
+            try { activeElement.releasePointerCapture(cropGestureState.pointerId); } catch (e) {}
+        }
+    }
+    cropGestureState = null;
+    if (cropInteractionLayer && cropInteractionLayer.parentNode) cropInteractionLayer.parentNode.removeChild(cropInteractionLayer);
+    cropInteractionLayer = null;
+    cropMoveZone = null;
+    cropCornerZones = {};
+}
+function queueCropInteractionSync() {
+    if (!cropper || !cropInteractionLayer) return;
+    if (cropInteractionFrame) cancelAnimationFrame(cropInteractionFrame);
+    cropInteractionFrame = requestAnimationFrame(() => {
+        cropInteractionFrame = 0;
+        syncCropInteractionLayer();
+    });
+}
+function syncCropInteractionLayer() {
+    if (!cropper || !cropInteractionLayer) return;
+    let cropBox;
+    try { cropBox = cropper.getCropBoxData(); } catch (e) { return; }
+    if (!cropBox || !Number.isFinite(cropBox.left) || !Number.isFinite(cropBox.top) || !Number.isFinite(cropBox.width) || !Number.isFinite(cropBox.height)) return;
+    const zoneSize = 72;
+    const halfZone = zoneSize / 2;
+    const positions = {
+        nw: { left: cropBox.left - halfZone, top: cropBox.top - halfZone },
+        ne: { left: cropBox.left + cropBox.width - halfZone, top: cropBox.top - halfZone },
+        sw: { left: cropBox.left - halfZone, top: cropBox.top + cropBox.height - halfZone },
+        se: { left: cropBox.left + cropBox.width - halfZone, top: cropBox.top + cropBox.height - halfZone }
+    };
+    Object.keys(cropCornerZones).forEach(mode => {
+        const el = cropCornerZones[mode];
+        const pos = positions[mode];
+        if (!el || !pos) return;
+        el.style.left = pos.left + "px";
+        el.style.top = pos.top + "px";
+    });
+    if (!cropMoveZone) return;
+    const baseInset = clampValue(Math.round(Math.min(cropBox.width, cropBox.height) * 0.18), 16, 28);
+    const insetX = Math.min(baseInset, Math.max(0, (cropBox.width - 28) / 2));
+    const insetY = Math.min(baseInset, Math.max(0, (cropBox.height - 28) / 2));
+    const moveWidth = Math.max(24, cropBox.width - insetX * 2);
+    const moveHeight = Math.max(24, cropBox.height - insetY * 2);
+    cropMoveZone.style.left = cropBox.left + insetX + "px";
+    cropMoveZone.style.top = cropBox.top + insetY + "px";
+    cropMoveZone.style.width = moveWidth + "px";
+    cropMoveZone.style.height = moveHeight + "px";
+}
+function initCropInteractionLayer() {
+    destroyCropInteractionLayer();
+    const container = document.getElementById("crop-container");
+    if (!container || !cropper) return;
+    const layer = document.createElement("div");
+    layer.id = "crop-interaction-layer";
+    const zones = {};
+    ["nw", "ne", "sw", "se"].forEach(mode => {
+        const el = document.createElement("div");
+        el.className = "crop-hit-corner corner-" + mode;
+        el.dataset.mode = mode;
+        el.addEventListener("pointerdown", onCropGestureStart);
+        layer.appendChild(el);
+        zones[mode] = el;
+    });
+    const moveZone = document.createElement("div");
+    moveZone.className = "crop-move-zone";
+    moveZone.dataset.mode = "move-box";
+    moveZone.addEventListener("pointerdown", onCropGestureStart);
+    layer.appendChild(moveZone);
+    container.appendChild(layer);
+    cropInteractionLayer = layer;
+    cropMoveZone = moveZone;
+    cropCornerZones = zones;
+    queueCropInteractionSync();
+}
+function onCropGestureStart(event) {
+    if (!cropper) return;
+    event.preventDefault();
+    event.stopPropagation();
+    let cropBox;
+    let canvasBox;
+    try {
+        cropBox = cropper.getCropBoxData();
+        canvasBox = cropper.getCanvasData();
+    } catch (e) {
+        return;
+    }
+    if (!cropBox || !canvasBox) return;
+    cropGestureState = {
+        mode: event.currentTarget.dataset.mode,
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startBox: {
+            left: cropBox.left,
+            top: cropBox.top,
+            width: cropBox.width,
+            height: cropBox.height
+        },
+        canvasBox: {
+            left: canvasBox.left,
+            top: canvasBox.top,
+            width: canvasBox.width,
+            height: canvasBox.height
+        },
+        activeElement: event.currentTarget
+    };
+    if (cropInteractionLayer) cropInteractionLayer.classList.add("active");
+    event.currentTarget.classList.add("active");
+    if (event.currentTarget.setPointerCapture) {
+        try { event.currentTarget.setPointerCapture(event.pointerId); } catch (e) {}
+    }
+    document.addEventListener("pointermove", updateCropGesture, true);
+    document.addEventListener("pointerup", endCropGesture, true);
+    document.addEventListener("pointercancel", endCropGesture, true);
+}
+function updateCropGesture(event) {
+    if (!cropper || !cropGestureState || event.pointerId !== cropGestureState.pointerId) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const minSize = 80;
+    const edgeMargin = 40;
+    const { mode, startX, startY, startBox, canvasBox } = cropGestureState;
+    const dx = event.clientX - startX;
+    const dy = event.clientY - startY;
+    const minLeft = canvasBox.left + edgeMargin;
+    const minTop = canvasBox.top + edgeMargin;
+    const maxRight = canvasBox.left + canvasBox.width - edgeMargin;
+    const maxBottom = canvasBox.top + canvasBox.height - edgeMargin;
+    let nextLeft = startBox.left;
+    let nextTop = startBox.top;
+    let nextWidth = startBox.width;
+    let nextHeight = startBox.height;
+    if (mode === "move-box") {
+        nextLeft = clampValue(startBox.left + dx, minLeft, maxRight - startBox.width);
+        nextTop = clampValue(startBox.top + dy, minTop, maxBottom - startBox.height);
+    } else if (mode === "nw") {
+        const anchorRight = startBox.left + startBox.width;
+        const anchorBottom = startBox.top + startBox.height;
+        nextLeft = clampValue(startBox.left + dx, minLeft, anchorRight - minSize);
+        nextTop = clampValue(startBox.top + dy, minTop, anchorBottom - minSize);
+        nextWidth = anchorRight - nextLeft;
+        nextHeight = anchorBottom - nextTop;
+    } else if (mode === "ne") {
+        const anchorLeft = startBox.left;
+        const anchorBottom = startBox.top + startBox.height;
+        const nextRight = clampValue(startBox.left + startBox.width + dx, anchorLeft + minSize, maxRight);
+        nextTop = clampValue(startBox.top + dy, minTop, anchorBottom - minSize);
+        nextWidth = nextRight - anchorLeft;
+        nextHeight = anchorBottom - nextTop;
+    } else if (mode === "sw") {
+        const anchorRight = startBox.left + startBox.width;
+        const anchorTop = startBox.top;
+        nextLeft = clampValue(startBox.left + dx, minLeft, anchorRight - minSize);
+        const nextBottom = clampValue(startBox.top + startBox.height + dy, anchorTop + minSize, maxBottom);
+        nextWidth = anchorRight - nextLeft;
+        nextHeight = nextBottom - anchorTop;
+    } else if (mode === "se") {
+        const anchorLeft = startBox.left;
+        const anchorTop = startBox.top;
+        const nextRight = clampValue(startBox.left + startBox.width + dx, anchorLeft + minSize, maxRight);
+        const nextBottom = clampValue(startBox.top + startBox.height + dy, anchorTop + minSize, maxBottom);
+        nextWidth = nextRight - anchorLeft;
+        nextHeight = nextBottom - anchorTop;
+    }
+    cropper.setCropBoxData({
+        left: nextLeft,
+        top: nextTop,
+        width: nextWidth,
+        height: nextHeight
+    });
+    syncCropInteractionLayer();
+}
+function endCropGesture(event) {
+    if (!cropGestureState || (event && event.pointerId !== undefined && event.pointerId !== cropGestureState.pointerId)) return;
+    document.removeEventListener("pointermove", updateCropGesture, true);
+    document.removeEventListener("pointerup", endCropGesture, true);
+    document.removeEventListener("pointercancel", endCropGesture, true);
+    const activeElement = cropGestureState.activeElement;
+    if (activeElement) {
+        activeElement.classList.remove("active");
+        if (cropGestureState.pointerId !== undefined && activeElement.releasePointerCapture) {
+            try { activeElement.releasePointerCapture(cropGestureState.pointerId); } catch (e) {}
+        }
+    }
+    if (cropMoveZone) cropMoveZone.classList.remove("active");
+    Object.values(cropCornerZones).forEach(el => { if (el) el.classList.remove("active"); });
+    if (cropInteractionLayer) cropInteractionLayer.classList.remove("active");
+    cropGestureState = null;
+    queueCropInteractionSync();
+}
 function createCropperWithRect(image, rect, sessionId) {
     const instance = new Cropper(image, {
-        viewMode: 3,
+        viewMode: 0,
         dragMode: "move",
-        autoCropArea: 0.9,
+        autoCropArea: 1.0,
         cropBoxMovable: true,
         cropBoxResizable: true,
         background: false,
         modal: true,
+        crop() {
+            if (sessionId !== cropSessionId) return;
+            queueCropInteractionSync();
+        },
         ready() {
-            if (sessionId !== cropSessionId || !rect) return;
-            try { instance.setData(rect); } catch (e) { console.error(e); }
+            if (sessionId !== cropSessionId) return;
+            initCropInteractionLayer();
+            queueCropInteractionSync();
         }
     });
     cropper = instance;
@@ -861,15 +1069,13 @@ function openCropModal(dataUrl, target, resolveCrop, preferredRect) {
     _cropResolve = resolveCrop || null;
     const ci = document.getElementById("crop-image");
     document.getElementById("crop-modal").classList.add("active");
+    destroyCropInteractionLayer();
     if (cropper) { cropper.destroy(); cropper = null; }
     const sessionId = ++cropSessionId;
     ci.onload = null;
-    ci.onload = async () => {
+    ci.onload = () => {
         if (sessionId !== cropSessionId) return;
-        let rect = isValidCropRect(preferredRect) ? preferredRect : null;
-        if (!rect) {
-            try { rect = await detectCenterQuestionRect(ci); } catch (e) { console.error(e); }
-        }
+        const rect = isValidCropRect(preferredRect) ? preferredRect : getDefaultCropRect(ci);
         if (sessionId !== cropSessionId) return;
         try { createCropperWithRect(ci, rect, sessionId); } catch (e) { console.error(e); }
     };
@@ -878,14 +1084,16 @@ function openCropModal(dataUrl, target, resolveCrop, preferredRect) {
 function startCrop(target, preferredRect) {
     const d = originalImages[target];
     if (!d) { showStatus("请先选择图片", "error"); return; }
-    const rect = isValidCropRect(preferredRect) ? preferredRect : suggestedCropRects[target];
+    const rect = isValidCropRect(preferredRect) ? preferredRect : null;
     openCropModal(d, target, null, rect);
 }
 function confirmCrop() {
     if (!cropper) return;
     const canvas = cropper.getCroppedCanvas({ maxWidth: 2000, maxHeight: 2000, fillColor: "#fff" });
     const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
-    document.getElementById("crop-modal").classList.remove("active"); cropper.destroy(); cropper = null;
+    document.getElementById("crop-modal").classList.remove("active");
+    destroyCropInteractionLayer();
+    cropper.destroy(); cropper = null;
 
     // 跨页裁剪模式：通过 Promise 返回
     if (_cropResolve) {
@@ -904,11 +1112,17 @@ function confirmCrop() {
 function cancelCrop() {
     document.getElementById("crop-modal").classList.remove("active");
     cropSessionId++;
+    destroyCropInteractionLayer();
     if (cropper) { cropper.destroy(); cropper = null; }
     document.getElementById("crop-image").onload = null;
     if (_cropResolve) { _cropResolve(null); _cropResolve = null; }
 }
-function rotateCrop(deg) { if (cropper) cropper.rotate(deg); }
+function rotateCrop(deg) {
+    if (!cropper) return;
+    cropper.rotate(deg);
+    queueCropInteractionSync();
+    setTimeout(queueCropInteractionSync, 0);
+}
 
 // ========== 标签 ==========
 async function loadTags() {
