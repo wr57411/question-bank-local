@@ -60,7 +60,7 @@
         .cropper-point.point-n,.cropper-point.point-e,.cropper-point.point-s,.cropper-point.point-w{display:none!important}
         .cropper-point.point-ne,.cropper-point.point-nw,.cropper-point.point-sw,.cropper-point.point-se{opacity:0!important;pointer-events:none!important}
         #crop-interaction-layer{position:absolute;inset:0;z-index:40;pointer-events:none}
-        .crop-hit-corner{position:absolute;pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;width:72px;height:72px;border-radius:18px}
+        .crop-hit-corner{position:absolute;pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;width:96px;height:96px;border-radius:24px}
         .crop-hit-corner::before{content:"";position:absolute;box-sizing:border-box;border:0 solid rgba(255,255,255,.98);filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))}
         .crop-hit-corner.corner-nw::before{right:2px;bottom:2px;border-top-width:3px;border-left-width:3px;width:28px;height:28px;border-radius:10px 0 0 0}
         .crop-hit-corner.corner-ne::before{left:2px;bottom:2px;border-top-width:3px;border-right-width:3px;width:28px;height:28px;border-radius:0 10px 0 0}
@@ -249,7 +249,7 @@
             <h2 style="margin:0;font-size:16px;color:#fff">裁剪图片</h2>
             <span style="cursor:pointer;font-size:28px;color:#fff" onclick="cancelCrop()">×</span>
         </div>
-        <div id="crop-container" style="flex:1 1 0;background:#000;min-height:0;position:relative;overflow:hidden"><img id="crop-image" style="display:block" /></div>
+        <div id="crop-container" style="flex:1 1 0;background:#000;min-height:0;position:relative;overflow:hidden;padding:12px"><img id="crop-image" style="display:block" /></div>
         <div style="display:flex;gap:8px;justify-content:center;padding:6px 12px 4px;flex-shrink:0">
             <button onclick="rotateCrop(-5)" style="padding:10px 16px;font-size:16px;border-radius:20px">↺ 5°</button>
             <button onclick="rotateCrop(-1)" style="padding:10px 16px;font-size:16px;border-radius:20px">← 1°</button>
@@ -338,6 +338,25 @@
 <!-- 试题篮悬浮按钮 -->
 <button id="basket-fab" class="basket-fab" onclick="openBasketModal()">🧺<span class="badge" id="basket-badge" style="display:none">0</span></button>
 
+<!-- 更新提示弹窗 -->
+<div id="update-modal" class="modal">
+    <div class="modal-content" style="max-width:400px;text-align:center">
+        <h3 style="margin-bottom:8px">🎉 发现新版本</h3>
+        <p id="update-version-name" style="font-size:18px;font-weight:600;color:#3b82f6;margin-bottom:12px"></p>
+        <div id="update-release-notes" style="text-align:left;background:#f8f9fa;padding:12px;border-radius:8px;margin-bottom:16px;font-size:14px;color:#555;max-height:200px;overflow-y:auto"></div>
+        <div id="update-progress" style="display:none;margin-bottom:12px">
+            <div style="background:#e5e7eb;border-radius:8px;height:8px;overflow:hidden">
+                <div id="update-progress-bar" style="background:#3b82f6;height:100%;width:0%;transition:width .3s;border-radius:8px"></div>
+            </div>
+            <p id="update-progress-text" style="font-size:12px;color:#888;margin-top:4px">下载中...</p>
+        </div>
+        <div class="btn-group" style="justify-content:center">
+            <button id="update-btn" onclick="downloadAndInstall()" style="flex:1">下载更新</button>
+            <button class="secondary" onclick="dismissUpdate()" style="flex:1">稍后提醒</button>
+        </div>
+    </div>
+</div>
+
 <!-- 备份设置弹窗 -->
 <div id="backup-modal" class="modal" onclick="if(event.target===this)closeBackupModal()">
     <div class="modal-content">
@@ -383,6 +402,17 @@
                 <button onclick="loadBackupFromDevice()" style="width:100%;background:#f59e0b;font-size:13px;padding:10px">📂 加载备份</button>
             </div>
         </details>
+
+        <!-- APP 更新 -->
+        <div style="border-top:1px solid #e5e7eb;padding-top:14px;margin-top:14px">
+            <label style="font-weight:600;font-size:14px;margin-bottom:10px;display:block">📱 APP 版本</label>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font-size:13px;color:#666">当前版本: <b id="current-version-display"></b></span>
+                <button onclick="manualCheckUpdate()" style="padding:8px 16px;font-size:13px" id="check-update-btn">检查更新</button>
+            </div>
+            <div id="check-update-status" style="font-size:13px;color:#888;margin-top:8px"></div>
+        </div>
+
         <div class="btn-group" style="margin-top:16px">
             <button class="secondary" onclick="closeBackupModal()">关闭</button>
         </div>
@@ -469,6 +499,8 @@ let newTagContext = null;
 
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const Camera = isNative ? window.Capacitor.Plugins.Camera : null;
+const APP_VERSION_CODE = 1;
+const APP_VERSION_NAME = '1.0';
 
 document.addEventListener("DOMContentLoaded", async () => { 
     // 初始化远程同步
@@ -479,6 +511,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await refreshAll();
     restartSyncPolling();
     if (currentUser && autoSyncEnabled && syncEnabled) queueAutoSync(true);
+    checkAppUpdate();
 });
 
 async function refreshAll() { await loadTags(); await loadQuestions(); await loadPapers(); }
@@ -872,7 +905,7 @@ function syncCropInteractionLayer() {
     let cropBox;
     try { cropBox = cropper.getCropBoxData(); } catch (e) { return; }
     if (!cropBox || !Number.isFinite(cropBox.left) || !Number.isFinite(cropBox.top) || !Number.isFinite(cropBox.width) || !Number.isFinite(cropBox.height)) return;
-    const zoneSize = 72;
+    const zoneSize = 96;
     const halfZone = zoneSize / 2;
     const positions = {
         nw: { left: cropBox.left - halfZone, top: cropBox.top - halfZone },
@@ -970,7 +1003,7 @@ function updateCropGesture(event) {
     event.preventDefault();
     event.stopPropagation();
     const minSize = 80;
-    const edgeMargin = 40;
+    const edgeMargin = 0;
     const { mode, startX, startY, startBox, canvasBox } = cropGestureState;
     const dx = event.clientX - startX;
     const dy = event.clientY - startY;
@@ -2044,6 +2077,141 @@ doAutoBackup = async function() {
 
 // 初始化登录状态
 updateLoginUI();
+
+// ========== APP 更新 ==========
+let _updateInfo = null;
+
+document.getElementById('current-version-display').textContent = APP_VERSION_NAME;
+
+async function manualCheckUpdate() {
+    const btn = document.getElementById('check-update-btn');
+    const status = document.getElementById('check-update-status');
+    btn.disabled = true;
+    btn.textContent = '检查中...';
+    status.textContent = '';
+    status.style.color = '#888';
+    if (!serverUrl) {
+        status.textContent = '⚠️ 未配置服务器地址，请先登录';
+        status.style.color = '#f59e0b';
+        btn.disabled = false;
+        btn.textContent = '检查更新';
+        return;
+    }
+    try {
+        const resp = await fetch(serverUrl + '/api/version/latest?current_code=' + APP_VERSION_CODE);
+        if (!resp.ok) throw new Error('服务器响应异常 ' + resp.status);
+        const data = await resp.json();
+        if (data.has_update) {
+            status.textContent = '🎉 发现新版本 ' + data.version_name;
+            status.style.color = '#10b981';
+            _updateInfo = data;
+            document.getElementById('update-version-name').textContent = data.version_name;
+            document.getElementById('update-release-notes').textContent = data.release_notes || '优化体验，修复问题';
+            document.getElementById('update-progress').style.display = 'none';
+            document.getElementById('update-btn').disabled = false;
+            document.getElementById('update-btn').textContent = '下载更新';
+            document.getElementById('update-modal').classList.add('active');
+        } else {
+            status.textContent = '✅ 已是最新版本';
+            status.style.color = '#10b981';
+        }
+    } catch (e) {
+        status.textContent = '❌ 连接失败: ' + e.message;
+        status.style.color = '#ef4444';
+    }
+    btn.disabled = false;
+    btn.textContent = '检查更新';
+}
+
+async function checkAppUpdate() {
+    if (!serverUrl) return;
+    try {
+        const resp = await fetch(serverUrl + '/api/version/latest?current_code=' + APP_VERSION_CODE);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data.has_update) return;
+        const skipped = localStorage.getItem('skip_version_code');
+        if (skipped && parseInt(skipped) >= data.version_code) return;
+        _updateInfo = data;
+        document.getElementById('update-version-name').textContent = data.version_name;
+        document.getElementById('update-release-notes').textContent = data.release_notes || '优化体验，修复问题';
+        document.getElementById('update-progress').style.display = 'none';
+        document.getElementById('update-btn').disabled = false;
+        document.getElementById('update-btn').textContent = '下载更新';
+        document.getElementById('update-modal').classList.add('active');
+    } catch (e) {}
+}
+
+function dismissUpdate() {
+    document.getElementById('update-modal').classList.remove('active');
+    if (_updateInfo) localStorage.setItem('skip_version_code', _updateInfo.version_code);
+}
+
+async function downloadAndInstall() {
+    if (!_updateInfo || !serverUrl) return;
+    const btn = document.getElementById('update-btn');
+    const progressWrap = document.getElementById('update-progress');
+    const progressBar = document.getElementById('update-progress-bar');
+    const progressText = document.getElementById('update-progress-text');
+    btn.disabled = true;
+    btn.textContent = '下载中...';
+    progressWrap.style.display = 'block';
+    try {
+        const url = serverUrl + _updateInfo.download_url;
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('下载失败');
+        const contentLength = resp.headers.get('content-length');
+        const total = contentLength ? parseInt(contentLength) : 0;
+        const reader = resp.body.getReader();
+        const chunks = [];
+        let received = 0;
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            chunks.push(value);
+            received += value.length;
+            if (total > 0) {
+                const pct = Math.round(received / total * 100);
+                progressBar.style.width = pct + '%';
+                progressText.textContent = '已下载 ' + pct + '%';
+            }
+        }
+        const blob = new Blob(chunks);
+        const fileName = 'question-bank-update.apk';
+        if (isNative) {
+            const Filesystem = window.Capacitor.Plugins.Filesystem;
+            const base64 = await blobToBase64(blob);
+            await Filesystem.writeFile({ path: fileName, data: base64, directory: 'DOWNLOADS', recursive: true });
+            const fileUri = await Filesystem.getUri({ path: fileName, directory: 'DOWNLOADS' });
+            try {
+                await window.Capacitor.Plugins.Browser.open({ url: fileUri.uri });
+            } catch (e) {
+                showStatus('APK 已保存到下载目录: ' + fileName, 'success');
+            }
+        } else {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = fileName;
+            a.click();
+            URL.revokeObjectURL(a.href);
+        }
+        btn.textContent = '下载完成';
+    } catch (e) {
+        showStatus('下载失败: ' + e.message, 'error');
+        btn.disabled = false;
+        btn.textContent = '重试下载';
+        progressWrap.style.display = 'none';
+    }
+}
+
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
 </script>
 </body>
 </html>
