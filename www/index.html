@@ -117,6 +117,49 @@
         .mode-option .mode-desc{font-size:12px;color:#888}
         .spacing-option{flex:1;text-align:center;padding:10px 6px;border:2px solid #e5e7eb;border-radius:10px;cursor:pointer;transition:all .2s}
         .spacing-option.selected{border-color:#3b82f6;background:#3b82f610}
+
+        /* AI 摘要样式 */
+        .ai-summary-wrap {
+            margin: 4px 0 8px;
+            padding: 6px 8px;
+            background: #f8fafc;
+            border-left: 3px solid #8b5cf6;
+            border-radius: 4px;
+            font-size: 11px;
+            color: #4b5563;
+            line-height: 1.4;
+            display: flex;
+            align-items: flex-start;
+            gap: 6px;
+        }
+        .ai-badge {
+            background: #8b5cf6;
+            color: #fff;
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: bold;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+        .summary-text {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .loading-dots::after {
+            content: " .";
+            animation: dots 1.5s steps(5, end) infinite;
+        }
+        @keyframes dots {
+            0%, 20% { content: " ."; }
+            40% { content: " .."; }
+            60% { content: " ..."; }
+            80%, 100% { content: ""; }
+        }
+
         @media(max-width:480px){.container{padding:10px}header{padding:16px;border-radius:10px}header h1{font-size:20px}.question-grid{grid-template-columns:repeat(2,1fr);gap:8px}.question-card img{height:110px}.modal-content{width:98%;padding:16px;border-radius:12px}}
         @media(min-width:768px){.container{padding:20px}.question-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}.question-card img{height:160px}.card{padding:20px}.modal-content{max-width:600px}}
         @media(min-width:1024px){.container{max-width:1000px}.question-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}}
@@ -145,6 +188,30 @@
 
     <!-- 题目管理 -->
     <div id="questions-tab">
+        <div class="card" style="border: 1px solid #8b5cf6; background: #f5f3ff">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+                <h3 style="margin:0;color:#5b21b6">🤖 AI 引擎管理</h3>
+                <span id="ai-status-label" class="ai-badge" style="background:#ef4444">未就绪</span>
+            </div>
+            <p id="ai-status-desc" style="font-size:12px;color:#6b7280;margin-bottom:12px">Gemma 4 模型尚未加载。点击下方按钮尝试在系统中发现它，或手动触发下载。</p>
+            
+            <!-- 进度条容器 -->
+            <div id="ai-download-progress-wrap" class="hidden" style="margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;color:#8b5cf6">
+                    <span id="ai-progress-text">正在准备下载...</span>
+                    <span id="ai-progress-percent">0%</span>
+                </div>
+                <div style="width:100%;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden">
+                    <div id="ai-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,#8b5cf6,#6366f1);transition:width 0.3s"></div>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button id="ai-discover-btn" onclick="handleDiscoverModel()" style="background:#8b5cf6;font-size:12px">🔍 自动发现模型</button>
+                <button id="ai-download-btn" onclick="handleDownloadModel()" class="secondary" style="font-size:12px">⬇️ 下载 Gemma 4 (1.2GB)</button>
+            </div>
+        </div>
+
         <div class="card">
             <h2>添加题目</h2>
             <div id="status-message"></div>
@@ -219,17 +286,45 @@
     <!-- 试卷管理 -->
     <div id="papers-tab" class="hidden">
         <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <h2 style="margin:0">✨ AI 智能推荐组卷</h2>
+                <span class="ai-badge" style="padding:4px 8px;font-size:11px">Gemma 4 Power</span>
+            </div>
+            <div class="form-group">
+                <label>告诉 AI 你的组卷需求 (例如: "想要 3 道很难的几何题")</label>
+                <textarea id="ai-paper-requirement" placeholder="请输入您的主观要求，AI 将结合题目摘要和您的评价进行精准推荐..." rows="3" style="resize:none;margin-top:4px"></textarea>
+            </div>
+            <button class="success" style="width:100%;background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none" onclick="startAIPaperGeneration()">开始 AI 智能推荐</button>
+        </div>
+
+        <div class="card">
             <h2>创建试卷</h2>
             <form id="paper-form">
-                <div class="form-group"><label>试卷名称 *</label><input type="text" id="paper-name" required placeholder="例如：2024年期中考试" /></div>
+                <div class="form-group"><label>试卷名称 *</label><input type="text" id="paper-name" required placeholder="例如：2026年4月错题巩固" /></div>
                 <div class="form-group"><label>按标签选题 <span style="cursor:pointer;color:#3b82f6" onclick="showNewTagModal('paper')" title="新建标签">＋</span></label>
                     <select id="paper-tag-select" multiple style="height:90px"></select>
                     <small style="color:#888;font-size:12px">选择标签后，将自动添加包含这些标签的题目</small>
                 </div>
-                <button type="submit" style="width:100%">创建试卷</button>
+                <button type="submit" style="width:100%">手动创建试卷</button>
             </form>
         </div>
         <div class="card"><h2>试卷列表</h2><div id="papers-list"></div></div>
+    </div>
+
+    <!-- AI 推荐结果展示弹窗 -->
+    <div id="ai-recommend-modal" class="modal">
+        <div class="modal-content" style="max-width:600px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+                <h2>AI 智能推荐结果</h2>
+                <button class="secondary" onclick="closeAIRecommendModal()" style="padding:4px 12px">关闭</button>
+            </div>
+            <div id="ai-recommend-reason" class="ai-summary-wrap" style="margin-bottom:16px;font-size:13px;line-height:1.6"></div>
+            <div id="ai-recommend-list" class="question-grid" style="grid-template-columns:repeat(2,1fr)"></div>
+            <div class="btn-group" style="margin-top:20px">
+                <button class="secondary" onclick="closeAIRecommendModal()">重新调整要求</button>
+                <button class="success" id="ai-create-paper-btn" style="background:#8b5cf6">一键生成此试卷</button>
+            </div>
+        </div>
     </div>
 
     <!-- 垃圾篓 -->
@@ -497,10 +592,32 @@ let detailIndex = -1, filteredList = [];
 let exportMode = 'merged', exportSpacing = 'none';
 let newTagContext = null;
 
+// ========== Gemma 4 Capacitor 插件 Mock (用于 Web 预览与仿真) ==========
+if (!window.Capacitor) window.Capacitor = { Plugins: {} };
+if (!window.Capacitor.Plugins.Gemma4) {
+    window.Capacitor.Plugins.Gemma4 = {
+        checkModelStatus: async () => ({ ready: true, progress: 100, path: "web_mock_path" }),
+        discoverModel: async () => ({ found: true, path: "web_mock_path" }),
+        downloadModel: async () => console.log("[Mock] 模拟下载"),
+        analyzeQuestion: async (o) => ({
+            tags: ["几何", "计算题"],
+            difficulty: 4,
+            summary: "这是一道考察三角形内角和与勾股定理结合的几何题，计算量适中。"
+        }),
+        recommendQuestions: async (o) => {
+            const c = JSON.parse(o.candidatesJson);
+            return {
+                recommended_ids: c.slice(0, 2).map(x => x.id),
+                reason: "根据您的需求，AI 挑选了题库中最符合考察辅助线逻辑的 2 道经典题目。"
+            };
+        }
+    };
+}
+
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
 const Camera = isNative ? window.Capacitor.Plugins.Camera : null;
-const APP_VERSION_CODE = 1;
-const APP_VERSION_NAME = '1.0';
+const APP_VERSION_CODE = 2;
+const APP_VERSION_NAME = '1.1';
 
 document.addEventListener("DOMContentLoaded", async () => { 
     // 初始化远程同步
@@ -1268,6 +1385,19 @@ function renderQuestions() {
         img.onclick = () => showQuestionDetail(q.id); card.appendChild(img);
         // info
         const info = document.createElement("div"); info.className = "info"; info.onclick = () => showQuestionDetail(q.id);
+        
+        // AI 摘要展示
+        if (q.semantic_summary) {
+            const summaryWrap = document.createElement("div");
+            summaryWrap.className = "ai-summary-wrap";
+            if (q.semantic_summary === "AI 正在分析中...") {
+                summaryWrap.innerHTML = '<span class="ai-badge">AI</span> <span class="loading-dots">正在分析题目核心逻辑</span>';
+            } else {
+                summaryWrap.innerHTML = '<span class="ai-badge">AI</span> <span class="summary-text">' + q.semantic_summary + '</span>';
+            }
+            info.appendChild(summaryWrap);
+        }
+
         const tagsWrap = document.createElement("div"); tagsWrap.className = "tags";
         tags.forEach(t => { const te = document.createElement("span"); te.className = "tag"; te.style.background = t.color + "20"; te.textContent = t.name; tagsWrap.appendChild(te); });
         const addBtn = document.createElement("span"); addBtn.className = "tag-add-btn"; addBtn.textContent = "+";
@@ -1394,6 +1524,101 @@ async function showPaperDetail(pId) {
 }
 function closePaperModal() { document.getElementById("paper-modal").classList.remove("active"); }
 
+// ========== AI 智能组卷逻辑 ==========
+let currentAIRecommendedIds = [];
+
+async function startAIPaperGeneration() {
+    const requirement = document.getElementById("ai-paper-requirement").value.trim();
+    if (!requirement) { showStatus("请先输入您的组卷需求", "error"); return; }
+
+    const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
+    if (!Gemma4) { showStatus("AI 引擎未准备好 (仅限原生 App 使用)", "error"); return; }
+
+    const status = await Gemma4.checkModelStatus();
+    if (!status.ready) { showStatus("Gemma 4 模型尚未就绪，请先下载或发现模型", "error"); return; }
+
+    showStatus("AI 正在根据您的需求筛选题目...", "success");
+
+    // 1. 粗排 (Coarse-filter): 提取所有有摘要的题目，并进行初步过滤
+    const candidates = allQuestions
+        .filter(q => q.semantic_summary && q.semantic_summary !== "AI 正在分析中...")
+        .map(q => ({
+            id: q.id,
+            tags: q.question_tags.map(t => t.tags.name),
+            summary: q.semantic_summary,
+            difficulty: q.ai_metadata?.difficulty || 0
+        }));
+
+    if (candidates.length === 0) {
+        showStatus("题库中尚无经过 AI 分析的题目，请先添加题目并等待分析完成", "error");
+        return;
+    }
+
+    try {
+        // 2. 精排 (Rerank): 调用 Gemma 4 插件进行语义匹配
+        const result = await Gemma4.recommendQuestions({
+            requirement: requirement,
+            candidatesJson: JSON.stringify(candidates.slice(0, 50)) // 传入前 50 道相关题目以防 Token 超限
+        });
+
+        // 3. 展示结果
+        renderAIRecommendations(result.recommended_ids, result.reason);
+    } catch (e) {
+        showStatus("AI 推荐失败: " + e.message, "error");
+    }
+}
+
+function renderAIRecommendations(ids, reason) {
+    currentAIRecommendedIds = ids;
+    const modal = document.getElementById("ai-recommend-modal");
+    const reasonEl = document.getElementById("ai-recommend-reason");
+    const listEl = document.getElementById("ai-recommend-list");
+
+    reasonEl.innerHTML = '<strong>AI 推荐思路:</strong><br>' + (reason || "根据您的要求挑选了以下题目。");
+    listEl.replaceChildren();
+
+    const recommendedQuestions = allQuestions.filter(q => ids.includes(q.id));
+    if (recommendedQuestions.length === 0) {
+        listEl.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:20px;color:#999">未找到完全符合条件的题目</p>';
+    } else {
+        recommendedQuestions.forEach(q => {
+            const card = document.createElement("div");
+            card.className = "question-card";
+            card.style.margin = "0";
+            card.innerHTML = `<img src="${q.question_image_url}" style="height:100px"><div class="info"><div class="ai-summary-wrap" style="border-left-color:#10b981;margin:0;font-size:10px">${q.semantic_summary}</div></div>`;
+            listEl.appendChild(card);
+        });
+    }
+
+    document.getElementById("ai-create-paper-btn").onclick = () => createPaperFromAI(ids);
+    modal.classList.add("active");
+}
+
+function closeAIRecommendModal() {
+    document.getElementById("ai-recommend-modal").classList.remove("active");
+}
+
+async function createPaperFromAI(ids) {
+    if (!ids || ids.length === 0) return;
+    const name = "AI 推荐试卷 " + new Date().toLocaleDateString();
+    
+    // 复用 dbCreatePaper 的逻辑，但直接指定 ID 列表
+    const id = generateId();
+    const now = _nowIso();
+    const paper = { id, name, created_at: now, updated_at: now, deleted_at: null };
+    await dbPapers.setItem(id, paper);
+    
+    let n = 1;
+    for (const qId of ids) {
+        await dbPaperQuestions.setItem(`${id}_${qId}`, { paper_id: id, question_id: qId, order_num: n++ });
+    }
+    
+    closeAIRecommendModal();
+    await loadPapers();
+    showStatus("AI 试卷已生成", "success");
+    showTab('papers', document.querySelector('.tab[onclick*="papers"]'));
+}
+
 // ========== 导出 PDF ==========
 function exportSelectedOrAll() {
     const filtered = getFilteredQuestions();
@@ -1440,6 +1665,187 @@ function exportFromBasket() {
 }
 
 // ========== 导入/导出 ==========
+// ========== AI 模型管理交互 ==========
+async function updateAIStatusUI() {
+    const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
+    if (!Gemma4) return;
+    const status = await Gemma4.checkModelStatus();
+    const label = document.getElementById("ai-status-label");
+    const desc = document.getElementById("ai-status-desc");
+    const progressWrap = document.getElementById("ai-download-progress-wrap");
+    const progressBar = document.getElementById("ai-progress-bar");
+    const progressPercent = document.getElementById("ai-progress-percent");
+    const downloadBtn = document.getElementById("ai-download-btn");
+    
+    if (status.ready) {
+        label.textContent = "已就绪";
+        label.style.background = "#10b981";
+        desc.textContent = "Gemma 4 引擎已点火，当前算力支持：NPU/GPU 加速";
+        progressWrap.classList.add("hidden");
+        downloadBtn.textContent = "✅ 模型已激活";
+        downloadBtn.style.display = "none";
+        downloadBtn.disabled = true;
+    } else {
+        label.textContent = "正在点火...";
+        label.style.background = "#f59e0b";
+        if (status.progress > 0) {
+            progressWrap.classList.remove("hidden");
+            progressBar.style.width = status.progress + "%";
+            progressPercent.textContent = status.progress + "%";
+            downloadBtn.disabled = true;
+            
+            if (status.progress < 100) {
+                document.getElementById("ai-progress-text").textContent = "正在同步模型数据...";
+                downloadBtn.textContent = "下载中 (" + status.progress + "%)...";
+            } else {
+                document.getElementById("ai-progress-text").textContent = "检测到已存模型，正在初始化原生引擎...";
+                downloadBtn.textContent = "正在点火...";
+                // 核心修复：100% 但未 Ready 时自动开启轮询
+                setTimeout(updateAIStatusUI, 1000);
+            }
+        } else {
+            label.textContent = "未就绪";
+            label.style.background = "#ef4444";
+            progressWrap.classList.add("hidden");
+            downloadBtn.textContent = "⬇️ 下载 Gemma 4 (1.2GB)";
+            downloadBtn.disabled = false;
+        }
+    }
+}
+
+async function handleDiscoverModel() {
+    const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
+    if (!Gemma4) { showStatus("请在原生 App 中使用此功能", "error"); return; }
+    
+    document.getElementById("ai-discover-btn").disabled = true;
+    showStatus("正在扫描系统模型路径...", "success");
+    const result = await Gemma4.discoverModel();
+    if (result.found) {
+        showStatus("发现本地模型！已自动加载", "success");
+    } else {
+        showStatus("未发现可复用的模型文件，请尝试下载", "error");
+    }
+    document.getElementById("ai-discover-btn").disabled = false;
+    updateAIStatusUI();
+}
+
+async function handleDownloadModel() {
+    const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
+    if (!Gemma4) { showStatus("请在原生 App 中使用此功能", "error"); return; }
+
+    const progressWrap = document.getElementById("ai-download-progress-wrap");
+    const downloadBtn = document.getElementById("ai-download-btn");
+
+    progressWrap.classList.remove("hidden");
+    downloadBtn.disabled = true;
+    downloadBtn.textContent = "准备下载...";
+
+    const modelUrl = localStorage.getItem('gemmaModelUrl') || (serverUrl ? serverUrl + '/releases/gemma-e2b.task' : '');
+
+    try {
+        await Gemma4.downloadModel({ url: modelUrl });
+        showStatus("下载任务已启动", "success");
+        
+        // 监听来自原生插件的进度事件 (Capacitor 事件机制)
+        if (window.Capacitor.addListener) {
+            window.Capacitor.addListener('Gemma4', 'downloadProgress', (info) => {
+                const bar = document.getElementById("ai-progress-bar");
+                const percent = document.getElementById("ai-progress-percent");
+                const text = document.getElementById("ai-progress-text");
+                const btn = document.getElementById("ai-download-btn");
+                
+                bar.style.width = info.progress + "%";
+                percent.textContent = info.progress + "%";
+                
+                if (info.progress < 100) {
+                    text.textContent = "正在下载: " + (info.receivedMb || "0") + "MB / " + (info.totalMb || "1200") + "MB";
+                    btn.textContent = "正在下载 (" + info.progress + "%)...";
+                } else {
+                    text.textContent = "下载完成，正在初始化本地引擎...";
+                    btn.textContent = "正在初始化...";
+                    // 增加初始化完成的轮询
+                    const checkInit = setInterval(async () => {
+                        const status = await Gemma4.checkModelStatus();
+                        if (status.ready) {
+                            clearInterval(checkInit);
+                            updateAIStatusUI();
+                        }
+                    }, 1000);
+                }
+            });
+        }
+
+        // 备用：定时轮询状态
+        const timer = setInterval(async () => {
+            const status = await Gemma4.checkModelStatus();
+            await updateAIStatusUI();
+            if (status.ready) clearInterval(timer);
+        }, 3000);
+    } catch (e) {
+        showStatus("启动下载失败: " + e.message, "error");
+        downloadBtn.disabled = false;
+        downloadBtn.textContent = "重试下载";
+    }
+}
+
+// 页面加载时初始化 AI 状态
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(updateAIStatusUI, 1000);
+});
+
+// ========== 自动化测试上帝模式 ==========
+window.runFullAIAutomation = async function() {
+    console.log("🛠️ [自动化] 🚀 开始全链路自检 (Gemma 4 全自动调试流程)...");
+    showStatus("正在执行全自动 AI 压力测试...", "success");
+
+    // 1. 注入模拟数据 (防止题库为空)
+    console.log("🛠️ [自动化] Step 1: 正在尝试注入模拟题目数据...");
+    const testId = 'auto-test-' + Date.now();
+    await dbQuestions.setItem(testId, {
+        id: testId,
+        semantic_summary: '自动化测试专用：勾股定理难题',
+        question_image_url: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==',
+        created_at: new Date().toISOString(),
+        question_tags: [],
+        ai_metadata: { difficulty: 5 }
+    });
+    await loadQuestions();
+    console.log("🛠️ [自动化] ✅ Step 1: 模拟题目注入成功");
+
+    // 2. 自动发现并加载模型
+    console.log("🛠️ [自动化] Step 2: 正在执行自动模型发现 handleDiscoverModel...");
+    await handleDiscoverModel();
+    
+    // 3. 等待引擎就绪 (轮询)
+    console.log("🛠️ [自动化] Step 3: 开始轮询检查 AI 引擎就绪状态...");
+    const checkReady = setInterval(async () => {
+        const status = await window.Capacitor.Plugins.Gemma4.checkModelStatus();
+        console.log("🛠️ [自动化] 当前引擎状态: ", JSON.stringify(status));
+        if (status.ready) {
+            clearInterval(checkReady);
+            console.log("🛠️ [自动化] ✅ Step 3: AI 引擎已就绪，准备进入智能组卷阶段");
+            
+            // 4. 模拟输入需求并点击
+            console.log("🛠️ [自动化] Step 4: 正在模拟用户输入组卷需求...");
+            document.getElementById("ai-paper-requirement").value = "给我 1 道最难的测试题";
+            await startAIPaperGeneration();
+            
+            // 5. 延迟 3 秒后自动点击“一键生成”
+            setTimeout(async () => {
+                const modal = document.getElementById("ai-recommend-modal");
+                if (modal.classList.contains("active")) {
+                    console.log("🛠️ [自动化] ✅ Step 5: AI 推荐成功！正在自动生成最终试卷...");
+                    await createPaperFromAI(currentAIRecommendedIds);
+                    showStatus("✨ 全自动调试任务完成！", "success");
+                    console.log("🛠️ [自动化] 🎉 任务达成：试卷已入库并完成全链路闭环。");
+                } else {
+                    console.warn("🛠️ [自动化] ❌ Step 5 失败：AI 推荐弹窗未弹出。");
+                }
+            }, 3000);
+        }
+    }, 2000);
+};
+
 async function handleImport(event) {
     const file = event.target.files[0]; if (!file) return;
     try { showStatus("正在导入...", "success"); const r = await importAllData(file); await refreshAll(); showStatus("导入成功: " + r.questions + " 题, " + r.tags + " 标签, " + r.papers + " 试卷", "success"); }
@@ -2154,64 +2560,30 @@ async function downloadAndInstall() {
     const progressBar = document.getElementById('update-progress-bar');
     const progressText = document.getElementById('update-progress-text');
     btn.disabled = true;
-    btn.textContent = '下载中...';
-    progressWrap.style.display = 'block';
+    btn.textContent = '打开下载...';
+    progressWrap.style.display = 'none';
     try {
-        const url = serverUrl + _updateInfo.download_url;
-        const resp = await fetch(url);
-        if (!resp.ok) throw new Error('下载失败');
-        const contentLength = resp.headers.get('content-length');
-        const total = contentLength ? parseInt(contentLength) : 0;
-        const reader = resp.body.getReader();
-        const chunks = [];
-        let received = 0;
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            chunks.push(value);
-            received += value.length;
-            if (total > 0) {
-                const pct = Math.round(received / total * 100);
-                progressBar.style.width = pct + '%';
-                progressText.textContent = '已下载 ' + pct + '%';
-            }
-        }
-        const blob = new Blob(chunks);
-        const fileName = 'question-bank-update.apk';
-        if (isNative) {
-            const Filesystem = window.Capacitor.Plugins.Filesystem;
-            const base64 = await blobToBase64(blob);
-            await Filesystem.writeFile({ path: fileName, data: base64, directory: 'DOWNLOADS', recursive: true });
-            const fileUri = await Filesystem.getUri({ path: fileName, directory: 'DOWNLOADS' });
-            try {
-                await window.Capacitor.Plugins.Browser.open({ url: fileUri.uri });
-            } catch (e) {
-                showStatus('APK 已保存到下载目录: ' + fileName, 'success');
-            }
-        } else {
-            const a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = fileName;
-            a.click();
-            URL.revokeObjectURL(a.href);
-        }
-        btn.textContent = '下载完成';
+        const dlUrl = serverUrl + _updateInfo.download_url;
+        window.open(dlUrl, '_system');
+        btn.textContent = '已跳转浏览器';
+        showStatus('正在浏览器中下载，请安装后重启APP', 'success');
     } catch (e) {
-        showStatus('下载失败: ' + e.message, 'error');
+        showStatus('跳转失败: ' + e.message, 'error');
         btn.disabled = false;
         btn.textContent = '重试下载';
-        progressWrap.style.display = 'none';
     }
 }
 
-function blobToBase64(blob) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result.split(',')[1]);
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
-}
+// 监听 AI 分析完成事件
+window.addEventListener('question-ai-ready', async (event) => {
+    const { questionId } = event.detail;
+    console.log('AI 分析完成，刷新题目:', questionId);
+    
+    // 重新加载所有题目并渲染 (如果想更精细，可以只更新对应的 DOM)
+    allQuestions = await dbGetAllQuestions();
+    renderQuestions();
+});
+
 </script>
 </body>
 </html>

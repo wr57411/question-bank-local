@@ -154,6 +154,11 @@ function _normalizeQuestionRecord(question, key) {
   if (next.updatedAt && !next.updated_at) next.updated_at = next.updatedAt;
   if (next.deletedAt && !next.deleted_at) next.deleted_at = next.deletedAt;
   if (next.purgedAt && !next.purged_at) next.purged_at = next.purgedAt;
+  
+  // 新增 AI 字段
+  if (!next.semantic_summary) next.semantic_summary = "";
+  if (!next.ai_metadata) next.ai_metadata = {};
+
   return next;
 }
 
@@ -316,13 +321,53 @@ async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layout
     layout_type: layoutType || 0,
     created_at: now,
     updated_at: now,
-    deleted_at: null
+    deleted_at: null,
+    semantic_summary: "AI 正在分析中...",
+    ai_metadata: {}
   };
   await dbQuestions.setItem(id, question);
+
+  // 异步触发 Gemma 4 分析 (不阻塞主 UI 入库)
+  _triggerAIAnalysis(id, qImg);
+
   for (const tagId of selectedTagIds) {
     await dbQuestionTags.setItem(`${id}_${tagId}`, { question_id: id, tag_id: tagId });
   }
   return question;
+}
+
+/**
+ * 内部方法：调用 Gemma 4 插件进行分析
+ */
+async function _triggerAIAnalysis(questionId, imageBase64) {
+  try {
+    const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
+    if (!Gemma4) return;
+
+    // 先发现或检查状态
+    const status = await Gemma4.checkModelStatus();
+    if (!status.ready) {
+      const discovery = await Gemma4.discoverModel();
+      if (!discovery.found) return;
+    }
+
+    const analysis = await Gemma4.analyzeQuestion({ imageBase64 });
+    const question = await dbQuestions.getItem(questionId);
+    if (question) {
+      question.semantic_summary = analysis.summary;
+      question.ai_metadata = {
+        difficulty: analysis.difficulty,
+        tags_suggested: analysis.tags,
+        analyzed_at: new Date().toISOString()
+      };
+      await dbQuestions.setItem(questionId, question);
+      
+      // 发送自定义事件通知 UI 刷新
+      window.dispatchEvent(new CustomEvent('question-ai-ready', { detail: { questionId } }));
+    }
+  } catch (e) {
+    console.error("Gemma 4 分析失败:", e);
+  }
 }
 
 async function dbSoftDeleteQuestion(questionId) {

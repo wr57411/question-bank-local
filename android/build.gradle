@@ -24,6 +24,21 @@ allprojects {
     }
 }
 
+subprojects {
+    afterEvaluate { project ->
+        if (project.hasProperty('android')) {
+            android {
+                if (namespace != "com.google.mediapipe.tasks.genai") {
+                    defaultConfig {
+                        minSdkVersion 24
+                        targetSdkVersion 34
+                    }
+                }
+            }
+        }
+    }
+}
+
 task clean(type: Delete) {
     delete rootProject.buildDir
 }
