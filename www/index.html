@@ -193,7 +193,7 @@
                 <h3 style="margin:0;color:#5b21b6">🤖 AI 引擎管理</h3>
                 <span id="ai-status-label" class="ai-badge" style="background:#ef4444">未就绪</span>
             </div>
-            <p id="ai-status-desc" style="font-size:12px;color:#6b7280;margin-bottom:12px">Gemma 4 模型尚未加载。点击下方按钮尝试在系统中发现它，或手动触发下载。</p>
+            <p id="ai-status-desc" style="font-size:12px;color:#6b7280;margin-bottom:12px">请将 Gemma 4 模型文件 (gemma-4-E2B-it-Q3_K_S.gguf) 放入手机的 Download 目录，然后点击"加载模型"。</p>
             
             <!-- 进度条容器 -->
             <div id="ai-download-progress-wrap" class="hidden" style="margin-bottom:12px">
@@ -207,8 +207,8 @@
             </div>
 
             <div class="btn-group">
-                <button id="ai-discover-btn" onclick="handleDiscoverModel()" style="background:#8b5cf6;font-size:12px">🔍 自动发现模型</button>
-                <button id="ai-download-btn" onclick="handleDownloadModel()" class="secondary" style="font-size:12px">⬇️ 下载 Gemma 4 (1.2GB)</button>
+                <button id="ai-load-btn" onclick="handleLoadModel()" style="background:#8b5cf6;font-size:12px">🧠 加载模型</button>
+                <button id="ai-batch-btn" onclick="handleBatchAnalyze()" class="secondary" style="font-size:12px;display:none">📊 批量分析已有题目</button>
             </div>
         </div>
 
@@ -1672,120 +1672,108 @@ async function updateAIStatusUI() {
     const status = await Gemma4.checkModelStatus();
     const label = document.getElementById("ai-status-label");
     const desc = document.getElementById("ai-status-desc");
-    const progressWrap = document.getElementById("ai-download-progress-wrap");
-    const progressBar = document.getElementById("ai-progress-bar");
-    const progressPercent = document.getElementById("ai-progress-percent");
-    const downloadBtn = document.getElementById("ai-download-btn");
-    
+    const loadBtn = document.getElementById("ai-load-btn");
+    const batchBtn = document.getElementById("ai-batch-btn");
+
     if (status.ready) {
         label.textContent = "已就绪";
         label.style.background = "#10b981";
-        desc.textContent = "Gemma 4 引擎已点火，当前算力支持：NPU/GPU 加速";
-        progressWrap.classList.add("hidden");
-        downloadBtn.textContent = "✅ 模型已激活";
-        downloadBtn.style.display = "none";
-        downloadBtn.disabled = true;
+        desc.textContent = "Gemma 4 引擎已就绪";
+        loadBtn.textContent = "✅ 模型已加载";
+        loadBtn.style.display = "none";
+        loadBtn.disabled = true;
+        batchBtn.style.display = "";
     } else {
-        label.textContent = "正在点火...";
-        label.style.background = "#f59e0b";
-        if (status.progress > 0) {
-            progressWrap.classList.remove("hidden");
-            progressBar.style.width = status.progress + "%";
-            progressPercent.textContent = status.progress + "%";
-            downloadBtn.disabled = true;
-            
-            if (status.progress < 100) {
-                document.getElementById("ai-progress-text").textContent = "正在同步模型数据...";
-                downloadBtn.textContent = "下载中 (" + status.progress + "%)...";
-            } else {
-                document.getElementById("ai-progress-text").textContent = "检测到已存模型，正在初始化原生引擎...";
-                downloadBtn.textContent = "正在点火...";
-                // 核心修复：100% 但未 Ready 时自动开启轮询
-                setTimeout(updateAIStatusUI, 1000);
-            }
-        } else {
-            label.textContent = "未就绪";
-            label.style.background = "#ef4444";
-            progressWrap.classList.add("hidden");
-            downloadBtn.textContent = "⬇️ 下载 Gemma 4 (1.2GB)";
-            downloadBtn.disabled = false;
-        }
+        label.textContent = "未就绪";
+        label.style.background = "#ef4444";
+        desc.textContent = "请将 gemma-4-E2B-it-Q3_K_S.gguf 放入手机的 Download 目录，然后点击\"加载模型\"。";
+        loadBtn.textContent = "加载模型";
+        loadBtn.style.display = "";
+        loadBtn.disabled = false;
+        batchBtn.style.display = "none";
     }
 }
 
-async function handleDiscoverModel() {
+async function handleLoadModel() {
     const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
     if (!Gemma4) { showStatus("请在原生 App 中使用此功能", "error"); return; }
-    
-    document.getElementById("ai-discover-btn").disabled = true;
-    showStatus("正在扫描系统模型路径...", "success");
+
+    const btn = document.getElementById("ai-load-btn");
+    const desc = document.getElementById("ai-status-desc");
+    btn.disabled = true;
+    btn.textContent = "正在加载...";
+    desc.textContent = "正在扫描 Download 目录并加载模型，请稍候（首次加载约需 10-30 秒）...";
+
     const result = await Gemma4.discoverModel();
-    if (result.found) {
-        showStatus("发现本地模型！已自动加载", "success");
+    btn.disabled = false;
+
+    if (result.found && result.ready) {
+        showStatus("模型加载成功", "success");
+        updateAIStatusUI();
+    } else if (result.found && !result.ready) {
+        showStatus("加载失败: " + (result.error || "未知错误"), "error");
+        btn.textContent = "重试加载";
+        desc.textContent = "错误详情: " + (result.error || "无");
     } else {
-        showStatus("未发现可复用的模型文件，请尝试下载", "error");
+        showStatus("未在 Download 目录找到模型文件", "error");
+        btn.textContent = "加载模型";
+        desc.textContent = "请确认 gemma-4-E2B-it-Q3_K_S.gguf 已放入手机的 Download 目录。";
     }
-    document.getElementById("ai-discover-btn").disabled = false;
-    updateAIStatusUI();
 }
 
-async function handleDownloadModel() {
+async function handleBatchAnalyze() {
     const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
     if (!Gemma4) { showStatus("请在原生 App 中使用此功能", "error"); return; }
 
-    const progressWrap = document.getElementById("ai-download-progress-wrap");
-    const downloadBtn = document.getElementById("ai-download-btn");
+    const status = await Gemma4.checkModelStatus();
+    if (!status.ready) { showStatus("AI 引擎未就绪", "error"); return; }
 
-    progressWrap.classList.remove("hidden");
-    downloadBtn.disabled = true;
-    downloadBtn.textContent = "准备下载...";
-
-    const modelUrl = localStorage.getItem('gemmaModelUrl') || (serverUrl ? serverUrl + '/releases/gemma-e2b.task' : '');
-
-    try {
-        await Gemma4.downloadModel({ url: modelUrl });
-        showStatus("下载任务已启动", "success");
-        
-        // 监听来自原生插件的进度事件 (Capacitor 事件机制)
-        if (window.Capacitor.addListener) {
-            window.Capacitor.addListener('Gemma4', 'downloadProgress', (info) => {
-                const bar = document.getElementById("ai-progress-bar");
-                const percent = document.getElementById("ai-progress-percent");
-                const text = document.getElementById("ai-progress-text");
-                const btn = document.getElementById("ai-download-btn");
-                
-                bar.style.width = info.progress + "%";
-                percent.textContent = info.progress + "%";
-                
-                if (info.progress < 100) {
-                    text.textContent = "正在下载: " + (info.receivedMb || "0") + "MB / " + (info.totalMb || "1200") + "MB";
-                    btn.textContent = "正在下载 (" + info.progress + "%)...";
-                } else {
-                    text.textContent = "下载完成，正在初始化本地引擎...";
-                    btn.textContent = "正在初始化...";
-                    // 增加初始化完成的轮询
-                    const checkInit = setInterval(async () => {
-                        const status = await Gemma4.checkModelStatus();
-                        if (status.ready) {
-                            clearInterval(checkInit);
-                            updateAIStatusUI();
-                        }
-                    }, 1000);
-                }
-            });
+    const pending = [];
+    await dbQuestions.iterate((q) => {
+        if (q && !q.deleted_at && (!q.semantic_summary || q.semantic_summary === "" || q.semantic_summary === "AI 正在分析中...")) {
+            pending.push(q);
         }
+    });
 
-        // 备用：定时轮询状态
-        const timer = setInterval(async () => {
-            const status = await Gemma4.checkModelStatus();
-            await updateAIStatusUI();
-            if (status.ready) clearInterval(timer);
-        }, 3000);
-    } catch (e) {
-        showStatus("启动下载失败: " + e.message, "error");
-        downloadBtn.disabled = false;
-        downloadBtn.textContent = "重试下载";
+    if (pending.length === 0) { showStatus("所有题目已分析完成", "success"); return; }
+
+    const btn = document.getElementById("ai-batch-btn");
+    btn.disabled = true;
+    btn.textContent = "分析中 (0/" + pending.length + ")...";
+    showStatus("开始批量分析 " + pending.length + " 道题目...", "success");
+
+    let done = 0, failed = 0;
+    for (const q of pending) {
+        try {
+            const img = q.question_image_url || "";
+            if (!img || !img.startsWith("data:")) { done++; continue; }
+
+            const result = await new Promise((resolve, reject) => {
+                Gemma4.analyzeQuestion({ imageBase64: img })
+                    .then(resolve)
+                    .catch(reject);
+                setTimeout(() => reject(new Error("超时")), 30000);
+            });
+
+            q.semantic_summary = result.summary || "分析完成";
+            q.ai_metadata = {
+                difficulty: result.difficulty || 3,
+                tags_suggested: result.tags || [],
+                analyzed_at: new Date().toISOString()
+            };
+            await dbQuestions.setItem(q.id, q);
+            done++;
+        } catch (e) {
+            failed++;
+            console.warn("分析失败:", q.id, e.message);
+        }
+        btn.textContent = "分析中 (" + (done + failed) + "/" + pending.length + ")...";
     }
+
+    btn.disabled = false;
+    btn.textContent = "🧠 批量分析已有题目";
+    showStatus("分析完成: " + done + " 成功" + (failed > 0 ? ", " + failed + " 失败" : ""), failed > 0 ? "error" : "success");
+    await loadQuestions();
 }
 
 // 页面加载时初始化 AI 状态
@@ -2211,7 +2199,7 @@ showBackupModal = function() {
 // ========== 登录/云端同步 ==========
 
 let apiToken = localStorage.getItem('apiToken') || '';
-let serverUrl = localStorage.getItem('serverUrl') || 'https://2rhrc4519570.vicp.fun';
+let serverUrl = localStorage.getItem('serverUrl') || 'http://100.94.79.16:3001';
 let currentUser = JSON.parse(localStorage.getItem('currentUser') || 'null');
 let autoSyncEnabled = localStorage.getItem('autoSync') !== '0';
 
