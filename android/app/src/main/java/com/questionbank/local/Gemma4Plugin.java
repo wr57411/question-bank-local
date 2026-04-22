@@ -18,9 +18,6 @@ public class Gemma4Plugin extends Plugin {
     @Override
     public void load() {
         super.load();
-        try {
-            System.out.println("[Gemma4] 插件加载, native库可用, isLoaded=" + LlamaBridge.isLoaded());
-        } catch (Throwable t) {}
     }
 
     private File scanForModel() {
