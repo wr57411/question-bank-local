@@ -20,7 +20,7 @@ public class Gemma4Plugin extends Plugin {
         super.load();
         try {
             boolean loaded = LlamaBridge.isLoaded();
-            System.out.println("[Gemma4] 插件加载成功, native库可用, isLoaded=" + loaded);
+            System.out.println("[Gemma4] 插件加载, native库可用, isLoaded=" + loaded);
         } catch (Throwable t) {
             System.out.println("[Gemma4] 插件加载异常: " + t.getClass().getName() + ": " + t.getMessage());
         }
@@ -101,7 +101,8 @@ public class Gemma4Plugin extends Plugin {
 
         new Thread(() -> {
             try {
-                String result = LlamaBridge.generate(prompt, 256);
+                String formatted = "<start_of_turn>user\n" + prompt + "<end_of_turn>\n<start_of_turn>model\n";
+                String result = LlamaBridge.generate(formatted, 256);
                 JSObject ret = new JSObject();
                 ret.put("summary", result);
                 ret.put("difficulty", 3);
@@ -123,7 +124,8 @@ public class Gemma4Plugin extends Plugin {
 
         new Thread(() -> {
             try {
-                String result = LlamaBridge.generate("推荐题目: " + requirement, 256);
+                String formatted = "<start_of_turn>user\n推荐题目: " + requirement + "<end_of_turn>\n<start_of_turn>model\n";
+                String result = LlamaBridge.generate(formatted, 256);
                 JSObject ret = new JSObject();
                 ret.put("reason", result);
                 call.resolve(ret);

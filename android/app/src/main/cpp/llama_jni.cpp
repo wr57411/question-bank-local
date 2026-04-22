@@ -66,8 +66,17 @@ Java_com_questionbank_local_LlamaBridge_generate(JNIEnv *env, jclass clazz, jstr
     env->ReleaseStringUTFChars(jprompt, prompt_cstr);
 
     std::lock_guard<std::mutex> lock(g_mutex);
-    if (!g_model || !g_ctx) {
+    if (!g_model) {
         return env->NewStringUTF("ERROR: model not loaded");
+    }
+
+    // 每次推理创建新的 context，避免 KV cache 冲突
+    llama_context_params ctx_params = llama_context_default_params();
+    ctx_params.n_ctx = 2048;
+    ctx_params.n_batch = 512;
+    llama_context * ctx = llama_init_from_model(g_model, ctx_params);
+    if (!ctx) {
+        return env->NewStringUTF("ERROR: failed to create context");
     }
 
     const struct llama_vocab * vocab = llama_model_get_vocab(g_model);
@@ -88,15 +97,16 @@ Java_com_questionbank_local_LlamaBridge_generate(JNIEnv *env, jclass clazz, jstr
     }
     batch.n_tokens = n_tokens;
 
-    if (llama_decode(g_ctx, batch) != 0) {
+    if (llama_decode(ctx, batch) != 0) {
         llama_batch_free(batch);
+        llama_free(ctx);
         return env->NewStringUTF("ERROR: decode failed");
     }
 
     // Generate tokens
     std::string result;
     for (int i = 0; i < max_tokens; i++) {
-        float * logits = llama_get_logits_ith(g_ctx, batch.n_tokens - 1);
+        float * logits = llama_get_logits_ith(ctx, batch.n_tokens - 1);
         int n_vocab = llama_vocab_n_tokens(vocab);
 
         // Greedy sampling
@@ -124,10 +134,11 @@ Java_com_questionbank_local_LlamaBridge_generate(JNIEnv *env, jclass clazz, jstr
         batch.logits[0] = 1;
         batch.n_tokens = 1;
 
-        if (llama_decode(g_ctx, batch) != 0) break;
+        if (llama_decode(ctx, batch) != 0) break;
     }
 
     llama_batch_free(batch);
+    llama_free(ctx);
     return env->NewStringUTF(result.c_str());
 }
 

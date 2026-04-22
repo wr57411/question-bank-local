@@ -371,8 +371,16 @@
         <div id="modal-question-image"></div>
         <div id="modal-answer-image"></div>
         <div id="modal-tags"></div>
+        <div id="modal-ai-summary" style="display:none;margin-top:12px;padding:10px;background:#f5f3ff;border-radius:8px;border-left:3px solid #8b5cf6">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                <span style="background:#8b5cf6;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px">AI</span>
+                <span style="font-size:12px;color:#5b21b6;font-weight:600">分析结果</span>
+            </div>
+            <div id="modal-ai-text" style="font-size:13px;color:#4b5563;line-height:1.5"></div>
+        </div>
         <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;display:flex;gap:10px;justify-content:center">
             <button onclick="navigateDetail(-1)" id="btn-prev" style="padding:10px 20px;font-size:14px">← 上一题</button>
+            <button onclick="analyzeSingleQuestion()" style="padding:10px 20px;font-size:14px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;cursor:pointer">🧠 分析此题</button>
             <button class="danger" onclick="deleteQuestion()">移至垃圾篓</button>
             <button onclick="navigateDetail(1)" id="btn-next" style="padding:10px 20px;font-size:14px">下一题 →</button>
         </div>
@@ -1447,6 +1455,15 @@ function renderDetailContent(q) {
     document.getElementById("modal-answer-image").innerHTML = q.answer_image_url ? '<h3 style="margin-top:12px">答案</h3><img src="' + q.answer_image_url + '" style="max-width:100%;border-radius:8px">' : '<p style="color:#999;margin-top:12px">无答案图片</p>';
     const tags = q.question_tags.map(qt => qt.tags);
     document.getElementById("modal-tags").innerHTML = tags.length ? '<h3 style="margin-top:12px">标签</h3><div class="tag-container">' + tags.map(t => '<span class="tag" style="background:' + t.color + '20;border:1px solid ' + t.color + '">' + t.name + '</span>').join("") + '</div>' : '';
+    // AI 摘要
+    const aiDiv = document.getElementById("modal-ai-summary");
+    const aiText = document.getElementById("modal-ai-text");
+    if (q.semantic_summary && q.semantic_summary !== "" && q.semantic_summary !== "AI 正在分析中...") {
+        aiDiv.style.display = "block";
+        aiText.textContent = q.semantic_summary;
+    } else {
+        aiDiv.style.display = "none";
+    }
     document.getElementById("detail-nav-info").textContent = (detailIndex + 1) + " / " + filteredList.length;
     document.getElementById("btn-prev").disabled = detailIndex <= 0; document.getElementById("btn-prev").style.opacity = detailIndex <= 0 ? 0.4 : 1;
     document.getElementById("btn-next").disabled = detailIndex >= filteredList.length - 1; document.getElementById("btn-next").style.opacity = detailIndex >= filteredList.length - 1 ? 0.4 : 1;
@@ -1721,6 +1738,44 @@ async function handleLoadModel() {
     }
 }
 
+async function analyzeSingleQuestion() {
+    if (!currentQuestionId) return;
+    const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
+    if (!Gemma4) { showStatus("请在原生 App 中使用此功能", "error"); return; }
+    const status = await Gemma4.checkModelStatus();
+    if (!status.ready) { showStatus("AI 引擎未就绪，请先加载模型", "error"); return; }
+
+    const q = await dbQuestions.getItem(currentQuestionId);
+    if (!q) return;
+
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = "分析中...";
+
+    try {
+        const result = await new Promise((resolve, reject) => {
+            Gemma4.analyzeQuestion({ imageBase64: q.question_image_url || "" })
+                .then(resolve)
+                .catch(reject);
+            setTimeout(() => reject(new Error("超时")), 30000);
+        });
+
+        q.semantic_summary = result.summary || "分析完成";
+        q.ai_metadata = { difficulty: result.difficulty || 3, tags: result.tags || [], analyzed_at: new Date().toISOString() };
+        await dbQuestions.setItem(q.id, q);
+
+        const aiDiv = document.getElementById("modal-ai-summary");
+        const aiText = document.getElementById("modal-ai-text");
+        aiDiv.style.display = "block";
+        aiText.textContent = q.semantic_summary;
+        showStatus("分析完成", "success");
+    } catch (e) {
+        showStatus("分析失败: " + e.message, "error");
+    }
+    btn.disabled = false;
+    btn.textContent = "🧠 分析此题";
+}
+
 async function handleBatchAnalyze() {
     const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
     if (!Gemma4) { showStatus("请在原生 App 中使用此功能", "error"); return; }
@@ -1742,7 +1797,7 @@ async function handleBatchAnalyze() {
     btn.textContent = "分析中 (0/" + pending.length + ")...";
     showStatus("开始批量分析 " + pending.length + " 道题目...", "success");
 
-    let done = 0, failed = 0;
+    let done = 0;
     for (const q of pending) {
         try {
             const img = q.question_image_url || "";
@@ -1764,15 +1819,17 @@ async function handleBatchAnalyze() {
             await dbQuestions.setItem(q.id, q);
             done++;
         } catch (e) {
-            failed++;
-            console.warn("分析失败:", q.id, e.message);
+            btn.disabled = false;
+            btn.textContent = "🧠 批量分析已有题目";
+            showStatus("第 " + (done + 1) + " 道题分析失败: " + e.message, "error");
+            return;
         }
-        btn.textContent = "分析中 (" + (done + failed) + "/" + pending.length + ")...";
+        btn.textContent = "分析中 (" + (done) + "/" + pending.length + ")...";
     }
 
     btn.disabled = false;
     btn.textContent = "🧠 批量分析已有题目";
-    showStatus("分析完成: " + done + " 成功" + (failed > 0 ? ", " + failed + " 失败" : ""), failed > 0 ? "error" : "success");
+    showStatus("分析完成: " + done + " 道题全部成功", "success");
     await loadQuestions();
 }
 
