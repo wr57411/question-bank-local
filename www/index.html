@@ -1752,13 +1752,13 @@ async function analyzeSingleQuestion() {
     btn.disabled = true;
     btn.textContent = "分析中...";
 
-    try {
-        const result = await new Promise((resolve, reject) => {
-            Gemma4.analyzeQuestion({ imageBase64: q.question_image_url || "" })
-                .then(resolve)
-                .catch(reject);
-            setTimeout(() => reject(new Error("超时")), 30000);
-        });
+        try {
+            const result = await new Promise((resolve, reject) => {
+                Gemma4.analyzeQuestion({ imageBase64: q.question_image_url || "", prompt: "请简要描述这张题目图片的内容，包括学科和大致知识点" })
+                    .then(resolve)
+                    .catch(reject);
+                setTimeout(() => reject(new Error("超时")), 600000);
+            });
 
         q.semantic_summary = result.summary || "分析完成";
         q.ai_metadata = { difficulty: result.difficulty || 3, tags: result.tags || [], analyzed_at: new Date().toISOString() };
@@ -1804,10 +1804,10 @@ async function handleBatchAnalyze() {
             if (!img || !img.startsWith("data:")) { done++; continue; }
 
             const result = await new Promise((resolve, reject) => {
-                Gemma4.analyzeQuestion({ imageBase64: img })
+                Gemma4.analyzeQuestion({ imageBase64: img, prompt: "请简要描述这张题目图片的内容，包括学科和大致知识点" })
                     .then(resolve)
                     .catch(reject);
-                setTimeout(() => reject(new Error("超时")), 30000);
+                setTimeout(() => reject(new Error("超时")), 600000);
             });
 
             q.semantic_summary = result.summary || "分析完成";
