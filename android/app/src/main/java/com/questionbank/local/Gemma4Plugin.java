@@ -94,12 +94,22 @@ public class Gemma4Plugin extends Plugin {
             call.reject("引擎未就绪");
             return;
         }
-        String prompt = call.getString("prompt", "请用中文分析这道题目：所属学科、知识点、难度(1-5)");
+        String prompt = call.getString("prompt", "请用中文分析这道题目");
+
+        // 设置进度回调
+        LlamaBridge.setProgressCallback((step, total, status) -> {
+            JSObject event = new JSObject();
+            event.put("step", step);
+            event.put("total", total);
+            event.put("status", status);
+            notifyListeners("analyzeProgress", event);
+        });
 
         new Thread(() -> {
             try {
                 String formatted = "<start_of_turn>user\n" + prompt + "<end_of_turn>\n<start_of_turn>model\n";
                 String result = LlamaBridge.generate(formatted, 256);
+
                 JSObject ret = new JSObject();
                 ret.put("summary", result);
                 ret.put("difficulty", 3);

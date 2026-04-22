@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <mutex>
+#include <cstdio>
 #include <android/log.h>
 #include "llama.h"
 #include "ggml.h"
@@ -11,8 +12,29 @@
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, TAG_JNI, __VA_ARGS__)
 
 static llama_model * g_model = nullptr;
-static llama_context * g_ctx = nullptr;
 static std::mutex g_mutex;
+static JavaVM * g_jvm = nullptr;
+static jobject g_callback = nullptr;
+
+// 进度回调
+static void report_progress(int step, int total, const char* status) {
+    if (!g_jvm || !g_callback) return;
+    JNIEnv *env;
+    bool needsDetach = false;
+    if (g_jvm->GetEnv((void**)&env, JNI_VERSION_1_6) != JNI_OK) {
+        g_jvm->AttachCurrentThread(&env, nullptr);
+        needsDetach = true;
+    }
+    jclass clazz = env->GetObjectClass(g_callback);
+    jmethodID method = env->GetMethodID(clazz, "onProgress", "(IILjava/lang/String;)V");
+    if (method) {
+        jstring jstatus = env->NewStringUTF(status);
+        env->CallVoidMethod(g_callback, method, step, total, jstatus);
+        env->DeleteLocalRef(jstatus);
+    }
+    env->DeleteLocalRef(clazz);
+    if (needsDetach) g_jvm->DetachCurrentThread();
+}
 
 static void my_ggml_log_callback(enum ggml_log_level level, const char * text, void * user_data) {
     __android_log_print(
@@ -28,8 +50,7 @@ Java_com_questionbank_local_LlamaBridge_loadModel(JNIEnv *env, jclass clazz, jst
     LOGI("开始加载模型: %s", path);
     std::lock_guard<std::mutex> lock(g_mutex);
 
-    if (g_ctx) { llama_free(g_ctx); g_ctx = nullptr; }
-    if (g_model) { llama_model_free(g_model); g_model = nullptr; }
+    if (!g_jvm) env->GetJavaVM(&g_jvm);
 
     llama_model_params model_params = llama_model_default_params();
     model_params.n_gpu_layers = 0;
@@ -43,20 +64,15 @@ Java_com_questionbank_local_LlamaBridge_loadModel(JNIEnv *env, jclass clazz, jst
         LOGE("llama_model_load_from_file 返回 NULL，模型加载失败");
         return JNI_FALSE;
     }
-    LOGI("模型加载成功，创建 context...");
-
-    llama_context_params ctx_params = llama_context_default_params();
-    ctx_params.n_ctx = 2048;
-    ctx_params.n_batch = 512;
-
-    g_ctx = llama_init_from_model(g_model, ctx_params);
-    if (!g_ctx) {
-        LOGE("llama_init_from_model 返回 NULL");
-        return JNI_FALSE;
-    }
-    LOGI("全部成功，n_ctx=%d", ctx_params.n_ctx);
+    LOGI("模型加载成功");
 
     return JNI_TRUE;
+}
+
+JNIEXPORT void JNICALL
+Java_com_questionbank_local_LlamaBridge_setProgressCallback(JNIEnv *env, jclass clazz, jobject callback) {
+    if (g_callback) { env->DeleteGlobalRef(g_callback); g_callback = nullptr; }
+    if (callback) { g_callback = env->NewGlobalRef(callback); }
 }
 
 JNIEXPORT jstring JNICALL
@@ -126,6 +142,13 @@ Java_com_questionbank_local_LlamaBridge_generate(JNIEnv *env, jclass clazz, jstr
         int n = llama_token_to_piece(vocab, new_token, buf, sizeof(buf), 0, false);
         if (n > 0) result.append(buf, n);
 
+        // 每10个token报告一次进度
+        if (i % 10 == 0) {
+            char status[128];
+            snprintf(status, sizeof(status), "已生成 %d 字", (int)result.size());
+            report_progress(i, max_tokens, status);
+        }
+
         // Next batch
         batch.token[0] = new_token;
         batch.pos[0] = n_tokens + i;
@@ -145,13 +168,13 @@ Java_com_questionbank_local_LlamaBridge_generate(JNIEnv *env, jclass clazz, jstr
 JNIEXPORT void JNICALL
 Java_com_questionbank_local_LlamaBridge_unloadModel(JNIEnv *env, jclass clazz) {
     std::lock_guard<std::mutex> lock(g_mutex);
-    if (g_ctx) { llama_free(g_ctx); g_ctx = nullptr; }
     if (g_model) { llama_model_free(g_model); g_model = nullptr; }
+    LOGI("模型已卸载");
 }
 
 JNIEXPORT jboolean JNICALL
 Java_com_questionbank_local_LlamaBridge_isLoaded(JNIEnv *env, jclass clazz) {
-    return (g_model != nullptr && g_ctx != nullptr) ? JNI_TRUE : JNI_FALSE;
+    return (g_model != nullptr) ? JNI_TRUE : JNI_FALSE;
 }
 
 }
