@@ -210,6 +210,30 @@
                 <button id="ai-load-btn" onclick="handleLoadModel()" style="background:#8b5cf6;font-size:12px">🧠 加载模型</button>
                 <button id="ai-batch-btn" onclick="handleBatchAnalyze()" class="secondary" style="font-size:12px;display:none">📊 批量分析已有题目</button>
             </div>
+
+            <!-- 云端 API 配置 -->
+            <details style="margin-top:12px">
+                <summary style="font-size:12px;color:#6b7280;cursor:pointer">☁️ 云端 API 配置</summary>
+                <div style="margin-top:8px;padding:10px;background:#f9fafb;border-radius:8px">
+                    <div class="form-group" style="margin-bottom:8px;display:flex;align-items:center;gap:6px">
+                        <label style="font-size:11px;color:#6b7280;min-width:55px">Base URL</label>
+                        <input id="cloud-base-url" type="text" placeholder="https://api.minimax.chat" style="flex:1;font-size:12px;padding:6px;border:1px solid #e5e7eb;border-radius:6px">
+                        <button onclick="pasteTo('cloud-base-url')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋 粘贴</button>
+                    </div>
+                    <div class="form-group" style="margin-bottom:8px;display:flex;align-items:center;gap:6px">
+                        <label style="font-size:11px;color:#6b7280;min-width:55px">API Key</label>
+                        <input id="cloud-api-key" type="password" placeholder="sk-..." style="flex:1;font-size:12px;padding:6px;border:1px solid #e5e7eb;border-radius:6px">
+                        <button onclick="pasteTo('cloud-api-key')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋 粘贴</button>
+                    </div>
+                    <div class="form-group" style="margin-bottom:8px;display:flex;align-items:center;gap:6px">
+                        <label style="font-size:11px;color:#6b7280;min-width:55px">模型名称</label>
+                        <input id="cloud-model" type="text" placeholder="MiniMax-Text-01" value="MiniMax-Text-01" style="flex:1;font-size:12px;padding:6px;border:1px solid #e5e7eb;border-radius:6px">
+                        <button onclick="pasteTo('cloud-model')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋 粘贴</button>
+                    </div>
+                    <button onclick="saveCloudConfig()" style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">💾 保存配置</button>
+                    <span id="cloud-config-msg" style="font-size:11px;color:#22c55e;margin-left:8px"></span>
+                </div>
+            </details>
         </div>
 
         <div class="card">
@@ -377,6 +401,13 @@
                 <span style="font-size:12px;color:#5b21b6;font-weight:600">分析结果</span>
             </div>
             <div id="modal-ai-text" style="font-size:13px;color:#4b5563;line-height:1.5"></div>
+        </div>
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;gap:8px">
+            <span style="font-size:12px;color:#6b7280">分析方式:</span>
+            <select id="analyze-mode" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;background:#fff">
+                <option value="local">🤖 本地模型</option>
+                <option value="cloud">☁️ 云端 API</option>
+            </select>
         </div>
         <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;display:flex;gap:10px;justify-content:center">
             <button onclick="navigateDetail(-1)" id="btn-prev" style="padding:10px 20px;font-size:14px">← 上一题</button>
@@ -1685,8 +1716,14 @@ function exportFromBasket() {
 // ========== AI 模型管理交互 ==========
 async function updateAIStatusUI() {
     const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
-    if (!Gemma4) return;
+    console.log("updateAIStatusUI: Gemma4 plugin =", Gemma4);
+    if (!Gemma4) {
+        console.log("updateAIStatusUI: Gemma4 plugin not found!");
+        return;
+    }
+    loadCloudConfig(); // 加载云端配置
     const status = await Gemma4.checkModelStatus();
+    console.log("updateAIStatusUI: status =", JSON.stringify(status));
     const label = document.getElementById("ai-status-label");
     const desc = document.getElementById("ai-status-desc");
     const loadBtn = document.getElementById("ai-load-btn");
@@ -1738,13 +1775,55 @@ async function handleLoadModel() {
     }
 }
 
+// ========== 云端 API 配置 ==========
+async function pasteTo(inputId) {
+    try {
+        const text = await Capacitor.Plugins.Clipboard.read();
+        document.getElementById(inputId).value = text || "";
+    } catch (e) {
+        showStatus("粘贴失败: " + e.message, "error");
+    }
+}
+
+function saveCloudConfig() {
+    const baseUrl = document.getElementById("cloud-base-url").value.trim();
+    const apiKey = document.getElementById("cloud-api-key").value.trim();
+    const model = document.getElementById("cloud-model").value.trim();
+    localStorage.setItem("cloud_api_base_url", baseUrl);
+    localStorage.setItem("cloud_api_key", apiKey);
+    localStorage.setItem("cloud_api_model", model);
+    const msg = document.getElementById("cloud-config-msg");
+    msg.textContent = "已保存";
+    setTimeout(() => msg.textContent = "", 2000);
+}
+
+function loadCloudConfig() {
+    document.getElementById("cloud-base-url").value = localStorage.getItem("cloud_api_base_url") || "";
+    document.getElementById("cloud-api-key").value = localStorage.getItem("cloud_api_key") || "";
+    document.getElementById("cloud-model").value = localStorage.getItem("cloud_api_model") || "MiniMax-Text-01";
+}
+
+async function callCloudAI(prompt) {
+    const baseUrl = localStorage.getItem("cloud_api_base_url") || "https://api.minimax.chat";
+    const apiKey = localStorage.getItem("cloud_api_key");
+    const model = localStorage.getItem("cloud_api_model") || "MiniMax-Text-01";
+    if (!apiKey) throw new Error("请先在 AI 引擎管理中配置 API Key");
+
+    const messages = [{ role: "user", content: prompt }];
+    const response = await fetch(baseUrl + "/v1/text/chatcompletion_v2", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
+        body: JSON.stringify({ model, messages })
+    });
+    if (!response.ok) throw new Error("API 请求失败: " + response.status);
+    const data = await response.json();
+    return data.choices?.[0]?.message?.content || data.choices?.[0]?.text || "";
+}
+
 async function analyzeSingleQuestion() {
     if (!currentQuestionId) return;
-    const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
-    if (!Gemma4) { showStatus("请在原生 App 中使用此功能", "error"); return; }
-    const status = await Gemma4.checkModelStatus();
-    if (!status.ready) { showStatus("AI 引擎未就绪，请先加载模型", "error"); return; }
 
+    const mode = document.getElementById("analyze-mode")?.value || "local";
     const q = await dbQuestions.getItem(currentQuestionId);
     if (!q) return;
 
@@ -1752,30 +1831,42 @@ async function analyzeSingleQuestion() {
     btn.disabled = true;
     btn.textContent = "分析中...";
 
-    // 监听进度
-    const progressListener = window.Capacitor.Plugins.Gemma4.addListener('analyzeProgress', (info) => {
-        const pct = info.total > 0 ? Math.round(info.step / info.total * 100) : 0;
-        btn.textContent = "分析中 " + pct + "% (" + info.status + ")";
-    });
-
     try {
-        const result = await new Promise((resolve, reject) => {
-            Gemma4.analyzeQuestion({ imageBase64: q.question_image_url || "", prompt: "请简要描述这张题目图片的内容，包括学科和大致知识点" })
-                .then(resolve)
-                .catch(reject);
-            setTimeout(() => reject(new Error("超时")), 600000);
-        });
-        progressListener.remove();
+        let result;
+        if (mode === "cloud") {
+            // 云端 API
+            const prompt = "请简要描述这张题目图片的内容，包括学科和大致知识点";
+            btn.textContent = "分析中 (云端)...";
+            result = { summary: await callCloudAI(prompt), difficulty: 3 };
+        } else {
+            // 本地模型
+            const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
+            if (!Gemma4) { showStatus("请在原生 App 中使用本地模型", "error"); return; }
+            const status = await Gemma4.checkModelStatus();
+            if (!status.ready) { showStatus("本地 AI 引擎未就绪，请先加载模型", "error"); return; }
+
+            const progressListener = window.Capacitor.Plugins.Gemma4.addListener('analyzeProgress', (info) => {
+                const pct = info.total > 0 ? Math.round(info.step / info.total * 100) : 0;
+                btn.textContent = "分析中 " + pct + "% (" + info.status + ")";
+            });
+
+            result = await new Promise((resolve, reject) => {
+                Gemma4.analyzeQuestion({ imageBase64: q.question_image_url || "", prompt: "请简要描述这张题目图片的内容，包括学科和大致知识点" })
+                    .then(resolve).catch(reject);
+                setTimeout(() => reject(new Error("超时")), 600000);
+            });
+            progressListener.remove();
+        }
 
         q.semantic_summary = result.summary || "分析完成";
-        q.ai_metadata = { difficulty: result.difficulty || 3, tags: result.tags || [], analyzed_at: new Date().toISOString() };
+        q.ai_metadata = { difficulty: result.difficulty || 3, tags: result.tags || [], analyzed_at: new Date().toISOString(), mode };
         await dbQuestions.setItem(q.id, q);
 
         const aiDiv = document.getElementById("modal-ai-summary");
         const aiText = document.getElementById("modal-ai-text");
         aiDiv.style.display = "block";
         aiText.textContent = q.semantic_summary;
-        showStatus("分析完成", "success");
+        showStatus("分析完成 (" + (mode === "cloud" ? "云端" : "本地") + ")", "success");
     } catch (e) {
         showStatus("分析失败: " + e.message, "error");
     }
@@ -1842,7 +1933,8 @@ async function handleBatchAnalyze() {
 
 // 页面加载时初始化 AI 状态
 window.addEventListener('DOMContentLoaded', () => {
-    setTimeout(updateAIStatusUI, 1000);
+    updateAIStatusUI();
+    setInterval(updateAIStatusUI, 10000);
 });
 
 // ========== 自动化测试上帝模式 ==========

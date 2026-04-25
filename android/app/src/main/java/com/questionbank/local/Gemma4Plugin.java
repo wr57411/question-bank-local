@@ -18,6 +18,19 @@ public class Gemma4Plugin extends Plugin {
     @Override
     public void load() {
         super.load();
+        new Thread(() -> {
+            try {
+                Thread.sleep(3000);
+                File modelFile = scanForModel();
+                if (modelFile != null && !LlamaBridge.isLoaded()) {
+                    System.out.println("[Gemma4] 启动自动加载模型: " + modelFile.getName());
+                    LlamaBridge.loadModel(modelFile.getAbsolutePath());
+                    System.out.println("[Gemma4] 模型加载完成, ready=" + LlamaBridge.isLoaded());
+                }
+            } catch (Exception e) {
+                System.out.println("[Gemma4] 自动加载异常: " + e.getMessage());
+            }
+        }).start();
     }
 
     private File scanForModel() {
@@ -39,7 +52,6 @@ public class Gemma4Plugin extends Plugin {
 
     @PluginMethod
     public void discoverModel(PluginCall call) {
-        // 检查存储权限
         if (android.os.Build.VERSION.SDK_INT >= 30) {
             if (!android.os.Environment.isExternalStorageManager()) {
                 JSObject ret = new JSObject();
@@ -93,7 +105,6 @@ public class Gemma4Plugin extends Plugin {
         }
         String prompt = call.getString("prompt", "请用中文分析这道题目");
 
-        // 设置进度回调
         LlamaBridge.setProgressCallback((step, total, status) -> {
             JSObject event = new JSObject();
             event.put("step", step);
