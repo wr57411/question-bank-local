@@ -442,7 +442,10 @@
         </div>
         <div class="btn-group">
             <button class="secondary" onclick="closeExportModal()">取消</button>
-            <button class="success" onclick="doExportPDF()">确认导出</button>
+            <div style="display:flex;gap:8px">
+                <button class="success" onclick="doExportPDF()">📄 导出 PDF</button>
+                <button class="success" onclick="doExportImagesFromBasket()" style="background:#f59e0b">📁 导出图片文件夹</button>
+            </div>
         </div>
     </div>
 </div>
@@ -465,6 +468,44 @@
         <div class="btn-group" style="margin-top:16px">
             <button class="secondary" onclick="closeBasketModal()">取消</button>
             <button class="success" onclick="exportFromBasket()">确认导出</button>
+        </div>
+    </div>
+</div>
+
+<!-- 试卷详情弹窗 -->
+<div id="paper-modal" class="modal" onclick="if(event.target===this)closePaperModal()">
+    <div class="modal-content" style="max-width:700px">
+        <h3 id="paper-modal-title" style="margin:0 0 12px 0"></h3>
+        <div id="paper-modal-questions" style="max-height:60vh;overflow-y:auto;margin-bottom:16px"></div>
+        <div class="btn-group" style="justify-content:space-between">
+            <button class="secondary" onclick="closePaperModal()">关闭</button>
+            <div style="display:flex;gap:8px">
+                <button class="success" onclick="exportPaperAsPDF()" style="background:#10b981">📄 导出 PDF</button>
+                <button class="success" onclick="exportPaperAsImages()" style="background:#f59e0b">📁 导出图片文件夹</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 导出图片文件夹弹窗 -->
+<div id="export-images-modal" class="modal" onclick="if(event.target===this)closeExportImagesModal()">
+    <div class="modal-content" style="max-width:450px">
+        <h3>📁 导出图片文件夹</h3>
+        <div style="font-size:13px;color:#888;margin-bottom:14px">将试卷中的题目图片导出到本地文件夹</div>
+        <div class="form-group">
+            <label>文件夹名称</label>
+            <input type="text" id="export-images-folder" placeholder="例如：2026年4月错题集" style="width:100%;padding:10px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px" />
+        </div>
+        <div id="export-images-summary" style="font-size:13px;color:#888;margin-bottom:14px"></div>
+        <div id="export-images-progress" style="display:none;margin-bottom:12px">
+            <div style="background:#e5e7eb;border-radius:8px;height:8px;overflow:hidden">
+                <div id="export-images-progress-bar" style="background:#f59e0b;height:100%;width:0%;transition:width .3s;border-radius:8px"></div>
+            </div>
+            <p id="export-images-progress-text" style="font-size:12px;color:#888;margin-top:4px">导出中...</p>
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeExportImagesModal()">取消</button>
+            <button class="success" onclick="doExportImages()" style="background:#f59e0b">确认导出</button>
         </div>
     </div>
 </div>
@@ -630,6 +671,7 @@ let questionBasket = new Set();
 let detailIndex = -1, filteredList = [];
 let exportMode = 'merged', exportSpacing = 'none';
 let newTagContext = null;
+let currentPaperId = null;
 
 // ========== Gemma 4 Capacitor 插件 Mock (用于 Web 预览与仿真) ==========
 if (!window.Capacitor) window.Capacitor = { Plugins: {} };
@@ -658,7 +700,7 @@ const Camera = isNative ? window.Capacitor.Plugins.Camera : null;
 const APP_VERSION_CODE = 2;
 const APP_VERSION_NAME = '1.1';
 
-document.addEventListener("DOMContentLoaded", async () => { 
+document.addEventListener("DOMContentLoaded", async () => {
     // 初始化远程同步
     initRemoteSync(serverUrl, apiToken, syncEnabled);
     // 恢复实时同步开关状态
@@ -668,6 +710,33 @@ document.addEventListener("DOMContentLoaded", async () => {
     restartSyncPolling();
     if (currentUser && autoSyncEnabled && syncEnabled) queueAutoSync(true);
     checkAppUpdate();
+    
+    // 自动测试云端API（仅模拟器环境）
+    const isEmulator = /emulator|sdk/i.test(navigator.userAgent) || 
+                       /emulator/i.test(navigator.platform);
+    if (isEmulator) {
+        setTimeout(async () => {
+            try {
+                console.log("[AutoTest] 开始自动测试云端API...");
+                const keys = await dbQuestions.keys();
+                if (keys && keys.length > 0) {
+                    currentQuestionId = keys[0];
+                    console.log("[AutoTest] 自动分析题目:", currentQuestionId);
+                    // 模拟点击"分析此题"按钮
+                    const btn = document.querySelector('[onclick="analyzeSingleQuestion()"]');
+                    if (btn) {
+                        // 强制设置为云端模式
+                        const modeSelect = document.getElementById('analyze-mode');
+                        if (modeSelect) modeSelect.value = 'cloud';
+                        // 触发分析
+                        await analyzeSingleQuestion.call(btn);
+                    }
+                }
+            } catch (e) {
+                console.error("[AutoTest] 自动测试失败:", e);
+            }
+        }, 3000);
+    }
 });
 
 async function refreshAll() { await loadTags(); await loadQuestions(); await loadPapers(); }
@@ -1562,15 +1631,166 @@ async function loadPapers() {
     });
 }
 async function showPaperDetail(pId) {
+    currentPaperId = pId;
     const { paper, questions } = await dbGetPaperQuestions(pId); if (!paper) return;
     document.getElementById("paper-modal-title").textContent = paper.name;
     const c = document.getElementById("paper-modal-questions");
     if (!questions.length) { c.innerHTML = '<p style="color:#999">该试卷暂无题目</p>'; }
     else { c.replaceChildren(); questions.forEach((q, i) => { const d = document.createElement("div"); d.style.cssText = "margin-bottom:16px;padding:10px;background:#f9f9f9;border-radius:8px"; d.innerHTML = '<p style="font-weight:500;margin-bottom:8px">第' + (i+1) + '题</p><img src="' + q.question_image_url + '" style="max-width:100%;border-radius:6px">' + (q.answer_image_url ? '<p style="font-weight:500;margin:8px 0 4px;color:#666">答案:</p><img src="' + q.answer_image_url + '" style="max-width:100%;border-radius:6px">' : ''); c.appendChild(d); }); }
-    document.getElementById("paper-download-btn").onclick = () => generatePaperPDF(pId);
     document.getElementById("paper-modal").classList.add("active");
 }
 function closePaperModal() { document.getElementById("paper-modal").classList.remove("active"); }
+
+function exportPaperAsPDF() {
+    if (!currentPaperId) return;
+    generatePaperPDF(currentPaperId);
+}
+
+function exportPaperAsImages() {
+    if (!currentPaperId) return;
+    // 获取试卷名称作为默认文件夹名
+    const title = document.getElementById("paper-modal-title").textContent;
+    document.getElementById("export-images-folder").value = title || '';
+    document.getElementById("export-images-summary").textContent = '';
+    document.getElementById("export-images-progress").style.display = 'none';
+    document.getElementById("export-images-modal").classList.add("active");
+}
+
+function closeExportImagesModal() {
+    document.getElementById("export-images-modal").classList.remove("active");
+}
+
+// 公共函数：导出图片列表到文件夹
+async function exportImagesToFolder(imageList, folderName) {
+    if (!imageList || !imageList.length) { alert('没有可导出的图片'); return false; }
+
+    const Filesystem = window.Capacitor?.Plugins?.Filesystem;
+    const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
+    if (!isNative || !Filesystem) {
+        alert('图片文件夹导出功能仅支持原生 App（Android/iOS）');
+        return false;
+    }
+
+    try {
+        // 判断平台：优先用 Device 插件，否则用 Capacitor 自带方法，默认 Android
+        let directory = 'DOWNLOAD'; // Android 默认用 Download
+        try {
+            if (window.Capacitor.Plugins.Device?.getInfo) {
+                const info = await window.Capacitor.Plugins.Device.getInfo();
+                if (info?.platform === 'ios') directory = 'DOCUMENTS';
+            } else if (window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'ios') {
+                directory = 'DOCUMENTS';
+            }
+        } catch (e) { /* ignore，用默认 DOWNLOAD */ }
+
+        // 创建文件夹
+        try {
+            await Filesystem.mkdir({ path: folderName, directory, recursive: true });
+        } catch (e) { /* 文件夹可能已存在 */ }
+
+        // 逐个导出图片
+        for (let i = 0; i < imageList.length; i++) {
+            const img = imageList[i];
+            const progress = ((i + 1) / imageList.length) * 100;
+            document.getElementById("export-images-progress-bar").style.width = progress + '%';
+            document.getElementById("export-images-progress-text").textContent = `导出中... (${i + 1}/${imageList.length})`;
+
+            try {
+                let blob;
+                if (img.url.startsWith('data:')) {
+                    const res = await fetch(img.url);
+                    blob = await res.blob();
+                } else if (img.url.startsWith('http')) {
+                    const res = await fetch(img.url);
+                    blob = await res.blob();
+                } else {
+                    console.warn('不支持的图片格式:', img.url);
+                    continue;
+                }
+
+                const base64 = await new Promise((resolve) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result.split(',')[1]);
+                    reader.readAsDataURL(blob);
+                });
+
+                await Filesystem.writeFile({
+                    path: `${folderName}/${img.name}`,
+                    data: base64,
+                    directory
+                });
+            } catch (e) {
+                console.warn('导出图片失败:', img.name, e.message);
+            }
+        }
+
+        return true;
+    } catch (e) {
+        console.error('导出失败:', e);
+        alert('导出失败: ' + e.message);
+        return false;
+    }
+}
+
+async function doExportImagesFromBasket() {
+    const questions = window._exportQuestions;
+    if (!questions || !questions.length) { alert('没有可导出的题目'); return; }
+
+    const folderName = document.getElementById("export-images-folder").value.trim();
+    if (!folderName) { alert('请输入文件夹名称'); return; }
+
+    // 只导出题目图片，不导出答案
+    const imageList = questions.map((q, i) => ({
+        url: q.question_image_url,
+        name: String(i + 1).padStart(3, '0') + '.jpg'
+    })).filter(img => img.url);
+
+    document.getElementById("export-images-summary").textContent = `共 ${imageList.length} 张图片，准备导出...`;
+    document.getElementById("export-images-progress").style.display = 'block';
+    document.getElementById("export-images-progress-bar").style.width = '0%';
+    document.getElementById("export-images-progress-text").textContent = '导出中...';
+
+    const success = await exportImagesToFolder(imageList, folderName);
+    if (success) {
+        document.getElementById("export-images-progress-bar").style.width = '100%';
+        document.getElementById("export-images-progress-text").textContent = '导出完成！';
+        document.getElementById("export-images-summary").textContent = `✅ 已导出 ${imageList.length} 张图片到 ${folderName}/`;
+        setTimeout(() => closeExportImagesModal(), 2000);
+    } else {
+        document.getElementById("export-images-progress").style.display = 'none';
+    }
+}
+
+async function doExportImages() {
+    if (!currentPaperId) return;
+    const folderName = document.getElementById("export-images-folder").value.trim();
+    if (!folderName) { alert('请输入文件夹名称'); return; }
+
+    const { paper, questions } = await dbGetPaperQuestions(currentPaperId);
+    if (!questions || !questions.length) { alert('该试卷暂无题目'); return; }
+
+    // 只导出题目图片，不导出答案
+    const imageList = questions.map((q, i) => ({
+        url: q.question_image_url,
+        name: String(i + 1).padStart(3, '0') + '.jpg'
+    })).filter(img => img.url);
+
+    document.getElementById("export-images-summary").textContent = `共 ${imageList.length} 张图片，准备导出...`;
+    document.getElementById("export-images-progress").style.display = 'block';
+    document.getElementById("export-images-progress-bar").style.width = '0%';
+    document.getElementById("export-images-progress-text").textContent = '导出中...';
+
+    const success = await exportImagesToFolder(imageList, folderName);
+    if (success) {
+        document.getElementById("export-images-progress-bar").style.width = '100%';
+        document.getElementById("export-images-progress-text").textContent = '导出完成！';
+        document.getElementById("export-images-summary").textContent = `✅ 已导出 ${imageList.length} 张图片到 ${folderName}/`;
+        setTimeout(() => closeExportImagesModal(), 2000);
+    } else {
+        document.getElementById("export-images-progress").style.display = 'none';
+    }
+}
 
 // ========== AI 智能组卷逻辑 ==========
 let currentAIRecommendedIds = [];
@@ -1809,9 +2029,9 @@ function loadCloudConfig() {
     // 如果是模拟器且未配置，自动填充测试配置
     if (isEmulator && !savedBaseUrl) {
         console.log("[Debug] 检测到模拟器环境，自动配置测试 API");
-        localStorage.setItem("cloud_api_base_url", "https://api.minimax.chat");
-        localStorage.setItem("cloud_api_key", "sk-cp-4_E_2SE2nP6ZueVWBH0JrULYbGTr01LjZgMYBMWGFjwuurXwJ27dsUPoHxuwsw3GBDi9-vJqNiWwvA2D4nq9_IFvbP5QBrfZUxH9BdOb6itDWT_sQnAoICc");
-        localStorage.setItem("cloud_api_model", "MiniMax-M2.7");
+        localStorage.setItem("cloud_api_base_url", "https://openrouter.ai/api/v1");
+        localStorage.setItem("cloud_api_key", "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");
+        localStorage.setItem("cloud_api_model", "google/gemma-4-31b-it:free");
     }
     
     document.getElementById("cloud-base-url").value = localStorage.getItem("cloud_api_base_url") || "";
@@ -1820,32 +2040,56 @@ function loadCloudConfig() {
 }
 
 async function callCloudAI(prompt, imageBase64) {
-    const baseUrl = localStorage.getItem("cloud_api_base_url") || "https://api.minimax.chat";
+    const baseUrl = localStorage.getItem("cloud_api_base_url") || "https://openrouter.ai/api/v1";
     const apiKey = localStorage.getItem("cloud_api_key");
-    const model = localStorage.getItem("cloud_api_model") || "MiniMax-M2.7";
+    const model = localStorage.getItem("cloud_api_model") || "google/gemma-4-31b-it:free";
     if (!apiKey) throw new Error("请先在 AI 引擎管理中配置 API Key");
 
     console.log("[CloudAI] 调用 API:", { baseUrl, model, hasImage: !!imageBase64 });
 
-    // 构建消息内容
+    // 构建消息内容（OpenAI 兼容格式）
     let content = prompt;
     if (imageBase64) {
+        // 检查是否已经是 data URL 格式
+        const imageUrl = imageBase64.startsWith('data:') ? imageBase64 : 
+                       "data:image/jpeg;base64," + imageBase64;
         content = [
             { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: "data:image/jpeg;base64," + imageBase64 } }
+            { type: "image_url", image_url: { url: imageUrl } }
         ];
+        console.log("[CloudAI] 图片URL前50字符:", imageUrl.substring(0, 50));
     }
 
     const messages = [{ role: "user", content }];
     
+    // 判断是否是 OpenRouter（通过 base URL 或显式标记）
+    const isOpenRouter = baseUrl.includes('openrouter');
+    const apiPath = isOpenRouter ? "/chat/completions" : "/v1/text/chatcompletion_v2";
+    
+    // 构建 headers
+    const headers = { 
+        "Content-Type": "application/json", 
+        "Authorization": "Bearer " + apiKey 
+    };
+    
+    // OpenRouter 需要额外的 headers
+    if (isOpenRouter) {
+        headers["HTTP-Referer"] = "http://localhost";
+        headers["X-Title"] = "Question Bank Local";
+    }
+    
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时（GPT-4o 可能需要更长时间）
 
     try {
-        const response = await fetch(baseUrl + "/v1/text/chatcompletion_v2", {
+        const response = await fetch(baseUrl + apiPath, {
             method: "POST",
-            headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
-            body: JSON.stringify({ model, messages, temperature: 0.7 }),
+            headers: headers,
+            body: JSON.stringify({ 
+                model, 
+                messages, 
+                temperature: 0.7
+            }),
             signal: controller.signal
         });
         clearTimeout(timeoutId);
@@ -1859,17 +2103,16 @@ async function callCloudAI(prompt, imageBase64) {
         const data = await response.json();
         console.log("[CloudAI] 响应:", JSON.stringify(data).substring(0, 200));
         
-        // 解析返回值（适配 MiniMax 格式）
+        // 解析返回值（OpenAI 格式）
         const content = data.choices?.[0]?.message?.content || 
                        data.choices?.[0]?.text || 
-                       data.choices?.[0]?.message?.reasoning_content ||
                        "";
         console.log("[CloudAI] 解析结果:", content.substring(0, 100));
         return content;
     } catch (error) {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
-            throw new Error("API 请求超时（30秒）");
+            throw new Error("API 请求超时（60秒）");
         }
         throw error;
     }
@@ -1890,9 +2133,10 @@ async function analyzeSingleQuestion() {
         let result;
         if (mode === "cloud") {
             // 云端 API
-            const prompt = "请简要描述这张题目图片的内容，包括学科和大致知识点";
+            const prompt = "请简要描述这道题目图片的内容，包括学科和大致知识点";
             btn.textContent = "分析中 (云端)...";
             console.log("[分析] 调用云端 API, 题目ID:", currentQuestionId, "有无图片:", !!q.question_image_url);
+            // 传递真实图片数据
             result = { summary: await callCloudAI(prompt, q.question_image_url), difficulty: 3 };
         } else {
             // 本地模型

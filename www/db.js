@@ -630,6 +630,26 @@ async function _replacePaperQuestions(paperId, questionIds) {
   }
 }
 
+async function _cacheImageIfRemote(imageUrl) {
+  if (!imageUrl || typeof imageUrl !== 'string') return imageUrl;
+  if (imageUrl.startsWith('data:')) return imageUrl; // 已经是本地 base64
+  if (!/^https?:\/\//i.test(imageUrl)) return imageUrl; // 不是远程 URL
+  try {
+    const resp = await fetch(imageUrl);
+    if (!resp.ok) { console.warn('缓存图片失败:', imageUrl, resp.status); return imageUrl; }
+    const blob = await resp.blob();
+    return await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => resolve(imageUrl);
+      reader.readAsDataURL(blob);
+    });
+  } catch (e) {
+    console.warn('缓存图片失败:', imageUrl, e.message);
+    return imageUrl;
+  }
+}
+
 async function dbApplyRemoteSnapshot(snapshot) {
   for (const tag of snapshot.tags || []) {
     const localTag = await dbTags.getItem(tag.id);
@@ -648,10 +668,15 @@ async function dbApplyRemoteSnapshot(snapshot) {
 
   for (const question of snapshot.questions || []) {
     const localQuestion = await dbQuestions.getItem(question.id);
+    let qImg = _normalizeServerAssetUrl(question.question_image_url);
+    let aImg = _normalizeServerAssetUrl(question.answer_image_url);
+    // 缓存远程图片到本地
+    qImg = await _cacheImageIfRemote(qImg);
+    aImg = await _cacheImageIfRemote(aImg);
     const nextQuestion = {
       id: question.id,
-      question_image_url: _normalizeServerAssetUrl(question.question_image_url),
-      answer_image_url: _normalizeServerAssetUrl(question.answer_image_url),
+      question_image_url: qImg,
+      answer_image_url: aImg,
       layout_type: question.layout_type || 0,
       created_at: question.created_at || question.updated_at || _nowIso(),
       updated_at: question.updated_at || question.created_at || _nowIso(),
