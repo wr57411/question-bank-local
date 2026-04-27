@@ -1798,26 +1798,81 @@ function saveCloudConfig() {
 }
 
 function loadCloudConfig() {
+    // 自动检测模拟器环境并配置测试 API（仅用于调试）
+    const isEmulator = /emulator|sdk/i.test(navigator.userAgent) || 
+                       /emulator/i.test(navigator.platform);
+    
+    const savedBaseUrl = localStorage.getItem("cloud_api_base_url");
+    const savedApiKey = localStorage.getItem("cloud_api_key");
+    const savedModel = localStorage.getItem("cloud_api_model");
+    
+    // 如果是模拟器且未配置，自动填充测试配置
+    if (isEmulator && !savedBaseUrl) {
+        console.log("[Debug] 检测到模拟器环境，自动配置测试 API");
+        localStorage.setItem("cloud_api_base_url", "https://api.minimax.chat");
+        localStorage.setItem("cloud_api_key", "sk-cp-4_E_2SE2nP6ZueVWBH0JrULYbGTr01LjZgMYBMWGFjwuurXwJ27dsUPoHxuwsw3GBDi9-vJqNiWwvA2D4nq9_IFvbP5QBrfZUxH9BdOb6itDWT_sQnAoICc");
+        localStorage.setItem("cloud_api_model", "MiniMax-M2.7");
+    }
+    
     document.getElementById("cloud-base-url").value = localStorage.getItem("cloud_api_base_url") || "";
     document.getElementById("cloud-api-key").value = localStorage.getItem("cloud_api_key") || "";
-    document.getElementById("cloud-model").value = localStorage.getItem("cloud_api_model") || "MiniMax-Text-01";
+    document.getElementById("cloud-model").value = localStorage.getItem("cloud_api_model") || "MiniMax-M2.7";
 }
 
-async function callCloudAI(prompt) {
+async function callCloudAI(prompt, imageBase64) {
     const baseUrl = localStorage.getItem("cloud_api_base_url") || "https://api.minimax.chat";
     const apiKey = localStorage.getItem("cloud_api_key");
-    const model = localStorage.getItem("cloud_api_model") || "MiniMax-Text-01";
+    const model = localStorage.getItem("cloud_api_model") || "MiniMax-M2.7";
     if (!apiKey) throw new Error("请先在 AI 引擎管理中配置 API Key");
 
-    const messages = [{ role: "user", content: prompt }];
-    const response = await fetch(baseUrl + "/v1/text/chatcompletion_v2", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
-        body: JSON.stringify({ model, messages })
-    });
-    if (!response.ok) throw new Error("API 请求失败: " + response.status);
-    const data = await response.json();
-    return data.choices?.[0]?.message?.content || data.choices?.[0]?.text || "";
+    console.log("[CloudAI] 调用 API:", { baseUrl, model, hasImage: !!imageBase64 });
+
+    // 构建消息内容
+    let content = prompt;
+    if (imageBase64) {
+        content = [
+            { type: "text", text: prompt },
+            { type: "image_url", image_url: { url: "data:image/jpeg;base64," + imageBase64 } }
+        ];
+    }
+
+    const messages = [{ role: "user", content }];
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30秒超时
+
+    try {
+        const response = await fetch(baseUrl + "/v1/text/chatcompletion_v2", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "Authorization": "Bearer " + apiKey },
+            body: JSON.stringify({ model, messages, temperature: 0.7 }),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("[CloudAI] API 错误:", response.status, errorText);
+            throw new Error("API 请求失败: " + response.status + " - " + errorText);
+        }
+
+        const data = await response.json();
+        console.log("[CloudAI] 响应:", JSON.stringify(data).substring(0, 200));
+        
+        // 解析返回值（适配 MiniMax 格式）
+        const content = data.choices?.[0]?.message?.content || 
+                       data.choices?.[0]?.text || 
+                       data.choices?.[0]?.message?.reasoning_content ||
+                       "";
+        console.log("[CloudAI] 解析结果:", content.substring(0, 100));
+        return content;
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            throw new Error("API 请求超时（30秒）");
+        }
+        throw error;
+    }
 }
 
 async function analyzeSingleQuestion() {
@@ -1837,7 +1892,8 @@ async function analyzeSingleQuestion() {
             // 云端 API
             const prompt = "请简要描述这张题目图片的内容，包括学科和大致知识点";
             btn.textContent = "分析中 (云端)...";
-            result = { summary: await callCloudAI(prompt), difficulty: 3 };
+            console.log("[分析] 调用云端 API, 题目ID:", currentQuestionId, "有无图片:", !!q.question_image_url);
+            result = { summary: await callCloudAI(prompt, q.question_image_url), difficulty: 3 };
         } else {
             // 本地模型
             const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
