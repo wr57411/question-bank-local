@@ -1661,7 +1661,7 @@ function closeExportImagesModal() {
 }
 
 // 公共函数：导出图片列表到文件夹
-async function exportImagesToFolder(imageList, folderName) {
+async function exportImagesToFolder(imageList, folderName, answerImageList) {
     if (!imageList || !imageList.length) { alert('没有可导出的图片'); return false; }
 
     const Filesystem = window.Capacitor?.Plugins?.Filesystem;
@@ -1684,17 +1684,17 @@ async function exportImagesToFolder(imageList, folderName) {
             }
         } catch (e) { /* ignore，用默认 DOWNLOAD */ }
 
-        // 创建文件夹
+        // 创建主文件夹
         try {
             await Filesystem.mkdir({ path: folderName, directory, recursive: true });
         } catch (e) { /* 文件夹可能已存在 */ }
 
-        // 逐个导出图片
+        // 导出题目图片
         for (let i = 0; i < imageList.length; i++) {
             const img = imageList[i];
             const progress = ((i + 1) / imageList.length) * 100;
             document.getElementById("export-images-progress-bar").style.width = progress + '%';
-            document.getElementById("export-images-progress-text").textContent = `导出中... (${i + 1}/${imageList.length})`;
+            document.getElementById("export-images-progress-text").textContent = `导出题目图片... (${i + 1}/${imageList.length})`;
 
             try {
                 let blob;
@@ -1725,6 +1725,49 @@ async function exportImagesToFolder(imageList, folderName) {
             }
         }
 
+        // 导出答案图片（如果有）
+        if (answerImageList && answerImageList.length > 0) {
+            const answerFolder = `${folderName}/答案`;
+            try {
+                await Filesystem.mkdir({ path: answerFolder, directory, recursive: true });
+            } catch (e) { /* 文件夹可能已存在 */ }
+
+            for (let i = 0; i < answerImageList.length; i++) {
+                const img = answerImageList[i];
+                if (!img.url) continue; // 跳过没有答案的题目
+
+                document.getElementById("export-images-progress-text").textContent = `导出答案图片... (${i + 1}/${answerImageList.length})`;
+
+                try {
+                    let blob;
+                    if (img.url.startsWith('data:')) {
+                        const res = await fetch(img.url);
+                        blob = await res.blob();
+                    } else if (img.url.startsWith('http')) {
+                        const res = await fetch(img.url);
+                        blob = await res.blob();
+                    } else {
+                        console.warn('不支持的答案图片格式:', img.url);
+                        continue;
+                    }
+
+                    const base64 = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result.split(',')[1]);
+                        reader.readAsDataURL(blob);
+                    });
+
+                    await Filesystem.writeFile({
+                        path: `${answerFolder}/${img.name}`,
+                        data: base64,
+                        directory
+                    });
+                } catch (e) {
+                    console.warn('导出答案图片失败:', img.name, e.message);
+                }
+            }
+        }
+
         return true;
     } catch (e) {
         console.error('导出失败:', e);
@@ -1740,22 +1783,29 @@ async function doExportImagesFromBasket() {
     const folderName = document.getElementById("export-images-folder").value.trim();
     if (!folderName) { alert('请输入文件夹名称'); return; }
 
-    // 只导出题目图片，不导出答案
+    // 收集题目图片
     const imageList = questions.map((q, i) => ({
         url: q.question_image_url,
         name: String(i + 1).padStart(3, '0') + '.jpg'
     })).filter(img => img.url);
 
-    document.getElementById("export-images-summary").textContent = `共 ${imageList.length} 张图片，准备导出...`;
+    // 收集答案图片
+    const answerImageList = questions.map((q, i) => ({
+        url: q.answer_image_url,
+        name: String(i + 1).padStart(3, '0') + '.jpg'
+    }));
+
+    document.getElementById("export-images-summary").textContent = `共 ${imageList.length} 张题目图片，准备导出...`;
     document.getElementById("export-images-progress").style.display = 'block';
     document.getElementById("export-images-progress-bar").style.width = '0%';
     document.getElementById("export-images-progress-text").textContent = '导出中...';
 
-    const success = await exportImagesToFolder(imageList, folderName);
+    const success = await exportImagesToFolder(imageList, folderName, answerImageList);
     if (success) {
         document.getElementById("export-images-progress-bar").style.width = '100%';
         document.getElementById("export-images-progress-text").textContent = '导出完成！';
-        document.getElementById("export-images-summary").textContent = `✅ 已导出 ${imageList.length} 张图片到 ${folderName}/`;
+        const answerCount = answerImageList.filter(img => img.url).length;
+        document.getElementById("export-images-summary").textContent = `✅ 已导出 ${imageList.length} 张题目图片和 ${answerCount} 张答案图片到 ${folderName}/`;
         setTimeout(() => closeExportImagesModal(), 2000);
     } else {
         document.getElementById("export-images-progress").style.display = 'none';
@@ -1770,22 +1820,29 @@ async function doExportImages() {
     const { paper, questions } = await dbGetPaperQuestions(currentPaperId);
     if (!questions || !questions.length) { alert('该试卷暂无题目'); return; }
 
-    // 只导出题目图片，不导出答案
+    // 收集题目图片
     const imageList = questions.map((q, i) => ({
         url: q.question_image_url,
         name: String(i + 1).padStart(3, '0') + '.jpg'
     })).filter(img => img.url);
 
-    document.getElementById("export-images-summary").textContent = `共 ${imageList.length} 张图片，准备导出...`;
+    // 收集答案图片
+    const answerImageList = questions.map((q, i) => ({
+        url: q.answer_image_url,
+        name: String(i + 1).padStart(3, '0') + '.jpg'
+    }));
+
+    document.getElementById("export-images-summary").textContent = `共 ${imageList.length} 张题目图片，准备导出...`;
     document.getElementById("export-images-progress").style.display = 'block';
     document.getElementById("export-images-progress-bar").style.width = '0%';
     document.getElementById("export-images-progress-text").textContent = '导出中...';
 
-    const success = await exportImagesToFolder(imageList, folderName);
+    const success = await exportImagesToFolder(imageList, folderName, answerImageList);
     if (success) {
         document.getElementById("export-images-progress-bar").style.width = '100%';
         document.getElementById("export-images-progress-text").textContent = '导出完成！';
-        document.getElementById("export-images-summary").textContent = `✅ 已导出 ${imageList.length} 张图片到 ${folderName}/`;
+        const answerCount = answerImageList.filter(img => img.url).length;
+        document.getElementById("export-images-summary").textContent = `✅ 已导出 ${imageList.length} 张题目图片和 ${answerCount} 张答案图片到 ${folderName}/`;
         setTimeout(() => closeExportImagesModal(), 2000);
     } else {
         document.getElementById("export-images-progress").style.display = 'none';
