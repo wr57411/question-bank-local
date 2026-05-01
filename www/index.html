@@ -184,6 +184,7 @@
         <button class="tab" onclick="showTab('tags',this)">标签管理</button>
         <button class="tab" onclick="showTab('papers',this)">试卷管理</button>
         <button class="tab" onclick="showTab('trash',this);loadTrashed()">🗑️ 垃圾篓</button>
+        <button class="tab" onclick="showPendingBlankList()" id="pending-blank-tab">📷 待补拍<span id="pending-blank-count" class="badge" style="display:none;margin-left:4px;background:#ef4444;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
     </div>
 
     <!-- 题目管理 -->
@@ -503,9 +504,53 @@
             </div>
             <p id="export-images-progress-text" style="font-size:12px;color:#888;margin-top:4px">导出中...</p>
         </div>
+        <div class="form-group">
+            <label>导出内容</label>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <input type="radio" name="export-type" value="with_notes" checked style="width:auto">
+                    <span>仅带笔记版（老师用）</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <input type="radio" name="export-type" value="blank" style="width:auto">
+                    <span>仅空白版（学生用）</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <input type="radio" name="export-type" value="both" style="width:auto">
+                    <span>两者都导出</span>
+                </label>
+            </div>
+        </div>
         <div class="btn-group">
             <button class="secondary" onclick="closeExportImagesModal()">取消</button>
             <button class="success" onclick="doExportImages()" style="background:#f59e0b">确认导出</button>
+        </div>
+    </div>
+</div>
+
+<!-- 询问空白版弹窗 -->
+<div id="blank-ask-modal" class="modal" onclick="if(event.target===this)closeBlankAskModal()">
+    <div class="modal-content" style="max-width:400px;text-align:center">
+        <h3 style="margin-bottom:12px">📷 是否需要空白版？</h3>
+        <p style="font-size:14px;color:#666;margin-bottom:20px">空白版题目不含笔记，适合发给学生练习</p>
+        <div class="btn-group" style="flex-direction:column;gap:10px">
+            <button onclick="doCaptureBlankNow()" style="background:#10b981;width:100%;padding:12px;font-size:15px">📸 现在拍</button>
+            <button onclick="doCaptureBlankLater()" style="background:#f59e0b;width:100%;padding:12px;font-size:15px">⏰ 晚点拍</button>
+            <button class="secondary" onclick="doSkipBlank()" style="width:100%;padding:12px">不需要</button>
+        </div>
+    </div>
+</div>
+
+<!-- 待补拍列表弹窗 -->
+<div id="pending-blank-modal" class="modal" onclick="if(event.target===this)closePendingBlankModal()">
+    <div class="modal-content" style="max-width:500px">
+        <h3>📷 待补拍空白题</h3>
+        <div style="font-size:13px;color:#888;margin-bottom:14px">以下题目缺少空白版，点击可补拍</div>
+        <div id="pending-blank-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px">
+            <!-- 动态填充 -->
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closePendingBlankModal()">关闭</button>
         </div>
     </div>
 </div>
@@ -1353,6 +1398,29 @@ function confirmCrop() {
     destroyCropInteractionLayer();
     cropper.destroy(); cropper = null;
 
+    // 检查是否在拍空白版
+    if (window._capturingBlankFor) {
+        const questionId = window._capturingBlankFor;
+        window._capturingBlankFor = null; // 清除标记
+        
+        // 压缩并保存空白版图片
+        compressImage(dataUrl).then(compressed => {
+            dbUpdateQuestionBlankImage(questionId, compressed).then(() => {
+                showStatus('空白版图片已保存', 'success');
+                // 从待补拍列表中移除
+                if (_pendingBlankList.includes(questionId)) {
+                    _pendingBlankList = _pendingBlankList.filter(id => id !== questionId);
+                    localStorage.setItem('pendingBlankList', JSON.stringify(_pendingBlankList));
+                }
+            }).catch(e => {
+                showStatus('保存空白版失败: ' + e.message, 'error');
+            });
+        }).catch(e => {
+            showStatus('图片压缩失败: ' + e.message, 'error');
+        });
+        return;
+    }
+
     // 跨页裁剪模式：通过 Promise 返回
     if (_cropResolve) {
         _cropResolve(dataUrl);
@@ -1458,12 +1526,16 @@ document.getElementById("question-form").addEventListener("submit", async (e) =>
     const lt = lr ? parseInt(lr.value) : 0;
     try {
         const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = "处理中...";
-        await dbCreateQuestion(qi, ai, tags, lt);
+        const newQuestion = await dbCreateQuestion(qi, ai, tags, lt);
         removeImage("question"); removeImage("answer");
         document.getElementById("tag-select").selectedIndex = -1;
         document.querySelectorAll('.layout-option').forEach(l => { l.style.borderColor = '#e5e7eb'; l.style.background = '#fff'; });
         await loadQuestions(); showStatus("题目添加成功", "success");
         btn.disabled = false; btn.textContent = "添加题目";
+        // 询问是否需要空白版
+        if (newQuestion && newQuestion.id) {
+            askBlankVersion(newQuestion.id);
+        }
     } catch (err) { showStatus("添加失败: " + err.message, "error"); e.target.querySelector('button[type="submit"]').disabled = false; e.target.querySelector('button[type="submit"]').textContent = "添加题目"; }
 });
 async function loadQuestions() { allQuestions = await dbGetAllQuestions(); renderQuestions(); }
@@ -1783,33 +1855,80 @@ async function doExportImagesFromBasket() {
     const folderName = document.getElementById("export-images-folder").value.trim();
     if (!folderName) { alert('请输入文件夹名称'); return; }
 
-    // 收集题目图片
-    const imageList = questions.map((q, i) => ({
-        url: q.question_image_url,
-        name: String(i + 1).padStart(3, '0') + '.jpg'
-    })).filter(img => img.url);
-
-    // 收集答案图片
-    const answerImageList = questions.map((q, i) => ({
-        url: q.answer_image_url,
-        name: String(i + 1).padStart(3, '0') + '.jpg'
-    }));
-
-    document.getElementById("export-images-summary").textContent = `共 ${imageList.length} 张题目图片，准备导出...`;
-    document.getElementById("export-images-progress").style.display = 'block';
-    document.getElementById("export-images-progress-bar").style.width = '0%';
-    document.getElementById("export-images-progress-text").textContent = '导出中...';
-
-    const success = await exportImagesToFolder(imageList, folderName, answerImageList);
-    if (success) {
-        document.getElementById("export-images-progress-bar").style.width = '100%';
-        document.getElementById("export-images-progress-text").textContent = '导出完成！';
-        const answerCount = answerImageList.filter(img => img.url).length;
-        document.getElementById("export-images-summary").textContent = `✅ 已导出 ${imageList.length} 张题目图片和 ${answerCount} 张答案图片到 ${folderName}/`;
-        setTimeout(() => closeExportImagesModal(), 2000);
-    } else {
-        document.getElementById("export-images-progress").style.display = 'none';
+    const exportType = document.querySelector('input[name="export-type"]:checked')?.value || 'with_notes';
+    
+    // 定义导出任务
+    const tasks = [];
+    
+    if (exportType === 'with_notes' || exportType === 'both') {
+        const imageList = questions.map((q, i) => ({
+            url: q.question_image_url,
+            name: String(i + 1).padStart(3, '0') + '.jpg'
+        })).filter(img => img.url);
+        
+        const answerImageList = questions.map((q, i) => ({
+            url: q.answer_image_url,
+            name: String(i + 1).padStart(3, '0') + '.jpg'
+        }));
+        
+        tasks.push({
+            folderName: folderName,
+            imageList: imageList,
+            answerImageList: answerImageList,
+            label: '带笔记版'
+        });
     }
+    
+    if (exportType === 'blank' || exportType === 'both') {
+        const imageList = questions.map((q, i) => ({
+            url: q.question_image_blank_url,
+            name: String(i + 1).padStart(3, '0') + '.jpg'
+        })).filter(img => img.url); // 过滤掉没有空白版的题目
+        
+        const answerImageList = questions.map((q, i) => ({
+            url: q.answer_image_url,
+            name: String(i + 1).padStart(3, '0') + '.jpg'
+        }));
+        
+        tasks.push({
+            folderName: exportType === 'both' ? folderName + '-空白' : folderName,
+            imageList: imageList,
+            answerImageList: answerImageList,
+            label: '空白版'
+        });
+    }
+    
+    if (!tasks.length) { alert('没有可导出的图片'); return; }
+    
+    // 执行导出任务
+    for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+        
+        document.getElementById("export-images-summary").textContent = `共 ${task.imageList.length} 张题目图片（${task.label}），准备导出...`;
+        document.getElementById("export-images-progress").style.display = 'block';
+        document.getElementById("export-images-progress-bar").style.width = '0%';
+        document.getElementById("export-images-progress-text").textContent = '导出中...';
+        
+        const success = await exportImagesToFolder(task.imageList, task.folderName, task.answerImageList);
+        if (!success) {
+            document.getElementById("export-images-progress").style.display = 'none';
+            return; // 如果失败，停止
+        }
+        
+        if (i < tasks.length - 1) {
+            // 还有下一个任务，等待一下再继续
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+    
+    // 完成
+    document.getElementById("export-images-progress-bar").style.width = '100%';
+    document.getElementById("export-images-progress-text").textContent = '导出完成！';
+    
+    const taskLabels = tasks.map(t => t.label).join(' 和 ');
+    const folderNames = tasks.length > 1 ? `${folderName}/ 和 ${folderName}-空白/` : `${folderName}/`;
+    document.getElementById("export-images-summary").textContent = `✅ 已导出 ${taskLabels} 到 ${folderNames}`;
+    setTimeout(() => closeExportImagesModal(), 2000);
 }
 
 async function doExportImages() {
@@ -1820,33 +1939,80 @@ async function doExportImages() {
     const { paper, questions } = await dbGetPaperQuestions(currentPaperId);
     if (!questions || !questions.length) { alert('该试卷暂无题目'); return; }
 
-    // 收集题目图片
-    const imageList = questions.map((q, i) => ({
-        url: q.question_image_url,
-        name: String(i + 1).padStart(3, '0') + '.jpg'
-    })).filter(img => img.url);
-
-    // 收集答案图片
-    const answerImageList = questions.map((q, i) => ({
-        url: q.answer_image_url,
-        name: String(i + 1).padStart(3, '0') + '.jpg'
-    }));
-
-    document.getElementById("export-images-summary").textContent = `共 ${imageList.length} 张题目图片，准备导出...`;
-    document.getElementById("export-images-progress").style.display = 'block';
-    document.getElementById("export-images-progress-bar").style.width = '0%';
-    document.getElementById("export-images-progress-text").textContent = '导出中...';
-
-    const success = await exportImagesToFolder(imageList, folderName, answerImageList);
-    if (success) {
-        document.getElementById("export-images-progress-bar").style.width = '100%';
-        document.getElementById("export-images-progress-text").textContent = '导出完成！';
-        const answerCount = answerImageList.filter(img => img.url).length;
-        document.getElementById("export-images-summary").textContent = `✅ 已导出 ${imageList.length} 张题目图片和 ${answerCount} 张答案图片到 ${folderName}/`;
-        setTimeout(() => closeExportImagesModal(), 2000);
-    } else {
-        document.getElementById("export-images-progress").style.display = 'none';
+    const exportType = document.querySelector('input[name="export-type"]:checked')?.value || 'with_notes';
+    
+    // 定义导出任务
+    const tasks = [];
+    
+    if (exportType === 'with_notes' || exportType === 'both') {
+        const imageList = questions.map((q, i) => ({
+            url: q.question_image_url,
+            name: String(i + 1).padStart(3, '0') + '.jpg'
+        })).filter(img => img.url);
+        
+        const answerImageList = questions.map((q, i) => ({
+            url: q.answer_image_url,
+            name: String(i + 1).padStart(3, '0') + '.jpg'
+        }));
+        
+        tasks.push({
+            folderName: folderName,
+            imageList: imageList,
+            answerImageList: answerImageList,
+            label: '带笔记版'
+        });
     }
+    
+    if (exportType === 'blank' || exportType === 'both') {
+        const imageList = questions.map((q, i) => ({
+            url: q.question_image_blank_url,
+            name: String(i + 1).padStart(3, '0') + '.jpg'
+        })).filter(img => img.url); // 过滤掉没有空白版的题目
+        
+        const answerImageList = questions.map((q, i) => ({
+            url: q.answer_image_url,
+            name: String(i + 1).padStart(3, '0') + '.jpg'
+        }));
+        
+        tasks.push({
+            folderName: exportType === 'both' ? folderName + '-空白' : folderName,
+            imageList: imageList,
+            answerImageList: answerImageList,
+            label: '空白版'
+        });
+    }
+    
+    if (!tasks.length) { alert('没有可导出的图片'); return; }
+    
+    // 执行导出任务
+    for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+        
+        document.getElementById("export-images-summary").textContent = `共 ${task.imageList.length} 张题目图片（${task.label}），准备导出...`;
+        document.getElementById("export-images-progress").style.display = 'block';
+        document.getElementById("export-images-progress-bar").style.width = '0%';
+        document.getElementById("export-images-progress-text").textContent = '导出中...';
+        
+        const success = await exportImagesToFolder(task.imageList, task.folderName, task.answerImageList);
+        if (!success) {
+            document.getElementById("export-images-progress").style.display = 'none';
+            return; // 如果失败，停止
+        }
+        
+        if (i < tasks.length - 1) {
+            // 还有下一个任务，等待一下再继续
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+    
+    // 完成
+    document.getElementById("export-images-progress-bar").style.width = '100%';
+    document.getElementById("export-images-progress-text").textContent = '导出完成！';
+    
+    const taskLabels = tasks.map(t => t.label).join(' 和 ');
+    const folderNames = tasks.length > 1 ? `${folderName}/ 和 ${folderName}-空白/` : `${folderName}/`;
+    document.getElementById("export-images-summary").textContent = `✅ 已导出 ${taskLabels} 到 ${folderNames}`;
+    setTimeout(() => closeExportImagesModal(), 2000);
 }
 
 // ========== AI 智能组卷逻辑 ==========
@@ -2353,6 +2519,143 @@ async function handleImport(event) {
     catch (e) { showStatus("导入失败: " + e.message, "error"); }
     event.target.value = "";
 }
+
+// ========== 空白版题目功能 ==========
+
+let _pendingBlankQuestionId = null; // 当前询问的题目ID
+let _pendingBlankList = JSON.parse(localStorage.getItem('pendingBlankList') || '[]'); // 待补拍列表
+
+// 询问是否需要空白版
+function askBlankVersion(questionId) {
+    _pendingBlankQuestionId = questionId;
+    document.getElementById('blank-ask-modal').style.display = 'flex';
+}
+
+// 关闭询问弹窗
+function closeBlankAskModal() {
+    document.getElementById('blank-ask-modal').style.display = 'none';
+    _pendingBlankQuestionId = null;
+}
+
+// 现在拍空白版
+async function doCaptureBlankNow() {
+    if (!_pendingBlankQuestionId) return;
+    closeBlankAskModal();
+    // 设置标记，让拍摄逻辑知道这是在拍空白版
+    window._capturingBlankFor = _pendingBlankQuestionId;
+    // 触发拍摄题目图片（复用现有逻辑）
+    document.getElementById('question-image').click();
+}
+
+// 晚点拍：加入待补拍列表
+function doCaptureBlankLater() {
+    if (!_pendingBlankQuestionId) return;
+    if (!_pendingBlankList.includes(_pendingBlankQuestionId)) {
+        _pendingBlankList.push(_pendingBlankQuestionId);
+        localStorage.setItem('pendingBlankList', JSON.stringify(_pendingBlankList));
+        showStatus('已加入待补拍列表', 'success');
+    }
+    closeBlankAskModal();
+    updatePendingBlankCount();
+}
+
+// 不需要空白版
+function doSkipBlank() {
+    closeBlankAskModal();
+}
+
+// 显示待补拍列表
+async function showPendingBlankList() {
+    const container = document.getElementById('pending-blank-list');
+    container.innerHTML = '';
+    
+    if (!_pendingBlankList.length) {
+        container.innerHTML = '<div style="text-align:center;color:#999;padding:20px">暂无待补拍题目</div>';
+        document.getElementById('pending-blank-modal').style.display = 'flex';
+        return;
+    }
+    
+    // 加载题目详情
+    for (const questionId of _pendingBlankList) {
+        try {
+            const question = await dbQuestions.getItem(questionId);
+            if (!question) {
+                // 题目已被删除，从列表中移除
+                _pendingBlankList = _pendingBlankList.filter(id => id !== questionId);
+                continue;
+            }
+            const div = document.createElement('div');
+            div.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid #f0f0f0;cursor:pointer';
+            div.onclick = () => doCaptureBlankForQuestion(questionId);
+            
+            const img = document.createElement('img');
+            img.src = question.question_image_url;
+            img.style.cssText = 'width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0';
+            div.appendChild(img);
+            
+            const info = document.createElement('div');
+            info.style.cssText = 'flex:1';
+            const title = document.createElement('div');
+            title.textContent = question.semantic_summary || '题目 ' + questionId.substring(0, 8);
+            title.style.cssText = 'font-size:14px;color:#333;margin-bottom:4px';
+            info.appendChild(title);
+            
+            const hint = document.createElement('div');
+            hint.textContent = '点击补拍空白版';
+            hint.style.cssText = 'font-size:12px;color:#888';
+            info.appendChild(hint);
+            
+            div.appendChild(info);
+            
+            const btn = document.createElement('button');
+            btn.textContent = '❌';
+            btn.style.cssText = 'background:none;border:none;font-size:16px;cursor:pointer;padding:4px';
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                removeFromPendingBlank(questionId);
+            };
+            div.appendChild(btn);
+            
+            container.appendChild(div);
+        } catch (e) {
+            console.warn('加载题目失败:', questionId, e);
+        }
+    }
+    
+    document.getElementById('pending-blank-modal').style.display = 'flex';
+}
+
+// 关闭待补拍列表弹窗
+function closePendingBlankModal() {
+    document.getElementById('pending-blank-modal').style.display = 'none';
+}
+
+// 从待补拍列表中移除
+function removeFromPendingBlank(questionId) {
+    _pendingBlankList = _pendingBlankList.filter(id => id !== questionId);
+    localStorage.setItem('pendingBlankList', JSON.stringify(_pendingBlankList));
+    showPendingBlankList(); // 刷新列表
+    updatePendingBlankCount();
+}
+
+// 为指定题目拍空白版
+function doCaptureBlankForQuestion(questionId) {
+    closePendingBlankModal();
+    window._capturingBlankFor = questionId;
+    document.getElementById('question-image').click();
+}
+
+// 更新待补拍数量徽章
+function updatePendingBlankCount() {
+    const count = _pendingBlankList.length;
+    const badge = document.getElementById('pending-blank-count');
+    if (badge) {
+        badge.textContent = count;
+        badge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+}
+
+// ========== 原有函数 ==========
 
 function showStatus(msg, type) {
     const c = document.getElementById("status-message"); c.replaceChildren();

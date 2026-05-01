@@ -149,6 +149,10 @@ function _normalizeQuestionRecord(question, key) {
   if (!next.answer_image_url) {
     next.answer_image_url = next.answerImageUrl || next.answer_image || next.answer || null;
   }
+  // 新增：空白题目图片（学生用）
+  if (next.question_image_blank_url === undefined) {
+    next.question_image_blank_url = next.questionImageBlankUrl || next.question_blank_url || next.blank_image || null;
+  }
   if (next.layoutType != null && next.layout_type == null) next.layout_type = next.layoutType;
   if (next.createdAt && !next.created_at) next.created_at = next.createdAt;
   if (next.updatedAt && !next.updated_at) next.updated_at = next.updatedAt;
@@ -406,6 +410,19 @@ async function dbAddTagToQuestion(questionId, tagId) {
   if (question) {
     await dbQuestions.setItem(questionId, { ...question, updated_at: _nowIso() });
   }
+}
+
+// 更新题目的空白版图片
+async function dbUpdateQuestionBlankImage(questionId, blankImageUrl) {
+  const question = await dbQuestions.getItem(questionId);
+  if (!question) throw new Error('题目不存在');
+  const now = _nowIso();
+  await dbQuestions.setItem(questionId, {
+    ...question,
+    question_image_blank_url: blankImageUrl,
+    updated_at: now
+  });
+  return question;
 }
 
 // ========== 试卷 CRUD ==========
