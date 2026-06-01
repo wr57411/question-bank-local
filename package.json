@@ -13,7 +13,9 @@
     "cap:add:android": "npx cap add android",
     "cap:sync": "npx cap sync",
     "cap:open:android": "npx cap open android",
-    "cap:run:android": "npx cap run android"
+    "cap:run:android": "npx cap run android",
+    "ship": "bash scripts/ship-feature.sh",
+    "build:apk": "bash scripts/ship-feature.sh"
   },
   "dependencies": {
     "@capacitor/android": "^6.0.0",

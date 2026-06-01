@@ -38,7 +38,7 @@
         .btn-group{display:flex;gap:8px;flex-wrap:wrap}
         .btn-group button{flex:1;min-width:80px}
         .upload-buttons{display:flex;gap:10px;flex-wrap:wrap}
-        .upload-btn{flex:1;min-width:100px;padding:14px;font-size:15px;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:8px}
+        .upload-btn{flex:1;min-width:70px;padding:14px;font-size:15px;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:8px}
         .upload-btn.camera{background:#10b981}
         .upload-btn.camera:hover{background:#059669}
         .preview-wrap{position:relative;display:inline-block;max-width:100%;margin-top:8px}
@@ -110,6 +110,15 @@
         .filter-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
         .filter-tag{padding:4px 12px;border-radius:15px;font-size:12px;cursor:pointer;border:1.5px solid #e0e0e0;background:#fff;color:#666;transition:all .2s}
         .filter-tag.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
+        .similar-list{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
+        .similar-card{border:1px solid #e5e7eb;border-radius:8px;padding:8px;background:#fff;cursor:pointer}
+        .similar-card img{width:100%;height:82px;object-fit:contain;background:#f9fafb;border-radius:6px}
+        .similar-card .similar-title{font-size:11px;color:#374151;line-height:1.35;margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+        .similar-result{display:grid;grid-template-columns:24px 72px 1fr;gap:8px;align-items:flex-start;padding:8px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;background:#fff}
+        .similar-result.ai-picked{border-color:#8b5cf6;background:#f5f3ff}
+        .similar-result img{width:72px;height:72px;object-fit:contain;background:#f9fafb;border-radius:6px}
+        .similar-result input{margin-top:26px}
+        .similar-meta{font-size:11px;color:#6b7280;line-height:1.45;margin-top:3px}
         .layout-option{display:flex;align-items:center;gap:6px;cursor:pointer;padding:10px 16px;border:2px solid #e5e7eb;border-radius:10px;flex:1;text-align:center;transition:all .2s}
         .mode-option{display:flex;align-items:center;gap:10px;padding:12px;border:2px solid #e5e7eb;border-radius:10px;cursor:pointer;margin-bottom:8px;transition:all .2s}
         .mode-option.selected{border-color:#3b82f6;background:#3b82f610}
@@ -178,12 +187,14 @@
         <button style="background:#f59e0b" onclick="showBackupModal()">☁️ 备份设置</button>
         <button class="secondary" onclick="document.getElementById('import-file').click()">导入数据</button>
         <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
+        <button id="floating-toggle-btn" style="background:#3b82f6" onclick="console.log('[Floating] Button clicked!');toggleFloatingWindow()">   悬浮窗</button>
     </div>
     <div class="tabs">
         <button class="tab active" onclick="showTab('questions',this)">题目管理</button>
         <button class="tab" onclick="showTab('tags',this)">标签管理</button>
         <button class="tab" onclick="showTab('papers',this)">试卷管理</button>
         <button class="tab" onclick="showTab('trash',this);loadTrashed()">🗑️ 垃圾篓</button>
+        <button class="tab" onclick="showTab('pending-link',this);renderPendingLinkList()">🔗 待关联<span id="pending-link-count" class="badge" style="display:none;margin-left:4px;background:#f59e0b;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
         <button class="tab" onclick="showPendingBlankList()" id="pending-blank-tab">📷 待补拍<span id="pending-blank-count" class="badge" style="display:none;margin-left:4px;background:#ef4444;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
     </div>
 
@@ -195,7 +206,7 @@
                 <span id="ai-status-label" class="ai-badge" style="background:#ef4444">未就绪</span>
             </div>
             <p id="ai-status-desc" style="font-size:12px;color:#6b7280;margin-bottom:12px">请将 Gemma 4 模型文件 (gemma-4-E2B-it-Q3_K_S.gguf) 放入手机的 Download 目录，然后点击"加载模型"。</p>
-            
+
             <!-- 进度条容器 -->
             <div id="ai-download-progress-wrap" class="hidden" style="margin-bottom:12px">
                 <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;color:#8b5cf6">
@@ -212,29 +223,79 @@
                 <button id="ai-batch-btn" onclick="handleBatchAnalyze()" class="secondary" style="font-size:12px;display:none">📊 批量分析已有题目</button>
             </div>
 
-            <!-- 云端 API 配置 -->
+            <!-- 模型服务商管理 -->
             <details style="margin-top:12px">
-                <summary style="font-size:12px;color:#6b7280;cursor:pointer">☁️ 云端 API 配置</summary>
+                <summary style="font-size:12px;color:#6b7280;cursor:pointer">☁️ 模型服务商管理</summary>
                 <div style="margin-top:8px;padding:10px;background:#f9fafb;border-radius:8px">
-                    <div class="form-group" style="margin-bottom:8px;display:flex;align-items:center;gap:6px">
-                        <label style="font-size:11px;color:#6b7280;min-width:55px">Base URL</label>
-                        <input id="cloud-base-url" type="text" placeholder="https://api.minimax.chat" style="flex:1;font-size:12px;padding:6px;border:1px solid #e5e7eb;border-radius:6px">
-                        <button onclick="pasteTo('cloud-base-url')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋 粘贴</button>
+                    <!-- 已保存的服务商按钮列表 -->
+                    <div id="provider-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+                        <!-- 动态填充 -->
                     </div>
-                    <div class="form-group" style="margin-bottom:8px;display:flex;align-items:center;gap:6px">
-                        <label style="font-size:11px;color:#6b7280;min-width:55px">API Key</label>
-                        <input id="cloud-api-key" type="password" placeholder="sk-..." style="flex:1;font-size:12px;padding:6px;border:1px solid #e5e7eb;border-radius:6px">
-                        <button onclick="pasteTo('cloud-api-key')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋 粘贴</button>
-                    </div>
-                    <div class="form-group" style="margin-bottom:8px;display:flex;align-items:center;gap:6px">
-                        <label style="font-size:11px;color:#6b7280;min-width:55px">模型名称</label>
-                        <input id="cloud-model" type="text" placeholder="MiniMax-Text-01" value="MiniMax-Text-01" style="flex:1;font-size:12px;padding:6px;border:1px solid #e5e7eb;border-radius:6px">
-                        <button onclick="pasteTo('cloud-model')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋 粘贴</button>
-                    </div>
-                    <button onclick="saveCloudConfig()" style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">💾 保存配置</button>
-                    <span id="cloud-config-msg" style="font-size:11px;color:#22c55e;margin-left:8px"></span>
+                    <button onclick="showAddProviderModal()" style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">➕ 添加服务商</button>
+                    <span id="current-provider-name" style="font-size:11px;color:#6b7280;margin-left:8px"></span>
                 </div>
             </details>
+        </div>
+
+        <!-- 添加/编辑服务商弹窗 -->
+        <div id="provider-modal" class="modal" onclick="if(event.target===this)closeProviderModal()">
+            <div class="modal-content" style="max-width:400px">
+                <h3 id="provider-modal-title">添加服务商</h3>
+                <div class="form-group">
+                    <label>服务商名称</label>
+                    <input id="provider-name" type="text" placeholder="例如：OpenRouter、DeepSeek" />
+                </div>
+                <div class="form-group">
+                    <label>Base URL</label>
+                    <div style="display:flex;gap:6px">
+                        <input id="provider-base-url" type="text" placeholder="https://api.openrouter.ai/v1" style="flex:1" />
+                        <button onclick="pasteTo('provider-base-url')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>API Key</label>
+                    <div style="display:flex;gap:6px">
+                        <input id="provider-api-key" type="password" placeholder="sk-..." style="flex:1" />
+                        <button onclick="pasteTo('provider-api-key')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>模型名称</label>
+                    <div style="display:flex;gap:6px">
+                        <input id="provider-model" type="text" placeholder="google/gemma-7b-it" style="flex:1" />
+                        <button onclick="pasteTo('provider-model')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋</button>
+                    </div>
+                </div>
+                <details style="margin-top:4px">
+                    <summary style="font-size:12px;color:#9ca3af;cursor:pointer">高级设置</summary>
+                    <div style="margin-top:8px">
+                        <div class="form-group">
+                            <label>认证头名称</label>
+                            <input id="provider-auth-header" type="text" placeholder="Authorization（默认）" />
+                        </div>
+                        <div class="form-group">
+                            <label>认证方案</label>
+                            <select id="provider-auth-scheme" style="font-size:13px;padding:8px;border:1px solid #d1d5db;border-radius:6px;width:100%;background:#fff">
+                                <option value="Bearer">Bearer（默认）</option>
+                                <option value="X-API-Key">X-API-Key</option>
+                                <option value="">无前缀（直接用 Key 值）</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>自定义端点（覆盖默认路径）</label>
+                            <div style="display:flex;gap:6px">
+                                <input id="provider-endpoint" type="text" placeholder="留空则自动拼接 baseUrl + /chat/completions" style="flex:1" />
+                                <button onclick="pasteTo('provider-endpoint')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+                <div class="btn-group">
+                    <button class="secondary" onclick="closeProviderModal()">取消</button>
+                    <button onclick="saveProvider()" id="provider-save-btn">保存</button>
+                    <button class="danger" onclick="deleteProvider()" id="provider-delete-btn" style="display:none">删除</button>
+                </div>
+            </div>
         </div>
 
         <div class="card">
@@ -247,6 +308,7 @@
                         <button type="button" class="upload-btn camera" onclick="takePhoto('question')">📷 拍照</button>
                         <button type="button" class="upload-btn" onclick="pickFromGallery('question')">🖼️ 相册</button>
                         <button type="button" class="upload-btn" style="background:#8b5cf6" onclick="crossPageShoot('question')">📸 跨页拍摄</button>
+                        <button type="button" class="upload-btn" style="background:#0ea5e9" onclick="pickFromFloating('question')">📋 悬浮窗</button>
                     </div>
                     <div class="preview-wrap" id="question-preview-wrap" style="display:none">
                         <span class="preview-delete" onclick="removeImage('question')">×</span>
@@ -260,12 +322,26 @@
                         <button type="button" class="upload-btn camera" onclick="takePhoto('answer')">📷 拍照</button>
                         <button type="button" class="upload-btn" onclick="pickFromGallery('answer')">🖼️ 相册</button>
                         <button type="button" class="upload-btn" style="background:#8b5cf6" onclick="crossPageShoot('answer')">📸 跨页拍摄</button>
+                        <button type="button" class="upload-btn" style="background:#0ea5e9" onclick="pickFromFloating('answer')">📋 悬浮窗</button>
                     </div>
                     <div class="preview-wrap" id="answer-preview-wrap" style="display:none">
                         <span class="preview-delete" onclick="removeImage('answer')">×</span>
                         <img id="answer-preview" class="preview-image" />
                     </div>
                     <div id="answer-preview-label" class="preview-label hidden">✓ 答案图片已选择 <span class="crop-icon" onclick="startCrop('answer')" title="裁剪图片">✂️</span></div>
+                </div>
+                <div class="form-group">
+                    <label>空白版图片（可选，学生用）</label>
+                    <div class="upload-buttons">
+                        <button type="button" class="upload-btn" style="background:#f59e0b" onclick="takePhoto('blank')">📷 拍空白版</button>
+                        <button type="button" class="upload-btn" onclick="pickFromGallery('blank')">🖼️ 相册</button>
+                        <button type="button" class="upload-btn" style="background:#0ea5e9" onclick="pickFromFloating('blank')">📋 悬浮窗</button>
+                    </div>
+                    <div class="preview-wrap" id="blank-preview-wrap" style="display:none">
+                        <span class="preview-delete" onclick="removeImage('blank')">×</span>
+                        <img id="blank-preview" class="preview-image" style="border-color:#f59e0b" />
+                    </div>
+                    <div id="blank-preview-label" class="preview-label hidden" style="color:#f59e0b">✓ 空白版图片已选择 <span class="crop-icon" onclick="startCrop('blank')" title="裁剪图片">✂️</span></div>
                 </div>
                 <div class="form-group">
                     <label>排版适用性 *</label>
@@ -360,6 +436,15 @@
             <div id="trash-list"></div>
         </div>
     </div>
+
+    <!-- 待关联 -->
+    <div id="pending-link-tab" class="hidden">
+        <div class="card">
+            <h2>🔗 待关联题目 <span id="pending-link-count-text" style="font-size:14px;color:#888"></span></h2>
+            <p style="color:#888;font-size:13px;margin-bottom:15px">标记后可在列表中快速查看，点击题目打开详情。</p>
+            <div id="pending-link-list"></div>
+        </div>
+    </div>
 </div>
 
 <!-- 图片裁剪弹窗 -->
@@ -369,7 +454,7 @@
             <h2 style="margin:0;font-size:16px;color:#fff">裁剪图片</h2>
             <span style="cursor:pointer;font-size:28px;color:#fff" onclick="cancelCrop()">×</span>
         </div>
-        <div id="crop-container" style="flex:1 1 0;background:#000;min-height:0;position:relative;overflow:hidden;padding:12px"><img id="crop-image" style="display:block" /></div>
+        <div id="crop-container" style="flex:1 1 0;background:#000;min-height:0;position:relative;overflow:hidden"><img id="crop-image" style="display:block" /></div>
         <div style="display:flex;gap:8px;justify-content:center;padding:6px 12px 4px;flex-shrink:0">
             <button onclick="rotateCrop(-5)" style="padding:10px 16px;font-size:16px;border-radius:20px">↺ 5°</button>
             <button onclick="rotateCrop(-1)" style="padding:10px 16px;font-size:16px;border-radius:20px">← 1°</button>
@@ -389,6 +474,7 @@
         <div style="position:absolute;top:12px;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:0 24px;z-index:10">
             <span id="detail-nav-info" style="font-size:13px;color:#888"></span>
             <div style="display:flex;gap:8px;align-items:center">
+                <button id="detail-pending-link-btn" onclick="togglePendingLinkInDetail()" style="width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.15);background:rgba(255,255,255,.9)">🔗</button>
                 <button id="detail-basket-btn" onclick="toggleBasketInDetail()" style="width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.15);background:rgba(255,255,255,.9)">🧺</button>
                 <span style="cursor:pointer;font-size:28px;color:#999" onclick="closeModal()">×</span>
             </div>
@@ -396,6 +482,22 @@
         <div id="modal-question-image"></div>
         <div id="modal-answer-image"></div>
         <div id="modal-tags"></div>
+        <div id="modal-similar-questions" style="margin-top:12px"></div>
+        <!-- 用户评价生成标签 -->
+        <div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:8px;border-left:3px solid #f59e0b">
+            <div style="font-size:12px;color:#92400e;font-weight:600;margin-bottom:8px">📝 基于评价生成标签</div>
+            <div style="display:flex;gap:6px">
+                <input id="user-comment" type="text" placeholder="输入您对题目的评价（如：典型勾股定理题）" style="flex:1;font-size:12px;padding:6px;border:1px solid #fcd34d;border-radius:6px" />
+                <button onclick="generateTagsFromComment()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">生成</button>
+            </div>
+            <div id="generated-tags" style="margin-top:8px;display:none">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                    <span style="font-size:11px;color:#92400e">生成的标签（点击添加，绿色=已添加）：</span>
+                    <button onclick="clearGeneratedTags()" style="font-size:10px;color:#92400e;background:none;border:1px solid #fcd34d;border-radius:4px;padding:2px 6px;cursor:pointer">清除</button>
+                </div>
+                <div id="generated-tags-list" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+            </div>
+        </div>
         <div id="modal-ai-summary" style="display:none;margin-top:12px;padding:10px;background:#f5f3ff;border-radius:8px;border-left:3px solid #8b5cf6">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
                 <span style="background:#8b5cf6;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px">AI</span>
@@ -406,8 +508,8 @@
         <div style="margin-top:16px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;gap:8px">
             <span style="font-size:12px;color:#6b7280">分析方式:</span>
             <select id="analyze-mode" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;background:#fff">
+                <option value="cloud" selected>☁️ 云端 API</option>
                 <option value="local">🤖 本地模型</option>
-                <option value="cloud">☁️ 云端 API</option>
             </select>
         </div>
         <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;display:flex;gap:10px;justify-content:center">
@@ -415,6 +517,30 @@
             <button onclick="analyzeSingleQuestion()" style="padding:10px 20px;font-size:14px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;cursor:pointer">🧠 分析此题</button>
             <button class="danger" onclick="deleteQuestion()">移至垃圾篓</button>
             <button onclick="navigateDetail(1)" id="btn-next" style="padding:10px 20px;font-size:14px">下一题 →</button>
+        </div>
+    </div>
+</div>
+
+<div id="similar-modal" class="modal" onclick="if(event.target===this)closeSimilarModal()">
+    <div class="modal-content" style="max-width:700px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h2 style="margin:0">关联相似题</h2>
+            <span style="cursor:pointer;font-size:28px;color:#999" onclick="closeSimilarModal()">×</span>
+        </div>
+        <div class="form-group">
+            <label>参考标签</label>
+            <select id="similar-tag-select" multiple style="height:90px" onchange="renderSimilarCandidates()"></select>
+            <small style="color:#888;font-size:12px">默认使用当前题标签，可调整后重新筛选</small>
+        </div>
+        <div class="btn-group" style="margin-bottom:12px">
+            <button onclick="renderSimilarCandidates()">按标签筛选</button>
+            <button onclick="recommendSimilarWithAI()" style="background:#8b5cf6">AI 推荐</button>
+        </div>
+        <div id="similar-ai-reason" class="ai-summary-wrap" style="display:none;border-left-color:#10b981"></div>
+        <div id="similar-candidate-list"></div>
+        <div class="btn-group" style="margin-top:14px">
+            <button onclick="confirmSimilarLinks()">确认关联</button>
+            <button class="secondary" onclick="closeSimilarModal()">取消</button>
         </div>
     </div>
 </div>
@@ -528,18 +654,6 @@
     </div>
 </div>
 
-<!-- 询问空白版弹窗 -->
-<div id="blank-ask-modal" class="modal" onclick="if(event.target===this)closeBlankAskModal()">
-    <div class="modal-content" style="max-width:400px;text-align:center">
-        <h3 style="margin-bottom:12px">📷 是否需要空白版？</h3>
-        <p style="font-size:14px;color:#666;margin-bottom:20px">空白版题目不含笔记，适合发给学生练习</p>
-        <div class="btn-group" style="flex-direction:column;gap:10px">
-            <button onclick="doCaptureBlankNow()" style="background:#10b981;width:100%;padding:12px;font-size:15px">📸 现在拍</button>
-            <button onclick="doCaptureBlankLater()" style="background:#f59e0b;width:100%;padding:12px;font-size:15px">⏰ 晚点拍</button>
-            <button class="secondary" onclick="doSkipBlank()" style="width:100%;padding:12px">不需要</button>
-        </div>
-    </div>
-</div>
 
 <!-- 待补拍列表弹窗 -->
 <div id="pending-blank-modal" class="modal" onclick="if(event.target===this)closePendingBlankModal()">
@@ -698,8 +812,48 @@
     </div>
 </div>
 
+<!-- 悬浮窗截图列表弹窗 -->
+<div id="floating-modal" class="modal" onclick="if(event.target===this)closeFloatingModal()">
+    <div class="modal-content" style="max-width:500px">
+        <h3>   悬浮窗截图</h3>
+        <div style="font-size:13px;color:#888;margin-bottom:14px">选择图片导入到当前题目</div>
+        <div id="floating-image-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px"></div>
+        <div class="btn-group">
+            <button class="secondary" onclick="clearFloatingImages()">清空全部</button>
+            <button class="secondary" onclick="closeFloatingModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 悬浮窗保存弹窗 -->
+<div id="floating-save-modal" class="modal">
+    <div class="modal-content" style="max-width:380px">
+        <h3>保存截图</h3>
+        <div class="form-group">
+            <label>保存到第几题</label>
+            <div style="display:flex;gap:8px;align-items:center">
+                <input type="number" id="floating-save-qnum" min="1" value="1" style="width:80px;padding:8px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:16px;text-align:center" />
+                <span style="color:#888">题</span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>保存类型</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+                <button type="button" class="upload-btn camera" onclick="confirmFloatingSave('question')">📖 题目</button>
+                <button type="button" class="upload-btn" style="background:#8b5cf6" onclick="confirmFloatingSave('answer')">📝 答案</button>
+                <button type="button" class="upload-btn" style="background:#f59e0b" onclick="confirmFloatingSave('blank')">📄 空白题</button>
+                <button type="button" class="upload-btn" style="background:#ec4899" onclick="confirmFloatingSave('cross-page')">📸 跨页</button>
+            </div>
+        </div>
+        <div class="btn-group" style="margin-top:12px">
+            <button class="secondary" onclick="cancelFloatingSave()">取消</button>
+        </div>
+    </div>
+</div>
+
 <script src="db.js"></script>
 <script>
+console.log("[DEBUG] Script loaded, isNative=" + (typeof window.Capacitor !== 'undefined'));
 let currentQuestionId = null, allTags = [], allQuestions = [], trashedQuestions = [];
 let activeFilterTags = [];
 let cropper = null, currentCropTarget = null;
@@ -717,6 +871,8 @@ let detailIndex = -1, filteredList = [];
 let exportMode = 'merged', exportSpacing = 'none';
 let newTagContext = null;
 let currentPaperId = null;
+let similarCandidates = [];
+let similarAiReasons = new Map();
 
 // ========== Gemma 4 Capacitor 插件 Mock (用于 Web 预览与仿真) ==========
 if (!window.Capacitor) window.Capacitor = { Plugins: {} };
@@ -752,12 +908,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     const syncToggle = document.getElementById('sync-toggle');
     if (syncToggle) syncToggle.checked = syncEnabled;
     await refreshAll();
+    updatePendingLinkBadge();
     restartSyncPolling();
     if (currentUser && autoSyncEnabled && syncEnabled) queueAutoSync(true);
     checkAppUpdate();
-    
+
     // 自动测试云端API（仅模拟器环境）
-    const isEmulator = /emulator|sdk/i.test(navigator.userAgent) || 
+    const isEmulator = /emulator|sdk/i.test(navigator.userAgent) ||
                        /emulator/i.test(navigator.platform);
     if (isEmulator) {
         setTimeout(async () => {
@@ -862,6 +1019,221 @@ function removeImage(target) {
     suggestedCropRects[target] = null;
     document.getElementById(target + "-preview-wrap").style.display = "none";
     document.getElementById(target + "-preview-label").classList.add("hidden");
+}
+
+// ========== 悬浮窗截图 ==========
+
+let FloatingWindow = isNative ? window.Capacitor.Plugins.FloatingWindow : null;
+console.log("[Floating] isNative=" + isNative + " FloatingWindow=" + FloatingWindow + " allPlugins=" + (isNative ? JSON.stringify(Object.keys(window.Capacitor.Plugins)) : "N/A"));
+let floatingActive = false;
+let _floatingSaveResolve = null;
+let _floatingCrossPageResolve = null;
+let _floatingCrossPageTarget = null;
+let _floatingCrossPageFirst = null;
+
+async function toggleFloatingWindow() {
+    console.log("[Floating] toggleFloatingWindow called! isNative=" + isNative + " FloatingWindow=" + !!FloatingWindow + " floatingActive=" + floatingActive);
+    if (!isNative || !FloatingWindow) {
+        showStatus("悬浮窗仅在 Android 设备上可用", "error");
+        return;
+    }
+    const btn = document.getElementById('floating-toggle-btn');
+    if (floatingActive) {
+        await FloatingWindow.stop();
+        floatingActive = false;
+        btn.textContent = '   悬浮窗';
+        btn.style.background = '#3b82f6';
+        showStatus("悬浮窗已关闭", "success");
+    } else {
+        try {
+            await FloatingWindow.start();
+            floatingActive = true;
+            btn.textContent = '⏹ 关闭';
+            btn.style.background = '#ef4444';
+            showStatus("悬浮窗已启动，切换到其他 App 即可截图", "success");
+        } catch (e) {
+            console.log("[Floating] start error: " + e.message);
+            showStatus("启动失败: " + e.message, "error");
+        }
+    }
+}
+
+async function pickFromFloating(target) {
+    console.log("[Floating] pickFromFloating called, target=" + target + " isNative=" + isNative + " floatingActive=" + floatingActive);
+    if (!isNative || !FloatingWindow) {
+        console.log("[Floating] not native or no FloatingWindow");
+        showStatus("悬浮窗仅在 Android 设备上可用", "error");
+        return;
+    }
+    if (!floatingActive) {
+        console.log("[Floating] floating not active");
+        showStatus("请先启动悬浮窗", "error");
+        return;
+    }
+    try {
+        const result = await FloatingWindow.getImages();
+        console.log("[Floating] getImages result:", JSON.stringify(result));
+        if (!result || !result.images || result.images.length === 0) {
+            console.log("[Floating] no images, showing error");
+            showStatus("悬浮窗中暂无截图，请先截图", "error");
+            return;
+        }
+        console.log("[Floating] showing image list, count=" + result.images.length);
+        showFloatingImageList(result.images, target);
+    } catch (e) {
+        console.log("[Floating] getImages error:", e.message);
+        showStatus("获取截图列表失败: " + e.message, "error");
+    }
+}
+
+function showFloatingImageList(images, target) {
+    console.log("[Floating] showFloatingImageList images=" + images.length + " target=" + target);
+    const container = document.getElementById('floating-image-list');
+    if (!container) {
+        console.log("[Floating] ERROR: floating-image-list element not found!");
+        return;
+    }
+    container.innerHTML = '';
+    container.dataset.target = target;
+
+    if (images.length === 0) {
+        container.innerHTML = '<div style="text-align:center;color:#999;padding:20px">暂无截图</div>';
+    } else {
+        images.forEach((img, i) => {
+            const typeLabels = { question: '📖 题目', answer: '📝 答案', blank: '📄 空白题' };
+            const typeColors = { question: '#10b981', answer: '#8b5cf6', blank: '#f59e0b' };
+            const card = document.createElement('div');
+            card.style.cssText = 'display:flex;gap:10px;padding:10px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;align-items:center';
+            card.innerHTML = `
+                <img src="${img.thumbPath || img.webPath}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;border:1px solid #e5e7eb" />
+                <div style="flex:1">
+                    <div style="font-weight:600;font-size:14px">第${img.questionNum}题</div>
+                    <span style="display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;color:#fff;background:${typeColors[img.imageType] || '#888'}">${typeLabels[img.imageType] || img.imageType}</span>
+                </div>
+                <button onclick="importFloatingImage(${img.index}, '${target}')" style="padding:6px 12px;background:#10b981;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;white-space:nowrap">导入</button>
+                <button onclick="deleteFloatingImage(${img.index})" style="padding:6px 8px;background:#ef4444;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer">🗑</button>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    document.getElementById('floating-modal').classList.add('active');
+    console.log("[Floating] modal activated");
+}
+
+async function importFloatingImage(index, target) {
+    if (!FloatingWindow) return;
+    try {
+        const result = await FloatingWindow.getImage({ index });
+        if (result && result.webPath) {
+            // One-click import: directly set image without cropping
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.naturalWidth;
+                canvas.height = img.naturalHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                originalImages[target] = dataUrl;
+                croppedImages[target] = dataUrl;
+                suggestedCropRects[target] = null;
+                handleCameraResult(target, dataUrl);
+                showStatus("已导入到" + (target === 'question' ? '题目' : target === 'answer' ? '答案' : '空白题') + "图片", "success");
+            };
+            img.src = result.webPath;
+        }
+        closeFloatingModal();
+    } catch (e) {
+        showStatus("导入失败: " + e.message, "error");
+    }
+}
+
+async function deleteFloatingImage(index) {
+    if (!FloatingWindow) return;
+    try {
+        await FloatingWindow.removeImage({ index });
+        // Refresh list
+        const result = await FloatingWindow.getImages();
+        const target = document.getElementById('floating-image-list').dataset.target || 'question';
+        showFloatingImageList(result.images || [], target);
+    } catch (e) {
+        showStatus("删除失败: " + e.message, "error");
+    }
+}
+
+async function clearFloatingImages() {
+    if (!FloatingWindow) return;
+    try {
+        await FloatingWindow.clearImages();
+        closeFloatingModal();
+        showStatus("已清空全部截图", "success");
+    } catch (e) {
+        showStatus("清空失败: " + e.message, "error");
+    }
+}
+
+function closeFloatingModal() {
+    document.getElementById('floating-modal').classList.remove('active');
+}
+
+// ========== 悬浮窗截屏保存 ==========
+
+// Intercept capture events from native
+async function pollFloatingEvents() {
+    if (!floatingActive || !FloatingWindow) return;
+    try {
+        const event = await FloatingWindow.pollEvent();
+        console.log("[Floating] pollEvent result:", JSON.stringify(event));
+        if (event && event.event === 'imageCaptured') {
+            // Show save dialog
+            const lastNum = (await FloatingWindow.getLastQuestionNum()).questionNum;
+            document.getElementById('floating-save-qnum').value = lastNum;
+            document.getElementById('floating-save-modal').classList.add('active');
+        } else if (event && event.event === 'previewClicked') {
+            // Open floating image list preview
+            pickFromFloating('question');
+        }
+    } catch (e) { console.error("[Floating] pollFloatingEvents error:", e); }
+}
+setInterval(pollFloatingEvents, 500);
+
+async function confirmFloatingSave(type) {
+    const qnum = parseInt(document.getElementById('floating-save-qnum').value) || 1;
+    document.getElementById('floating-save-modal').classList.remove('active');
+
+    if (FloatingWindow) {
+        await FloatingWindow.setQuestionNum({ questionNum: qnum });
+
+        // Update the last captured image's question number and type
+        const images = await FloatingWindow.getImages();
+        if (images && images.images && images.images.length > 0) {
+            const last = images.images[images.images.length - 1];
+            await FloatingWindow.updateImage({ index: last.index, questionNum: qnum, imageType: type });
+        }
+    }
+
+    if (type === 'cross-page') {
+        showStatus("跨页拍摄：请翻到下半部分，再点悬浮窗截图", "success");
+        // TODO: handle cross-page flow with floating window
+        return;
+    }
+
+    showStatus(`已保存到第${qnum}题${type === 'question' ? '题目' : type === 'answer' ? '答案' : '空白题'}`, "success");
+}
+
+function cancelFloatingSave() {
+    document.getElementById('floating-save-modal').classList.remove('active');
+    // Remove the last captured image since user cancelled
+    if (FloatingWindow) {
+        FloatingWindow.getImages().then(result => {
+            if (result && result.images && result.images.length > 0) {
+                const last = result.images[result.images.length - 1];
+                FloatingWindow.removeImage({ index: last.index });
+            }
+        });
+    }
 }
 
 // ========== 跨页拍摄 ==========
@@ -1398,29 +1770,6 @@ function confirmCrop() {
     destroyCropInteractionLayer();
     cropper.destroy(); cropper = null;
 
-    // 检查是否在拍空白版
-    if (window._capturingBlankFor) {
-        const questionId = window._capturingBlankFor;
-        window._capturingBlankFor = null; // 清除标记
-        
-        // 压缩并保存空白版图片
-        compressImage(dataUrl).then(compressed => {
-            dbUpdateQuestionBlankImage(questionId, compressed).then(() => {
-                showStatus('空白版图片已保存', 'success');
-                // 从待补拍列表中移除
-                if (_pendingBlankList.includes(questionId)) {
-                    _pendingBlankList = _pendingBlankList.filter(id => id !== questionId);
-                    localStorage.setItem('pendingBlankList', JSON.stringify(_pendingBlankList));
-                }
-            }).catch(e => {
-                showStatus('保存空白版失败: ' + e.message, 'error');
-            });
-        }).catch(e => {
-            showStatus('图片压缩失败: ' + e.message, 'error');
-        });
-        return;
-    }
-
     // 跨页裁剪模式：通过 Promise 返回
     if (_cropResolve) {
         _cropResolve(dataUrl);
@@ -1519,23 +1868,19 @@ async function submitNewTag() {
 // ========== 题目 ==========
 document.getElementById("question-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const qi = croppedImages.question, ai = croppedImages.answer;
+    const qi = croppedImages.question, ai = croppedImages.answer, bi = croppedImages.blank;
     const tags = Array.from(document.getElementById("tag-select").selectedOptions).map(o => o.value);
     if (!qi) { showStatus("请先选择题目图片", "error"); return; }
     const lr = document.querySelector('input[name="layout_type"]:checked');
     const lt = lr ? parseInt(lr.value) : 0;
     try {
         const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = "处理中...";
-        const newQuestion = await dbCreateQuestion(qi, ai, tags, lt);
-        removeImage("question"); removeImage("answer");
+        const newQuestion = await dbCreateQuestion(qi, ai, tags, lt, bi);
+        removeImage("question"); removeImage("answer"); removeImage("blank");
         document.getElementById("tag-select").selectedIndex = -1;
         document.querySelectorAll('.layout-option').forEach(l => { l.style.borderColor = '#e5e7eb'; l.style.background = '#fff'; });
         await loadQuestions(); showStatus("题目添加成功", "success");
         btn.disabled = false; btn.textContent = "添加题目";
-        // 询问是否需要空白版
-        if (newQuestion && newQuestion.id) {
-            askBlankVersion(newQuestion.id);
-        }
     } catch (err) { showStatus("添加失败: " + err.message, "error"); e.target.querySelector('button[type="submit"]').disabled = false; e.target.querySelector('button[type="submit"]').textContent = "添加题目"; }
 });
 async function loadQuestions() { allQuestions = await dbGetAllQuestions(); renderQuestions(); }
@@ -1565,7 +1910,7 @@ function renderQuestions() {
         img.onclick = () => showQuestionDetail(q.id); card.appendChild(img);
         // info
         const info = document.createElement("div"); info.className = "info"; info.onclick = () => showQuestionDetail(q.id);
-        
+
         // AI 摘要展示
         if (q.semantic_summary) {
             const summaryWrap = document.createElement("div");
@@ -1621,12 +1966,14 @@ function showQuestionDetail(qId) {
     detailIndex = filteredList.findIndex(q => q.id === qId); if (detailIndex < 0) detailIndex = 0;
     renderDetailContent(filteredList[detailIndex]);
     document.getElementById("question-modal").classList.add("active");
+    updatePendingLinkBtnStyle(qId);
 }
 function renderDetailContent(q) {
     document.getElementById("modal-question-image").innerHTML = '<h3>题目</h3><img src="' + q.question_image_url + '" style="max-width:100%;border-radius:8px">';
     document.getElementById("modal-answer-image").innerHTML = q.answer_image_url ? '<h3 style="margin-top:12px">答案</h3><img src="' + q.answer_image_url + '" style="max-width:100%;border-radius:8px">' : '<p style="color:#999;margin-top:12px">无答案图片</p>';
     const tags = q.question_tags.map(qt => qt.tags);
-    document.getElementById("modal-tags").innerHTML = tags.length ? '<h3 style="margin-top:12px">标签</h3><div class="tag-container">' + tags.map(t => '<span class="tag" style="background:' + t.color + '20;border:1px solid ' + t.color + '">' + t.name + '</span>').join("") + '</div>' : '';
+    document.getElementById("modal-tags").innerHTML = tags.length ? '<h3 style="margin-top:12px">标签（点击移除）</h3><div class="tag-container">' + tags.map(t => '<span class="tag" style="background:' + t.color + '20;border:1px solid ' + t.color + ';cursor:pointer" onclick="removeTagFromQuestion(\'' + t.id + '\')">' + t.name + ' ✕</span>').join("") + '</div>' : '';
+    renderSimilarQuestions(q.id);
     // AI 摘要
     const aiDiv = document.getElementById("modal-ai-summary");
     const aiText = document.getElementById("modal-ai-text");
@@ -1636,6 +1983,9 @@ function renderDetailContent(q) {
     } else {
         aiDiv.style.display = "none";
     }
+    // 用户评价
+    const userComment = q.user_comment || "";
+    document.getElementById("user-comment").value = userComment;
     document.getElementById("detail-nav-info").textContent = (detailIndex + 1) + " / " + filteredList.length;
     document.getElementById("btn-prev").disabled = detailIndex <= 0; document.getElementById("btn-prev").style.opacity = detailIndex <= 0 ? 0.4 : 1;
     document.getElementById("btn-next").disabled = detailIndex >= filteredList.length - 1; document.getElementById("btn-next").style.opacity = detailIndex >= filteredList.length - 1 ? 0.4 : 1;
@@ -1649,6 +1999,243 @@ function updateDetailBasketBtn(qId) {
 function toggleBasketInDetail() { if (!currentQuestionId) return; toggleBasket(currentQuestionId); updateDetailBasketBtn(currentQuestionId); renderQuestions(); }
 function navigateDetail(dir) { const ni = detailIndex + dir; if (ni < 0 || ni >= filteredList.length) return; detailIndex = ni; currentQuestionId = filteredList[ni].id; renderDetailContent(filteredList[ni]); }
 function closeModal() { document.getElementById("question-modal").classList.remove("active"); currentQuestionId = null; }
+
+async function renderSimilarQuestions(qId) {
+    const wrap = document.getElementById("modal-similar-questions");
+    if (!wrap) return;
+    const ids = await dbGetSimilarQuestionIds(qId);
+    const questions = allQuestions.filter(q => ids.includes(q.id));
+    wrap.replaceChildren();
+    const head = document.createElement("div");
+    head.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:8px";
+    const title = document.createElement("h3");
+    title.style.cssText = "margin:0;font-size:16px";
+    title.textContent = "相似题" + (questions.length ? "（" + questions.length + "）" : "");
+    const add = document.createElement("button");
+    add.textContent = "添加相似题";
+    add.style.cssText = "padding:6px 12px;font-size:12px";
+    add.onclick = openSimilarModal;
+    head.append(title, add);
+    wrap.appendChild(head);
+    if (!questions.length) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "font-size:12px;color:#888;padding:8px;background:#f9fafb;border-radius:8px";
+        empty.textContent = "暂无相似题关联";
+        wrap.appendChild(empty);
+        return;
+    }
+    const list = document.createElement("div");
+    list.className = "similar-list";
+    questions.forEach(q => {
+        const card = document.createElement("div");
+        card.className = "similar-card";
+        card.onclick = () => showQuestionDetail(q.id);
+        const img = document.createElement("img");
+        img.src = q.question_image_url;
+        const title = document.createElement("div");
+        title.className = "similar-title";
+        title.textContent = q.user_comment || q.semantic_summary || q.question_tags.map(qt => qt.tags.name).join("、") || "相似题";
+        const remove = document.createElement("button");
+        remove.className = "danger";
+        remove.style.cssText = "width:100%;padding:5px 8px;font-size:11px;margin-top:6px";
+        remove.textContent = "移除关联";
+        remove.onclick = async (event) => {
+            event.stopPropagation();
+            await dbRemoveSimilarQuestionLink(qId, q.id);
+            await loadQuestions();
+            await renderSimilarQuestions(qId);
+            showStatus("已移除相似题关联", "success");
+        };
+        card.append(img, title, remove);
+        list.appendChild(card);
+    });
+    wrap.appendChild(list);
+}
+
+function getQuestionFeatureText(q) {
+    return [q.user_comment || "", q.semantic_summary || "", q.question_tags?.map(qt => qt.tags.name).join(" ") || ""].join(" ");
+}
+
+function getTextSignalSet(text) {
+    return new Set(String(text || "").replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, "").split("").filter(ch => ch.trim()));
+}
+
+function scoreTextSimilarity(a, b) {
+    const left = getTextSignalSet(a), right = getTextSignalSet(b);
+    if (!left.size || !right.size) return 0;
+    let score = 0;
+    left.forEach(ch => { if (right.has(ch)) score++; });
+    return score;
+}
+
+async function buildSimilarCandidates() {
+    if (!currentQuestionId) return [];
+    const current = allQuestions.find(q => q.id === currentQuestionId);
+    if (!current) return [];
+    const selectedTagIds = Array.from(document.getElementById("similar-tag-select").selectedOptions).map(o => o.value);
+    const linkedIds = await dbGetSimilarQuestionIds(currentQuestionId);
+    const currentText = getQuestionFeatureText(current);
+    return allQuestions
+        .filter(q => q.id !== currentQuestionId && !linkedIds.includes(q.id))
+        .map(q => {
+            const tagIds = q.question_tags.map(qt => qt.tags.id);
+            const tagHit = selectedTagIds.filter(id => tagIds.includes(id)).length;
+            const textHit = scoreTextSimilarity(currentText, getQuestionFeatureText(q));
+            return { q, tagHit, textHit, score: tagHit * 20 + Math.min(textHit, 20) };
+        })
+        .filter(item => !selectedTagIds.length || item.tagHit > 0)
+        .sort((a, b) => b.score - a.score || new Date(b.q.created_at) - new Date(a.q.created_at));
+}
+
+async function openSimilarModal() {
+    if (!currentQuestionId) return;
+    const current = allQuestions.find(q => q.id === currentQuestionId);
+    const sel = document.getElementById("similar-tag-select");
+    sel.replaceChildren();
+    const currentTagIds = new Set((current?.question_tags || []).map(qt => qt.tags.id));
+    allTags.forEach(tag => {
+        const option = document.createElement("option");
+        option.value = tag.id;
+        option.textContent = tag.name;
+        option.selected = currentTagIds.has(tag.id);
+        sel.appendChild(option);
+    });
+    similarAiReasons = new Map();
+    document.getElementById("similar-ai-reason").style.display = "none";
+    document.getElementById("similar-modal").classList.add("active");
+    await renderSimilarCandidates();
+}
+
+function closeSimilarModal() {
+    document.getElementById("similar-modal").classList.remove("active");
+    similarCandidates = [];
+    similarAiReasons = new Map();
+}
+
+async function renderSimilarCandidates(aiPickedIds = null) {
+    similarCandidates = await buildSimilarCandidates();
+    const list = document.getElementById("similar-candidate-list");
+    list.replaceChildren();
+    if (!similarCandidates.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.style.padding = "24px 12px";
+        empty.textContent = "没有找到可关联的候选题";
+        list.appendChild(empty);
+        return;
+    }
+    const picked = new Set(aiPickedIds || []);
+    similarCandidates.forEach(item => {
+        const q = item.q;
+        const row = document.createElement("label");
+        row.className = "similar-result" + (picked.has(q.id) ? " ai-picked" : "");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = q.id;
+        checkbox.checked = picked.has(q.id);
+        const img = document.createElement("img");
+        img.src = q.question_image_url;
+        const body = document.createElement("div");
+        const title = document.createElement("div");
+        title.style.cssText = "font-size:13px;font-weight:600;color:#374151;line-height:1.4";
+        title.textContent = q.user_comment || q.semantic_summary || "候选相似题";
+        const meta = document.createElement("div");
+        meta.className = "similar-meta";
+        const tagNames = q.question_tags.map(qt => qt.tags.name).join("、") || "无标签";
+        meta.textContent = "标签命中 " + item.tagHit + "｜" + tagNames;
+        body.append(title, meta);
+        const reason = similarAiReasons.get(q.id);
+        if (reason) {
+            const reasonEl = document.createElement("div");
+            reasonEl.className = "similar-meta";
+            reasonEl.style.color = "#5b21b6";
+            reasonEl.textContent = "AI：" + reason;
+            body.appendChild(reasonEl);
+        } else if (q.semantic_summary && q.semantic_summary !== "AI 正在分析中...") {
+            const summary = document.createElement("div");
+            summary.className = "similar-meta";
+            summary.textContent = q.semantic_summary;
+            body.appendChild(summary);
+        }
+        row.append(checkbox, img, body);
+        list.appendChild(row);
+    });
+}
+
+function parseSimilarAIResult(text) {
+    try {
+        const match = String(text || "").match(/\{[\s\S]*\}/);
+        if (match) {
+            const data = JSON.parse(match[0]);
+            return {
+                ids: Array.isArray(data.recommended_ids) ? data.recommended_ids : [],
+                reasons: data.reasons && typeof data.reasons === "object" ? data.reasons : {},
+                summary: data.summary || data.reason || ""
+            };
+        }
+        const arr = String(text || "").match(/\[[\s\S]*\]/);
+        if (arr) return { ids: JSON.parse(arr[0]), reasons: {}, summary: "" };
+    } catch (e) {}
+    return { ids: [], reasons: {}, summary: String(text || "").slice(0, 120) };
+}
+
+async function recommendSimilarWithAI() {
+    if (!currentQuestionId) return;
+    const current = allQuestions.find(q => q.id === currentQuestionId);
+    const candidates = (await buildSimilarCandidates()).slice(0, 30);
+    if (!current || !candidates.length) { showStatus("没有可推荐的候选题", "error"); return; }
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = "推荐中...";
+    try {
+        const prompt = `你是题库相似题推荐助手。请根据当前题目的参考标签、用户评价原话、AI摘要，从候选题中推荐最相似的题目。
+只输出JSON，不要解释正文。格式：
+{"recommended_ids":["候选题ID"],"reasons":{"候选题ID":"推荐原因"},"summary":"整体推荐思路"}
+
+当前题：
+${JSON.stringify({
+    id: current.id,
+    tags: current.question_tags.map(qt => qt.tags.name),
+    user_comment: current.user_comment || "",
+    summary: current.semantic_summary || ""
+})}
+
+候选题：
+${JSON.stringify(candidates.map(item => ({
+    id: item.q.id,
+    tags: item.q.question_tags.map(qt => qt.tags.name),
+    user_comment: item.q.user_comment || "",
+    summary: item.q.semantic_summary || "",
+    tag_hit: item.tagHit
+})))}`;
+        const resultText = await callCloudAI(prompt);
+        const parsed = parseSimilarAIResult(resultText);
+        const validIds = new Set(candidates.map(item => item.q.id));
+        const picked = parsed.ids.filter(id => validIds.has(id)).slice(0, 10);
+        similarAiReasons = new Map(Object.entries(parsed.reasons || {}));
+        const reasonEl = document.getElementById("similar-ai-reason");
+        reasonEl.textContent = parsed.summary || "AI 已按评价原话、标签和摘要重新排序候选题。";
+        reasonEl.style.display = "flex";
+        await renderSimilarCandidates(picked);
+        showStatus("AI 推荐完成", "success");
+    } catch (e) {
+        showStatus("AI 推荐失败: " + e.message, "error");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "AI 推荐";
+    }
+}
+
+async function confirmSimilarLinks() {
+    if (!currentQuestionId) return;
+    const ids = Array.from(document.querySelectorAll("#similar-candidate-list input[type='checkbox']:checked")).map(input => input.value);
+    if (!ids.length) { showStatus("请先勾选要关联的相似题", "error"); return; }
+    await dbAddSimilarQuestionLinks(currentQuestionId, ids);
+    await loadQuestions();
+    await renderSimilarQuestions(currentQuestionId);
+    closeSimilarModal();
+    showStatus("已关联 " + ids.length + " 道相似题", "success");
+}
 
 // 触摸滑动
 (function() {
@@ -1694,12 +2281,17 @@ async function loadPapers() {
     c.replaceChildren();
     papers.forEach(p => {
         const card = document.createElement("div"); card.className = "paper-card";
-        card.innerHTML = '<h3>' + p.name + '</h3><p>题目数量: ' + (p.question_count || 0) + '</p><p>创建时间: ' + new Date(p.created_at).toLocaleString() + '</p>';
+        const title = document.createElement("h3");
+        title.textContent = p.name;
+        const count = document.createElement("p");
+        count.textContent = "题目数量: " + (p.question_count || 0);
+        const created = document.createElement("p");
+        created.textContent = "创建时间: " + new Date(p.created_at).toLocaleString();
         const bg = document.createElement("div"); bg.className = "btn-group"; bg.style.marginTop = "10px";
         const dl = document.createElement("button"); dl.textContent = "下载 PDF"; dl.onclick = () => generatePaperPDF(p.id);
         const vw = document.createElement("button"); vw.className = "secondary"; vw.textContent = "查看题目"; vw.onclick = () => showPaperDetail(p.id);
         const del = document.createElement("button"); del.className = "danger"; del.textContent = "删除"; del.onclick = async () => { if (!confirm("确定删除？")) return; await dbDeletePaper(p.id); await loadPapers(); };
-        bg.append(dl, vw, del); card.appendChild(bg); c.appendChild(card);
+        bg.append(dl, vw, del); card.append(title, count, created, bg); c.appendChild(card);
     });
 }
 async function showPaperDetail(pId) {
@@ -1856,21 +2448,21 @@ async function doExportImagesFromBasket() {
     if (!folderName) { alert('请输入文件夹名称'); return; }
 
     const exportType = document.querySelector('input[name="export-type"]:checked')?.value || 'with_notes';
-    
+
     // 定义导出任务
     const tasks = [];
-    
+
     if (exportType === 'with_notes' || exportType === 'both') {
         const imageList = questions.map((q, i) => ({
             url: q.question_image_url,
             name: String(i + 1).padStart(3, '0') + '.jpg'
         })).filter(img => img.url);
-        
+
         const answerImageList = questions.map((q, i) => ({
             url: q.answer_image_url,
             name: String(i + 1).padStart(3, '0') + '.jpg'
         }));
-        
+
         tasks.push({
             folderName: folderName,
             imageList: imageList,
@@ -1878,18 +2470,18 @@ async function doExportImagesFromBasket() {
             label: '带笔记版'
         });
     }
-    
+
     if (exportType === 'blank' || exportType === 'both') {
         const imageList = questions.map((q, i) => ({
             url: q.question_image_blank_url,
             name: String(i + 1).padStart(3, '0') + '.jpg'
         })).filter(img => img.url); // 过滤掉没有空白版的题目
-        
+
         const answerImageList = questions.map((q, i) => ({
             url: q.answer_image_url,
             name: String(i + 1).padStart(3, '0') + '.jpg'
         }));
-        
+
         tasks.push({
             folderName: exportType === 'both' ? folderName + '-空白' : folderName,
             imageList: imageList,
@@ -1897,34 +2489,34 @@ async function doExportImagesFromBasket() {
             label: '空白版'
         });
     }
-    
+
     if (!tasks.length) { alert('没有可导出的图片'); return; }
-    
+
     // 执行导出任务
     for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
-        
+
         document.getElementById("export-images-summary").textContent = `共 ${task.imageList.length} 张题目图片（${task.label}），准备导出...`;
         document.getElementById("export-images-progress").style.display = 'block';
         document.getElementById("export-images-progress-bar").style.width = '0%';
         document.getElementById("export-images-progress-text").textContent = '导出中...';
-        
+
         const success = await exportImagesToFolder(task.imageList, task.folderName, task.answerImageList);
         if (!success) {
             document.getElementById("export-images-progress").style.display = 'none';
             return; // 如果失败，停止
         }
-        
+
         if (i < tasks.length - 1) {
             // 还有下一个任务，等待一下再继续
             await new Promise(resolve => setTimeout(resolve, 500));
         }
     }
-    
+
     // 完成
     document.getElementById("export-images-progress-bar").style.width = '100%';
     document.getElementById("export-images-progress-text").textContent = '导出完成！';
-    
+
     const taskLabels = tasks.map(t => t.label).join(' 和 ');
     const folderNames = tasks.length > 1 ? `${folderName}/ 和 ${folderName}-空白/` : `${folderName}/`;
     document.getElementById("export-images-summary").textContent = `✅ 已导出 ${taskLabels} 到 ${folderNames}`;
@@ -1940,21 +2532,21 @@ async function doExportImages() {
     if (!questions || !questions.length) { alert('该试卷暂无题目'); return; }
 
     const exportType = document.querySelector('input[name="export-type"]:checked')?.value || 'with_notes';
-    
+
     // 定义导出任务
     const tasks = [];
-    
+
     if (exportType === 'with_notes' || exportType === 'both') {
         const imageList = questions.map((q, i) => ({
             url: q.question_image_url,
             name: String(i + 1).padStart(3, '0') + '.jpg'
         })).filter(img => img.url);
-        
+
         const answerImageList = questions.map((q, i) => ({
             url: q.answer_image_url,
             name: String(i + 1).padStart(3, '0') + '.jpg'
         }));
-        
+
         tasks.push({
             folderName: folderName,
             imageList: imageList,
@@ -1962,18 +2554,18 @@ async function doExportImages() {
             label: '带笔记版'
         });
     }
-    
+
     if (exportType === 'blank' || exportType === 'both') {
         const imageList = questions.map((q, i) => ({
             url: q.question_image_blank_url,
             name: String(i + 1).padStart(3, '0') + '.jpg'
         })).filter(img => img.url); // 过滤掉没有空白版的题目
-        
+
         const answerImageList = questions.map((q, i) => ({
             url: q.answer_image_url,
             name: String(i + 1).padStart(3, '0') + '.jpg'
         }));
-        
+
         tasks.push({
             folderName: exportType === 'both' ? folderName + '-空白' : folderName,
             imageList: imageList,
@@ -1981,34 +2573,34 @@ async function doExportImages() {
             label: '空白版'
         });
     }
-    
+
     if (!tasks.length) { alert('没有可导出的图片'); return; }
-    
+
     // 执行导出任务
     for (let i = 0; i < tasks.length; i++) {
         const task = tasks[i];
-        
+
         document.getElementById("export-images-summary").textContent = `共 ${task.imageList.length} 张题目图片（${task.label}），准备导出...`;
         document.getElementById("export-images-progress").style.display = 'block';
         document.getElementById("export-images-progress-bar").style.width = '0%';
         document.getElementById("export-images-progress-text").textContent = '导出中...';
-        
+
         const success = await exportImagesToFolder(task.imageList, task.folderName, task.answerImageList);
         if (!success) {
             document.getElementById("export-images-progress").style.display = 'none';
             return; // 如果失败，停止
         }
-        
+
         if (i < tasks.length - 1) {
             // 还有下一个任务，等待一下再继续
             await new Promise(resolve => setTimeout(resolve, 500));
         }
     }
-    
+
     // 完成
     document.getElementById("export-images-progress-bar").style.width = '100%';
     document.getElementById("export-images-progress-text").textContent = '导出完成！';
-    
+
     const taskLabels = tasks.map(t => t.label).join(' 和 ');
     const folderNames = tasks.length > 1 ? `${folderName}/ 和 ${folderName}-空白/` : `${folderName}/`;
     document.getElementById("export-images-summary").textContent = `✅ 已导出 ${taskLabels} 到 ${folderNames}`;
@@ -2092,18 +2684,18 @@ function closeAIRecommendModal() {
 async function createPaperFromAI(ids) {
     if (!ids || ids.length === 0) return;
     const name = "AI 推荐试卷 " + new Date().toLocaleDateString();
-    
+
     // 复用 dbCreatePaper 的逻辑，但直接指定 ID 列表
     const id = generateId();
     const now = _nowIso();
     const paper = { id, name, created_at: now, updated_at: now, deleted_at: null };
     await dbPapers.setItem(id, paper);
-    
+
     let n = 1;
     for (const qId of ids) {
         await dbPaperQuestions.setItem(`${id}_${qId}`, { paper_id: id, question_id: qId, order_num: n++ });
     }
-    
+
     closeAIRecommendModal();
     await loadPapers();
     showStatus("AI 试卷已生成", "success");
@@ -2130,6 +2722,101 @@ async function doExportPDF() {
     const spc = exportSpacing === 'large' ? parseFloat(document.getElementById("spc-large").value) : exportSpacing === 'small' ? parseFloat(document.getElementById("spc-small").value) : 0;
     await generatePDF(qs, { mode: exportMode, spacing: exportSpacing, spacingCm: spc, title: "题库导出" });
     showStatus("PDF 已生成", "success");
+}
+
+// ========== 待关联功能 ==========
+
+let _pendingLinkList = JSON.parse(localStorage.getItem('pendingLinkList') || '[]');
+
+function getPendingLinkList() { return _pendingLinkList; }
+
+function savePendingLinkList(arr) {
+    _pendingLinkList = arr;
+    localStorage.setItem('pendingLinkList', JSON.stringify(arr));
+    updatePendingLinkBadge();
+}
+
+function togglePendingLink(qId) {
+    const idx = _pendingLinkList.indexOf(qId);
+    if (idx !== -1) {
+        _pendingLinkList.splice(idx, 1);
+    } else {
+        _pendingLinkList.unshift(qId);
+    }
+    savePendingLinkList(_pendingLinkList);
+}
+
+function isPendingLink(qId) { return _pendingLinkList.includes(qId); }
+
+function updatePendingLinkBadge() {
+    const count = _pendingLinkList.length;
+    const badge = document.getElementById('pending-link-count');
+    const textEl = document.getElementById('pending-link-count-text');
+    if (badge) { badge.textContent = count; badge.style.display = count > 0 ? 'inline-block' : 'none'; }
+    if (textEl) textEl.textContent = count > 0 ? `(${count})` : '';
+}
+
+function togglePendingLinkInDetail() {
+    if (!currentQuestionId) return;
+    togglePendingLink(currentQuestionId);
+    updatePendingLinkBtnStyle(currentQuestionId);
+    if (!document.getElementById('pending-link-tab').classList.contains('hidden')) renderPendingLinkList();
+}
+
+function updatePendingLinkBtnStyle(qId) {
+    const btn = document.getElementById('detail-pending-link-btn');
+    if (!btn) return;
+    btn.style.background = isPendingLink(qId) ? '#f59e0b' : 'rgba(255,255,255,.9)';
+    btn.style.color = isPendingLink(qId) ? '#fff' : '';
+}
+
+async function renderPendingLinkList() {
+    const container = document.getElementById('pending-link-list');
+    container.innerHTML = '';
+    if (!_pendingLinkList.length) {
+        container.innerHTML = '<div style="text-align:center;color:#999;padding:30px">暂无待关联题目</div>';
+        return;
+    }
+    const validIds = [];
+    for (const qId of _pendingLinkList) {
+        try {
+            const q = await dbQuestions.getItem(qId);
+            if (!q || q.deleted_at) continue;
+            validIds.push(qId);
+            const div = document.createElement('div');
+            div.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid #f0f0f0;cursor:pointer';
+            div.onclick = () => { showQuestionDetail(qId); };
+            const img = document.createElement('img');
+            img.src = q.question_image_url;
+            img.style.cssText = 'width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0';
+            div.appendChild(img);
+            const info = document.createElement('div');
+            info.style.cssText = 'flex:1';
+            const title = document.createElement('div');
+            title.textContent = q.semantic_summary || '题目 ' + qId.substring(0, 8);
+            title.style.cssText = 'font-size:14px;color:#333;margin-bottom:4px';
+            info.appendChild(title);
+            const hint = document.createElement('div');
+            hint.textContent = '点击查看';
+            hint.style.cssText = 'font-size:12px;color:#888';
+            info.appendChild(hint);
+            div.appendChild(info);
+            const btn = document.createElement('button');
+            btn.textContent = '❌';
+            btn.style.cssText = 'background:none;border:none;font-size:16px;cursor:pointer;padding:4px';
+            btn.onclick = (e) => { e.stopPropagation(); removeFromPendingLink(qId); };
+            div.appendChild(btn);
+            container.appendChild(div);
+        } catch (e) { console.warn('加载题目失败:', qId, e); }
+    }
+    if (validIds.length !== _pendingLinkList.length) savePendingLinkList(validIds);
+}
+
+function removeFromPendingLink(qId) {
+    const idx = _pendingLinkList.indexOf(qId);
+    if (idx !== -1) _pendingLinkList.splice(idx, 1);
+    savePendingLinkList(_pendingLinkList);
+    renderPendingLinkList();
 }
 
 // ========== 试题篮 ==========
@@ -2164,7 +2851,7 @@ async function updateAIStatusUI() {
         console.log("updateAIStatusUI: Gemma4 plugin not found!");
         return;
     }
-    loadCloudConfig(); // 加载云端配置
+    initProviderList(); // 初始化服务商列表
     const status = await Gemma4.checkModelStatus();
     console.log("updateAIStatusUI: status =", JSON.stringify(status));
     const label = document.getElementById("ai-status-label");
@@ -2228,53 +2915,262 @@ async function pasteTo(inputId) {
     }
 }
 
-function saveCloudConfig() {
-    const baseUrl = document.getElementById("cloud-base-url").value.trim();
-    const apiKey = document.getElementById("cloud-api-key").value.trim();
-    const model = document.getElementById("cloud-model").value.trim();
-    localStorage.setItem("cloud_api_base_url", baseUrl);
-    localStorage.setItem("cloud_api_key", apiKey);
-    localStorage.setItem("cloud_api_model", model);
-    const msg = document.getElementById("cloud-config-msg");
-    msg.textContent = "已保存";
-    setTimeout(() => msg.textContent = "", 2000);
+// ========== 模型服务商管理 ==========
+
+let cloudProviders = JSON.parse(localStorage.getItem('cloud_providers') || '[]');
+let currentProviderId = localStorage.getItem('current_provider_id') || '';
+let editingProviderId = null;
+
+// 迁移旧配置（兼容性）
+function migrateOldConfig() {
+    if (cloudProviders.length === 0) {
+        const oldBaseUrl = localStorage.getItem('cloud_api_base_url');
+        const oldApiKey = localStorage.getItem('cloud_api_key');
+        const oldModel = localStorage.getItem('cloud_api_model');
+
+        if (oldBaseUrl && oldApiKey) {
+            const provider = {
+                id: 'default',
+                name: 'MiniMax',
+                baseUrl: oldBaseUrl,
+                apiKey: oldApiKey,
+                model: oldModel || 'MiniMax-M2.7'
+            };
+            cloudProviders.push(provider);
+            currentProviderId = 'default';
+            localStorage.setItem('cloud_providers', JSON.stringify(cloudProviders));
+            localStorage.setItem('current_provider_id', currentProviderId);
+        }
+    }
 }
 
-function loadCloudConfig() {
-    // 自动检测模拟器环境并配置测试 API（仅用于调试）
-    const isEmulator = /emulator|sdk/i.test(navigator.userAgent) || 
-                       /emulator/i.test(navigator.platform);
-    
-    const savedBaseUrl = localStorage.getItem("cloud_api_base_url");
-    const savedApiKey = localStorage.getItem("cloud_api_key");
-    const savedModel = localStorage.getItem("cloud_api_model");
-    
-    // 如果是模拟器且未配置，自动填充测试配置
-    if (isEmulator && !savedBaseUrl) {
-        console.log("[Debug] 检测到模拟器环境，自动配置测试 API");
-        localStorage.setItem("cloud_api_base_url", "https://openrouter.ai/api/v1");
-        localStorage.setItem("cloud_api_key", "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");
-        localStorage.setItem("cloud_api_model", "google/gemma-4-31b-it:free");
+// 渲染服务商列表
+function renderProviderList() {
+    const container = document.getElementById('provider-list');
+    container.innerHTML = '';
+
+    cloudProviders.forEach(provider => {
+        const item = document.createElement('div');
+        item.style.cssText = `display:flex;align-items:center;gap:4px;padding:4px 8px;font-size:12px;border-radius:6px;border:2px solid ${provider.id === currentProviderId ? '#6366f1' : '#e5e7eb'};background:${provider.id === currentProviderId ? '#eef2ff' : '#fff'}`;
+
+        // 选择按钮
+        const selectBtn = document.createElement('span');
+        selectBtn.textContent = provider.name;
+        selectBtn.style.cssText = `cursor:pointer;flex:1;color:${provider.id === currentProviderId ? '#6366f1' : '#333'};font-weight:${provider.id === currentProviderId ? '600' : '400'}`;
+        selectBtn.onclick = () => selectProvider(provider.id);
+        item.appendChild(selectBtn);
+
+        // 编辑按钮
+        const editBtn = document.createElement('button');
+        editBtn.textContent = '✏️';
+        editBtn.title = '编辑';
+        editBtn.style.cssText = 'border:none;background:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px';
+        editBtn.onmouseover = () => editBtn.style.background = '#f3f4f6';
+        editBtn.onmouseout = () => editBtn.style.background = 'none';
+        editBtn.onclick = (e) => { e.stopPropagation(); editProvider(provider.id); };
+        item.appendChild(editBtn);
+
+        // 复制按钮
+        const copyBtn = document.createElement('button');
+        copyBtn.textContent = '📋';
+        copyBtn.title = '复制';
+        copyBtn.style.cssText = 'border:none;background:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px';
+        copyBtn.onmouseover = () => copyBtn.style.background = '#f0fdf4';
+        copyBtn.onmouseout = () => copyBtn.style.background = 'none';
+        copyBtn.onclick = (e) => { e.stopPropagation(); copyProvider(provider.id); };
+        item.appendChild(copyBtn);
+
+        // 删除按钮
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑️';
+        delBtn.title = '删除';
+        delBtn.style.cssText = 'border:none;background:none;cursor:pointer;font-size:12px;padding:2px 4px;border-radius:4px';
+        delBtn.onmouseover = () => delBtn.style.background = '#fef2f2';
+        delBtn.onmouseout = () => delBtn.style.background = 'none';
+        delBtn.onclick = (e) => { e.stopPropagation(); deleteProviderById(provider.id); };
+        item.appendChild(delBtn);
+
+        container.appendChild(item);
+    });
+
+    // 显示当前服务商名称
+    const currentProvider = cloudProviders.find(p => p.id === currentProviderId);
+    document.getElementById('current-provider-name').textContent = currentProvider ? `当前: ${currentProvider.name}` : '';
+}
+
+// 直接按 ID 删除服务商（无需先打开编辑弹窗）
+function deleteProviderById(providerId) {
+    const provider = cloudProviders.find(p => p.id === providerId);
+    if (!provider) return;
+    if (!confirm(`确定删除服务商「${provider.name}」？`)) return;
+
+    cloudProviders = cloudProviders.filter(p => p.id !== providerId);
+    if (currentProviderId === providerId) {
+        currentProviderId = cloudProviders.length > 0 ? cloudProviders[0].id : '';
     }
-    
-    document.getElementById("cloud-base-url").value = localStorage.getItem("cloud_api_base_url") || "";
-    document.getElementById("cloud-api-key").value = localStorage.getItem("cloud_api_key") || "";
-    document.getElementById("cloud-model").value = localStorage.getItem("cloud_api_model") || "MiniMax-M2.7";
+
+    localStorage.setItem('cloud_providers', JSON.stringify(cloudProviders));
+    localStorage.setItem('current_provider_id', currentProviderId);
+    renderProviderList();
+    showStatus('服务商已删除', 'success');
+}
+
+// 复制服务商配置
+function copyProvider(providerId) {
+    const provider = cloudProviders.find(p => p.id === providerId);
+    if (!provider) return;
+
+    const newProvider = {
+        id: 'provider_' + Date.now(),
+        name: provider.name + ' - 副本',
+        baseUrl: provider.baseUrl,
+        apiKey: provider.apiKey,
+        model: provider.model,
+        authHeader: provider.authHeader || 'Authorization',
+        authScheme: provider.authScheme != null ? provider.authScheme : 'Bearer',
+        endpoint: provider.endpoint || ''
+    };
+    cloudProviders.push(newProvider);
+    localStorage.setItem('cloud_providers', JSON.stringify(cloudProviders));
+
+    // 打开编辑弹窗让用户调整
+    editProvider(newProvider.id);
+    renderProviderList();
+    showStatus('已复制服务商配置', 'success');
+}
+
+// 选择服务商
+function selectProvider(providerId) {
+    currentProviderId = providerId;
+    localStorage.setItem('current_provider_id', providerId);
+    renderProviderList();
+    showStatus('已切换服务商', 'success');
+}
+
+// 显示添加服务商弹窗
+function showAddProviderModal() {
+    editingProviderId = null;
+    document.getElementById('provider-modal-title').textContent = '添加服务商';
+    document.getElementById('provider-name').value = '';
+    document.getElementById('provider-base-url').value = '';
+    document.getElementById('provider-api-key').value = '';
+    document.getElementById('provider-model').value = '';
+    document.getElementById('provider-auth-header').value = 'Authorization';
+    document.getElementById('provider-auth-scheme').value = 'Bearer';
+    document.getElementById('provider-endpoint').value = '';
+    document.getElementById('provider-delete-btn').style.display = 'none';
+    document.getElementById('provider-modal').classList.add('active');
+}
+
+// 编辑服务商
+function editProvider(providerId) {
+    const provider = cloudProviders.find(p => p.id === providerId);
+    if (!provider) return;
+
+    editingProviderId = providerId;
+    document.getElementById('provider-modal-title').textContent = '编辑服务商';
+    document.getElementById('provider-name').value = provider.name;
+    document.getElementById('provider-base-url').value = provider.baseUrl || '';
+    document.getElementById('provider-api-key').value = provider.apiKey || '';
+    document.getElementById('provider-model').value = provider.model;
+    document.getElementById('provider-auth-header').value = provider.authHeader || 'Authorization';
+    document.getElementById('provider-auth-scheme').value = provider.authScheme != null ? provider.authScheme : 'Bearer';
+    document.getElementById('provider-endpoint').value = provider.endpoint || '';
+    document.getElementById('provider-delete-btn').style.display = 'inline-block';
+    document.getElementById('provider-modal').classList.add('active');
+}
+
+// 关闭服务商弹窗
+function closeProviderModal() {
+    document.getElementById('provider-modal').classList.remove('active');
+    editingProviderId = null;
+}
+
+// 保存服务商
+function saveProvider() {
+    const name = document.getElementById('provider-name').value.trim();
+    const baseUrl = document.getElementById('provider-base-url').value.trim();
+    const apiKey = document.getElementById('provider-api-key').value.trim();
+    const model = document.getElementById('provider-model').value.trim();
+    const authHeader = document.getElementById('provider-auth-header').value.trim() || 'Authorization';
+    const authScheme = document.getElementById('provider-auth-scheme').value;
+    const endpoint = document.getElementById('provider-endpoint').value.trim();
+
+    if (!name || !model) {
+        showStatus('请至少填写服务商名称和模型名称', 'error');
+        return;
+    }
+    if (!baseUrl && !endpoint) {
+        showStatus('请填写 Base URL 或自定义端点', 'error');
+        return;
+    }
+
+    const extra = { authHeader, authScheme };
+    if (endpoint) extra.endpoint = endpoint;
+
+    if (editingProviderId) {
+        // 编辑现有服务商
+        const index = cloudProviders.findIndex(p => p.id === editingProviderId);
+        if (index !== -1) {
+            cloudProviders[index] = { ...cloudProviders[index], name, baseUrl, apiKey, model, ...extra };
+        }
+    } else {
+        // 添加新服务商
+        const provider = {
+            id: 'provider_' + Date.now(),
+            name,
+            baseUrl,
+            apiKey,
+            model,
+            ...extra
+        };
+        cloudProviders.push(provider);
+        currentProviderId = provider.id;
+    }
+
+    localStorage.setItem('cloud_providers', JSON.stringify(cloudProviders));
+    localStorage.setItem('current_provider_id', currentProviderId);
+    closeProviderModal();
+    renderProviderList();
+    showStatus('服务商已保存', 'success');
+}
+
+// 删除服务商（从弹窗内调用）
+function deleteProvider() {
+    if (!editingProviderId) return;
+    const idToDelete = editingProviderId;
+    closeProviderModal();
+    deleteProviderById(idToDelete);
+}
+
+// 获取当前服务商配置
+function getCurrentProvider() {
+    return cloudProviders.find(p => p.id === currentProviderId);
+}
+
+// 初始化服务商列表
+function initProviderList() {
+    migrateOldConfig();
+    renderProviderList();
 }
 
 async function callCloudAI(prompt, imageBase64) {
-    const baseUrl = localStorage.getItem("cloud_api_base_url") || "https://openrouter.ai/api/v1";
-    const apiKey = localStorage.getItem("cloud_api_key");
-    const model = localStorage.getItem("cloud_api_model") || "google/gemma-4-31b-it:free";
-    if (!apiKey) throw new Error("请先在 AI 引擎管理中配置 API Key");
+    const provider = getCurrentProvider();
+    if (!provider) throw new Error("请先添加并选择一个模型服务商");
 
-    console.log("[CloudAI] 调用 API:", { baseUrl, model, hasImage: !!imageBase64 });
+    const baseUrl = provider.baseUrl || '';
+    const apiKey = provider.apiKey || '';
+    const model = provider.model;
+    const endpoint = provider.endpoint || '';
+    const authHeader = provider.authHeader || 'Authorization';
+    const authScheme = provider.authScheme != null ? provider.authScheme : 'Bearer';
+
+    console.log("[CloudAI] 调用 API:", { baseUrl, model, endpoint: endpoint || '(auto)', authScheme, hasImage: !!imageBase64 });
 
     // 构建消息内容（OpenAI 兼容格式）
     let content = prompt;
     if (imageBase64) {
-        // 检查是否已经是 data URL 格式
-        const imageUrl = imageBase64.startsWith('data:') ? imageBase64 : 
+        const imageUrl = imageBase64.startsWith('data:') ? imageBase64 :
                        "data:image/jpeg;base64," + imageBase64;
         content = [
             { type: "text", text: prompt },
@@ -2284,33 +3180,43 @@ async function callCloudAI(prompt, imageBase64) {
     }
 
     const messages = [{ role: "user", content }];
-    
-    // 判断是否是 OpenRouter（通过 base URL 或显式标记）
-    const isOpenRouter = baseUrl.includes('openrouter');
-    const apiPath = isOpenRouter ? "/chat/completions" : "/v1/text/chatcompletion_v2";
-    
+
+    // 确定请求 URL：优先用自定义端点，否则拼接 baseUrl + /chat/completions
+    let url;
+    if (endpoint) {
+        url = endpoint;
+    } else {
+        url = baseUrl.replace(/\/+$/, '') + "/chat/completions";
+    }
+
     // 构建 headers
-    const headers = { 
-        "Content-Type": "application/json", 
-        "Authorization": "Bearer " + apiKey 
-    };
-    
-    // OpenRouter 需要额外的 headers
-    if (isOpenRouter) {
+    const headers = { "Content-Type": "application/json" };
+
+    // 认证头：支持自定义 header 名称和 scheme
+    if (apiKey) {
+        if (authScheme) {
+            headers[authHeader] = authScheme + " " + apiKey;
+        } else {
+            headers[authHeader] = apiKey;
+        }
+    }
+
+    // OpenRouter 额外 headers
+    if (baseUrl.includes('openrouter')) {
         headers["HTTP-Referer"] = "http://localhost";
         headers["X-Title"] = "Question Bank Local";
     }
-    
+
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒超时（GPT-4o 可能需要更长时间）
+    const timeoutId = setTimeout(() => controller.abort(), 60000);
 
     try {
-        const response = await fetch(baseUrl + apiPath, {
+        const response = await fetch(url, {
             method: "POST",
             headers: headers,
-            body: JSON.stringify({ 
-                model, 
-                messages, 
+            body: JSON.stringify({
+                model,
+                messages,
                 temperature: 0.7
             }),
             signal: controller.signal
@@ -2325,13 +3231,12 @@ async function callCloudAI(prompt, imageBase64) {
 
         const data = await response.json();
         console.log("[CloudAI] 响应:", JSON.stringify(data).substring(0, 200));
-        
-        // 解析返回值（OpenAI 格式）
-        const content = data.choices?.[0]?.message?.content || 
-                       data.choices?.[0]?.text || 
+
+        const result = data.choices?.[0]?.message?.content ||
+                       data.choices?.[0]?.text ||
                        "";
-        console.log("[CloudAI] 解析结果:", content.substring(0, 100));
-        return content;
+        console.log("[CloudAI] 解析结果:", result.substring(0, 100));
+        return result;
     } catch (error) {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
@@ -2341,10 +3246,165 @@ async function callCloudAI(prompt, imageBase64) {
     }
 }
 
+// 基于用户评价生成标签
+async function generateTagsFromComment() {
+    if (!currentQuestionId) return;
+
+    const comment = document.getElementById("user-comment").value.trim();
+    if (!comment) {
+        showStatus("请输入您对题目的评价", "error");
+        return;
+    }
+
+    // 保存用户评价
+    await saveUserComment();
+
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = "生成中...";
+
+    try {
+        const prompt = `请基于以下用户评价，为题目生成语义标签（JSON数组格式）。
+标签范围不限，自行判断哪些语义可以作为题目特征。
+只输出JSON数组，不要其他内容。
+
+用户评价：${comment}`;
+
+        const result = await callCloudAI(prompt);
+        console.log("[标签生成] API 返回:", result);
+
+        // 解析 JSON 数组
+        let tags = [];
+        try {
+            // 尝试提取 JSON 数组
+            const jsonMatch = result.match(/\[[\s\S]*?\]/);
+            if (jsonMatch) {
+                tags = JSON.parse(jsonMatch[0]);
+            } else {
+                // 如果没有找到 JSON，尝试按行分割
+                tags = result.split('\n').map(t => t.trim()).filter(t => t && !t.startsWith('[') && !t.startsWith(']'));
+            }
+        } catch (e) {
+            console.error("[标签生成] JSON 解析失败:", e);
+            tags = result.split('\n').map(t => t.trim()).filter(t => t);
+        }
+
+        // 显示生成的标签
+        const container = document.getElementById("generated-tags-list");
+        addedGeneratedTags.clear();
+        container.innerHTML = "";
+
+        tags.forEach(tag => {
+            const tagBtn = document.createElement("button");
+            tagBtn.textContent = tag;
+            tagBtn.style.cssText = "padding:4px 10px;font-size:11px;border-radius:12px;cursor:pointer;border:1px solid #f59e0b;background:#fff;color:#92400e";
+            tagBtn.onclick = () => addGeneratedTag(tag);
+            container.appendChild(tagBtn);
+        });
+
+        document.getElementById("generated-tags").style.display = tags.length > 0 ? "block" : "none";
+        showStatus(`生成了 ${tags.length} 个标签`, "success");
+    } catch (e) {
+        console.error("[标签生成] 失败:", e);
+        showStatus("生成失败: " + e.message, "error");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "生成";
+    }
+}
+
+// 添加生成的标签到题目
+let addedGeneratedTags = new Set();
+
+async function addGeneratedTag(tagName) {
+    if (!currentQuestionId) return;
+
+    try {
+        // 查找是否已存在该标签
+        let tag = allTags.find(t => t.name === tagName);
+
+        if (!tag) {
+            // 创建新标签
+            tag = await dbCreateTag(tagName, "#f59e0b");
+            await loadTags();
+        }
+
+        // 添加标签到题目
+        await dbAddTagToQuestion(currentQuestionId, tag.id);
+        await loadQuestions();
+
+        // 高亮已添加的标签按钮
+        addedGeneratedTags.add(tagName);
+        const btns = document.getElementById("generated-tags-list").querySelectorAll("button");
+        btns.forEach(btn => {
+            if (btn.textContent === tagName) {
+                btn.style.background = "#22c55e";
+                btn.style.color = "#fff";
+                btn.style.borderColor = "#22c55e";
+                btn.style.cursor = "default";
+            }
+        });
+
+        // 更新题目详情中的标签显示（不调用 showQuestionDetail 避免重绘）
+        const q = filteredList[detailIndex];
+        if (q) {
+            const questionTags = [];
+            await dbQuestionTags.iterate((v, k) => {
+                if (k.startsWith(currentQuestionId + "_")) questionTags.push(v);
+            });
+            const tagIds = new Set(questionTags.map(qt => qt.tag_id));
+            const tagList = allTags.filter(t => tagIds.has(t.id));
+            document.getElementById("modal-tags").innerHTML = tagList.length ? '<h3 style="margin-top:12px">标签（点击移除）</h3><div class="tag-container">' + tagList.map(t => '<span class="tag" style="background:' + t.color + '20;border:1px solid ' + t.color + ';cursor:pointer" onclick="removeTagFromQuestion(\'' + t.id + '\')">' + t.name + ' ✕</span>').join("") + '</div>' : '';
+        }
+
+        showStatus(`已添加标签: ${tagName}`, "success");
+    } catch (e) {
+        showStatus("添加标签失败: " + e.message, "error");
+    }
+}
+
+// 清除生成的标签列表
+function clearGeneratedTags() {
+    document.getElementById("generated-tags-list").innerHTML = "";
+    document.getElementById("generated-tags").style.display = "none";
+    addedGeneratedTags.clear();
+}
+
+// 从题目移除标签
+async function removeTagFromQuestion(tagId) {
+    if (!currentQuestionId) return;
+
+    try {
+        await dbRemoveTagFromQuestion(currentQuestionId, tagId);
+        await loadQuestions();
+        showQuestionDetail(currentQuestionId);
+        showStatus("已移除标签", "success");
+    } catch (e) {
+        showStatus("移除标签失败: " + e.message, "error");
+    }
+}
+
+// 保存用户评价到题目
+async function saveUserComment() {
+    if (!currentQuestionId) return;
+
+    const comment = document.getElementById("user-comment").value.trim();
+    const q = await dbQuestions.getItem(currentQuestionId);
+    if (!q) return;
+
+    await dbQuestions.setItem(currentQuestionId, {
+        ...q,
+        user_comment: comment,
+        updated_at: new Date().toISOString()
+    });
+    await loadQuestions();
+    await doAutoBackup();
+}
+
 async function analyzeSingleQuestion() {
     if (!currentQuestionId) return;
 
-    const mode = document.getElementById("analyze-mode")?.value || "local";
+    const mode = document.getElementById("analyze-mode")?.value || "cloud";
     const q = await dbQuestions.getItem(currentQuestionId);
     if (!q) return;
 
@@ -2482,7 +3542,7 @@ window.runFullAIAutomation = async function() {
     // 2. 自动发现并加载模型
     console.log("🛠️ [自动化] Step 2: 正在执行自动模型发现 handleDiscoverModel...");
     await handleDiscoverModel();
-    
+
     // 3. 等待引擎就绪 (轮询)
     console.log("🛠️ [自动化] Step 3: 开始轮询检查 AI 引擎就绪状态...");
     const checkReady = setInterval(async () => {
@@ -2491,12 +3551,12 @@ window.runFullAIAutomation = async function() {
         if (status.ready) {
             clearInterval(checkReady);
             console.log("🛠️ [自动化] ✅ Step 3: AI 引擎已就绪，准备进入智能组卷阶段");
-            
+
             // 4. 模拟输入需求并点击
             console.log("🛠️ [自动化] Step 4: 正在模拟用户输入组卷需求...");
             document.getElementById("ai-paper-requirement").value = "给我 1 道最难的测试题";
             await startAIPaperGeneration();
-            
+
             // 5. 延迟 3 秒后自动点击“一键生成”
             setTimeout(async () => {
                 const modal = document.getElementById("ai-recommend-modal");
@@ -2522,59 +3582,19 @@ async function handleImport(event) {
 
 // ========== 空白版题目功能 ==========
 
-let _pendingBlankQuestionId = null; // 当前询问的题目ID
 let _pendingBlankList = JSON.parse(localStorage.getItem('pendingBlankList') || '[]'); // 待补拍列表
-
-// 询问是否需要空白版
-function askBlankVersion(questionId) {
-    _pendingBlankQuestionId = questionId;
-    document.getElementById('blank-ask-modal').style.display = 'flex';
-}
-
-// 关闭询问弹窗
-function closeBlankAskModal() {
-    document.getElementById('blank-ask-modal').style.display = 'none';
-    _pendingBlankQuestionId = null;
-}
-
-// 现在拍空白版
-async function doCaptureBlankNow() {
-    if (!_pendingBlankQuestionId) return;
-    closeBlankAskModal();
-    // 设置标记，让拍摄逻辑知道这是在拍空白版
-    window._capturingBlankFor = _pendingBlankQuestionId;
-    // 触发拍摄题目图片（复用现有逻辑）
-    document.getElementById('question-image').click();
-}
-
-// 晚点拍：加入待补拍列表
-function doCaptureBlankLater() {
-    if (!_pendingBlankQuestionId) return;
-    if (!_pendingBlankList.includes(_pendingBlankQuestionId)) {
-        _pendingBlankList.push(_pendingBlankQuestionId);
-        localStorage.setItem('pendingBlankList', JSON.stringify(_pendingBlankList));
-        showStatus('已加入待补拍列表', 'success');
-    }
-    closeBlankAskModal();
-    updatePendingBlankCount();
-}
-
-// 不需要空白版
-function doSkipBlank() {
-    closeBlankAskModal();
-}
 
 // 显示待补拍列表
 async function showPendingBlankList() {
     const container = document.getElementById('pending-blank-list');
     container.innerHTML = '';
-    
+
     if (!_pendingBlankList.length) {
         container.innerHTML = '<div style="text-align:center;color:#999;padding:20px">暂无待补拍题目</div>';
-        document.getElementById('pending-blank-modal').style.display = 'flex';
+        document.getElementById('pending-blank-modal').classList.add('active');
         return;
     }
-    
+
     // 加载题目详情
     for (const questionId of _pendingBlankList) {
         try {
@@ -2585,28 +3605,27 @@ async function showPendingBlankList() {
                 continue;
             }
             const div = document.createElement('div');
-            div.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid #f0f0f0;cursor:pointer';
-            div.onclick = () => doCaptureBlankForQuestion(questionId);
-            
+            div.style.cssText = 'display:flex;align-items:center;gap:12px;padding:10px;border-bottom:1px solid #f0f0f0';
+
             const img = document.createElement('img');
             img.src = question.question_image_url;
             img.style.cssText = 'width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0';
             div.appendChild(img);
-            
+
             const info = document.createElement('div');
             info.style.cssText = 'flex:1';
             const title = document.createElement('div');
             title.textContent = question.semantic_summary || '题目 ' + questionId.substring(0, 8);
             title.style.cssText = 'font-size:14px;color:#333;margin-bottom:4px';
             info.appendChild(title);
-            
+
             const hint = document.createElement('div');
-            hint.textContent = '点击补拍空白版';
+            hint.textContent = '此题暂无空白版，请在题目详情中补拍';
             hint.style.cssText = 'font-size:12px;color:#888';
             info.appendChild(hint);
-            
+
             div.appendChild(info);
-            
+
             const btn = document.createElement('button');
             btn.textContent = '❌';
             btn.style.cssText = 'background:none;border:none;font-size:16px;cursor:pointer;padding:4px';
@@ -2615,19 +3634,19 @@ async function showPendingBlankList() {
                 removeFromPendingBlank(questionId);
             };
             div.appendChild(btn);
-            
+
             container.appendChild(div);
         } catch (e) {
             console.warn('加载题目失败:', questionId, e);
         }
     }
-    
-    document.getElementById('pending-blank-modal').style.display = 'flex';
+
+    document.getElementById('pending-blank-modal').classList.add('active');
 }
 
 // 关闭待补拍列表弹窗
 function closePendingBlankModal() {
-    document.getElementById('pending-blank-modal').style.display = 'none';
+    document.getElementById('pending-blank-modal').classList.remove('active');
 }
 
 // 从待补拍列表中移除
@@ -2636,13 +3655,6 @@ function removeFromPendingBlank(questionId) {
     localStorage.setItem('pendingBlankList', JSON.stringify(_pendingBlankList));
     showPendingBlankList(); // 刷新列表
     updatePendingBlankCount();
-}
-
-// 为指定题目拍空白版
-function doCaptureBlankForQuestion(questionId) {
-    closePendingBlankModal();
-    window._capturingBlankFor = questionId;
-    document.getElementById('question-image').click();
 }
 
 // 更新待补拍数量徽章
@@ -2713,12 +3725,13 @@ async function doAutoBackup() {
 }
 
 async function buildBackupData() {
-    const data = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [] };
+    const data = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [], similar_question_links: [] };
     await dbQuestions.iterate((v) => data.questions.push(v));
     await dbTags.iterate((v) => data.tags.push(v));
     await dbQuestionTags.iterate((v) => data.question_tags.push(v));
     await dbPapers.iterate((v) => data.papers.push(v));
     await dbPaperQuestions.iterate((v) => data.paper_questions.push(v));
+    await dbSimilarQuestionLinks.iterate((v) => data.similar_question_links.push(v));
     return data;
 }
 
@@ -2780,6 +3793,10 @@ async function importBackupData(data) {
     if (data.question_tags) for (const qt of data.question_tags) await dbQuestionTags.setItem(qt.question_id + "_" + qt.tag_id, qt);
     if (data.papers) for (const p of data.papers) await dbPapers.setItem(p.id, p);
     if (data.paper_questions) for (const pq of data.paper_questions) await dbPaperQuestions.setItem(pq.paper_id + "_" + pq.question_id, pq);
+    if (data.similar_question_links) for (const link of data.similar_question_links) {
+        const ids = [link.question_id, link.similar_question_id].sort();
+        if (ids[0] && ids[1] && ids[0] !== ids[1]) await dbSimilarQuestionLinks.setItem(ids[0] + "_" + ids[1], { ...link, question_id: ids[0], similar_question_id: ids[1] });
+    }
 }
 
 // 包装数据修改操作，自动触发备份
@@ -2797,6 +3814,12 @@ const _origDeleteTag = dbDeleteTag;
 dbDeleteTag = async function(...args) { const r = await _origDeleteTag(...args); doAutoBackup(); return r; };
 const _origAddTagToQuestion = dbAddTagToQuestion;
 dbAddTagToQuestion = async function(...args) { const r = await _origAddTagToQuestion(...args); doAutoBackup(); return r; };
+const _origRemoveTagFromQuestion = dbRemoveTagFromQuestion;
+dbRemoveTagFromQuestion = async function(...args) { const r = await _origRemoveTagFromQuestion(...args); doAutoBackup(); return r; };
+const _origAddSimilarQuestionLinks = dbAddSimilarQuestionLinks;
+dbAddSimilarQuestionLinks = async function(...args) { const r = await _origAddSimilarQuestionLinks(...args); doAutoBackup(); return r; };
+const _origRemoveSimilarQuestionLink = dbRemoveSimilarQuestionLink;
+dbRemoveSimilarQuestionLink = async function(...args) { const r = await _origRemoveSimilarQuestionLink(...args); doAutoBackup(); return r; };
 const _origCreatePaper = dbCreatePaper;
 dbCreatePaper = async function(...args) { const r = await _origCreatePaper(...args); doAutoBackup(); return r; };
 const _origDeletePaper = dbDeletePaper;
@@ -3382,7 +4405,7 @@ async function downloadAndInstall() {
 window.addEventListener('question-ai-ready', async (event) => {
     const { questionId } = event.detail;
     console.log('AI 分析完成，刷新题目:', questionId);
-    
+
     // 重新加载所有题目并渲染 (如果想更精细，可以只更新对应的 DOM)
     allQuestions = await dbGetAllQuestions();
     renderQuestions();
