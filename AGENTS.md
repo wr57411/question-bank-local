@@ -45,3 +45,10 @@
 1. **手动提交**：每次完成功能后，检查 git status 并询问用户是否提交
 2. **提交信息格式**：`功能描述 - 简短说明`
 3. **不自动提交**：禁用自动提交脚本，避免频繁提交
+
+## 打包规则（重要）
+
+1. **打包前必须先调用 `ship-feature` skill**：每次完成代码修改后，需要打包时必须先加载 `ship-feature` skill，按其中步骤执行
+2. **构建命令**：`npm run ship -- "功能描述"`（源码在 worktree 但 APK 输出到原项目根目录）
+3. **APK 输出**：项目根目录得到 `question-bank-local_YYYYMMDD_HHMM.apk`
+4. **更新记录**：`PROJECT_MEMORY.md` 会自动追加记录

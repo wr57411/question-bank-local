@@ -534,6 +534,7 @@
         </div>
         <div class="btn-group" style="margin-bottom:12px">
             <button onclick="renderSimilarCandidates()">按标签筛选</button>
+            <button onclick="loadPendingLinkCandidates()" id="btn-pending-similar" style="background:#f59e0b">📌 从待关联选取 (<span id="btn-pending-similar-count">0</span>)</button>
             <button onclick="recommendSimilarWithAI()" style="background:#8b5cf6">AI 推荐</button>
         </div>
         <div id="similar-ai-reason" class="ai-summary-wrap" style="display:none;border-left-color:#10b981"></div>
@@ -2115,6 +2116,7 @@ async function openSimilarModal() {
     similarAiReasons = new Map();
     document.getElementById("similar-ai-reason").style.display = "none";
     document.getElementById("similar-modal").classList.add("active");
+    document.getElementById("btn-pending-similar-count").textContent = getPendingLinkList().length;
     await renderSimilarCandidates();
 }
 
@@ -2122,7 +2124,6 @@ function closeSimilarModal() {
     document.getElementById("similar-modal").classList.remove("active");
     similarCandidates = [];
     similarAiReasons = new Map();
-}
 }
 
 async function renderSimilarCandidates(aiPickedIds = null) {
@@ -2173,6 +2174,49 @@ async function renderSimilarCandidates(aiPickedIds = null) {
         row.append(checkbox, img, body);
         list.appendChild(row);
     });
+}
+
+async function loadPendingLinkCandidates() {
+    if (!currentQuestionId) return;
+    const pendingIds = getPendingLinkList();
+    if (!pendingIds.length) { showStatus("待关联列表为空", "error"); return; }
+    const linkedIds = await dbGetSimilarQuestionIds(currentQuestionId);
+    const available = pendingIds.filter(id => !linkedIds.includes(id));
+    document.getElementById("btn-pending-similar-count").textContent = available.length;
+    const list = document.getElementById("similar-candidate-list");
+    list.replaceChildren();
+    if (!available.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.style.padding = "24px 12px";
+        empty.textContent = "待关联列表中的题目都已关联";
+        list.appendChild(empty);
+        return;
+    }
+    available.forEach(id => {
+        const q = allQuestions.find(q => q.id === id);
+        if (!q) return;
+        const row = document.createElement("label");
+        row.className = "similar-result";
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = q.id;
+        checkbox.checked = true;
+        const img = document.createElement("img");
+        img.src = q.question_image_url;
+        const body = document.createElement("div");
+        const title = document.createElement("div");
+        title.style.cssText = "font-size:13px;font-weight:600;color:#374151;line-height:1.4";
+        title.textContent = q.user_comment || q.semantic_summary || "题目 " + q.id.substring(0, 8);
+        const meta = document.createElement("div");
+        meta.className = "similar-meta";
+        const tagNames = (q.question_tags || []).map(qt => qt.tags.name).join("、") || "无标签";
+        meta.textContent = "待关联｜" + tagNames;
+        body.append(title, meta);
+        row.append(checkbox, img, body);
+        list.appendChild(row);
+    });
+    document.getElementById("similar-modal").classList.add("active");
 }
 
 function parseSimilarAIResult(text) {
