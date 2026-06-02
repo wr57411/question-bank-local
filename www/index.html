@@ -2032,6 +2032,18 @@ async function renderSimilarQuestions(qId) {
         card.onclick = () => showQuestionDetail(q.id);
         const img = document.createElement("img");
         img.src = q.question_image_url;
+        img.style.cursor = "pointer";
+        img.onclick = (e) => {
+            e.preventDefault();
+            const overlay = document.createElement("div");
+            overlay.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out";
+            overlay.onclick = () => overlay.remove();
+            const big = document.createElement("img");
+            big.src = q.question_image_url;
+            big.style.cssText = "max-width:100%;max-height:100%;object-fit:contain;border-radius:8px";
+            overlay.appendChild(big);
+            document.body.appendChild(overlay);
+        };
         const title = document.createElement("div");
         title.className = "similar-title";
         title.textContent = q.user_comment || q.semantic_summary || q.question_tags.map(qt => qt.tags.name).join("、") || "相似题";
@@ -2110,6 +2122,7 @@ function closeSimilarModal() {
     document.getElementById("similar-modal").classList.remove("active");
     similarCandidates = [];
     similarAiReasons = new Map();
+}
 }
 
 async function renderSimilarCandidates(aiPickedIds = null) {
@@ -2231,6 +2244,7 @@ async function confirmSimilarLinks() {
     const ids = Array.from(document.querySelectorAll("#similar-candidate-list input[type='checkbox']:checked")).map(input => input.value);
     if (!ids.length) { showStatus("请先勾选要关联的相似题", "error"); return; }
     await dbAddSimilarQuestionLinks(currentQuestionId, ids);
+    ids.forEach(id => { if (isPendingLink(id)) removeFromPendingLink(id); });
     await loadQuestions();
     await renderSimilarQuestions(currentQuestionId);
     closeSimilarModal();
