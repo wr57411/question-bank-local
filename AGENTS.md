@@ -49,6 +49,6 @@
 ## 打包规则（重要）
 
 1. **打包前必须先调用 `ship-feature` skill**：每次完成代码修改后，需要打包时必须先加载 `ship-feature` skill，按其中步骤执行
-2. **构建命令**：`npm run ship -- "功能描述"`（源码在 worktree 但 APK 输出到原项目根目录）
+2. **构建命令**：`npm run ship -- "功能描述"`（源码在 worktree 但 APK 输出到原项目根目录，默认从 worktree 构建）
 3. **APK 输出**：项目根目录得到 `question-bank-local_YYYYMMDD_HHMM.apk`
 4. **更新记录**：`PROJECT_MEMORY.md` 会自动追加记录
