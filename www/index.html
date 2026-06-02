@@ -1650,6 +1650,189 @@ function toggleBasketInDetail() { if (!currentQuestionId) return; toggleBasket(c
 function navigateDetail(dir) { const ni = detailIndex + dir; if (ni < 0 || ni >= filteredList.length) return; detailIndex = ni; currentQuestionId = filteredList[ni].id; renderDetailContent(filteredList[ni]); }
 function closeModal() { document.getElementById("question-modal").classList.remove("active"); currentQuestionId = null; }
 
+async function renderSimilarQuestions(qId) {
+    const wrap = document.getElementById("modal-similar-questions");
+    if (!wrap) return;
+    const ids = await dbGetSimilarQuestionIds(qId);
+    const questions = allQuestions.filter(q => ids.includes(q.id));
+    wrap.replaceChildren();
+    const head = document.createElement("div");
+    head.style.cssText = "display:flex;align-items:center;justify-content:space-between;margin-bottom:8px";
+    const title = document.createElement("h3");
+    title.style.cssText = "margin:0;font-size:16px";
+    title.textContent = "相似题" + (questions.length ? "（" + questions.length + "）" : "");
+    const add = document.createElement("button");
+    add.textContent = "添加相似题";
+    add.style.cssText = "padding:6px 12px;font-size:12px";
+    add.onclick = openSimilarModal;
+    head.append(title, add);
+    wrap.appendChild(head);
+    if (!questions.length) {
+        const empty = document.createElement("div");
+        empty.style.cssText = "font-size:12px;color:#888;padding:8px;background:#f9fafb;border-radius:8px";
+        empty.textContent = "暂无相似题关联";
+        wrap.appendChild(empty);
+        return;
+    }
+    const list = document.createElement("div");
+    list.className = "similar-list";
+    questions.forEach(q => {
+        const card = document.createElement("div");
+        card.className = "similar-card";
+        card.onclick = () => showQuestionDetail(q.id);
+        const img = document.createElement("img");
+        img.src = q.question_image_url;
+        img.style.cursor = "pointer";
+        img.onclick = (e) => {
+            e.preventDefault();
+            const overlay = document.createElement("div");
+            overlay.style.cssText = "position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,.85);display:flex;align-items:center;justify-content:center;padding:24px;cursor:zoom-out";
+            overlay.onclick = () => overlay.remove();
+            const big = document.createElement("img");
+            big.src = q.question_image_url;
+            big.style.cssText = "max-width:100%;max-height:100%;object-fit:contain;border-radius:8px";
+            overlay.appendChild(big);
+            document.body.appendChild(overlay);
+        };
+        const body = document.createElement("div");
+        const text = document.createElement("div");
+        text.style.cssText = "font-size:13px;font-weight:600;color:#374151;line-height:1.4";
+        text.textContent = q.user_comment || q.semantic_summary || "题目 " + q.id.substring(0, 8);
+        const meta = document.createElement("div");
+        meta.className = "similar-meta";
+        const tagNames = (q.question_tags || []).map(qt => qt.tags.name).join("、") || "无标签";
+        meta.textContent = tagNames;
+        body.append(text, meta);
+        card.append(img, body);
+        list.appendChild(card);
+    });
+}
+
+async function renderSimilarCandidates(aiPickedIds = null) {
+    similarCandidates = await buildSimilarCandidates();
+    const list = document.getElementById("similar-candidate-list");
+    list.replaceChildren();
+    if (!similarCandidates.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty-state";
+        empty.style.padding = "24px 12px";
+        empty.textContent = "没有找到可关联的候选题";
+        list.appendChild(empty);
+        return;
+    }
+    const picked = new Set(aiPickedIds || []);
+    similarCandidates.forEach(item => {
+        const q = item.q;
+        const row = document.createElement("label");
+        row.className = "similar-result" + (picked.has(q.id) ? " ai-picked" : "");
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = q.id;
+        checkbox.checked = picked.has(q.id);
+        const img = document.createElement("img");
+        img.src = q.question_image_url;
+        const body = document.createElement("div");
+        const title = document.createElement("div");
+        title.style.cssText = "font-size:13px;font-weight:600;color:#374151;line-height:1.4";
+        title.textContent = q.user_comment || q.semantic_summary || "候选相似题";
+        const meta = document.createElement("div");
+        meta.className = "similar-meta";
+        const tagNames = q.question_tags.map(qt => qt.tags.name).join("、") || "无标签";
+        meta.textContent = "标签命中 " + item.tagHit + "｜" + tagNames;
+        body.append(title, meta);
+        const reason = similarAiReasons.get(q.id);
+        if (reason) {
+            const reasonEl = document.createElement("div");
+            reasonEl.className = "similar-meta";
+            reasonEl.style.color = "#5b21b6";
+            reasonEl.textContent = "AI：" + reason;
+            body.appendChild(reasonEl);
+        } else if (q.semantic_summary && q.semantic_summary !== "AI 正在分析中...") {
+            const summary = document.createElement("div");
+            summary.className = "similar-meta";
+            summary.textContent = q.semantic_summary;
+            body.appendChild(summary);
+        }
+        row.append(checkbox, img, body);
+        list.appendChild(row);
+    });
+}
+
+function parseSimilarAIResult(text) {
+    try {
+        const match = String(text || "").match(/\{[\s\S]*\}/);
+        if (match) {
+            const data = JSON.parse(match[0]);
+            return {
+                ids: Array.isArray(data.recommended_ids) ? data.recommended_ids : [],
+                reasons: data.reasons && typeof data.reasons === "object" ? data.reasons : {},
+                summary: data.summary || data.reason || ""
+            };
+        }
+        const arr = String(text || "").match(/\[[\s\S]*\]/);
+        if (arr) return { ids: JSON.parse(arr[0]), reasons: {}, summary: "" };
+    } catch (e) {}
+    return { ids: [], reasons: {}, summary: String(text || "").slice(0, 120) };
+}
+
+async function recommendSimilarWithAI() {
+    if (!currentQuestionId) return;
+    const current = allQuestions.find(q => q.id === currentQuestionId);
+    const candidates = (await buildSimilarCandidates()).slice(0, 30);
+    if (!current || !candidates.length) { showStatus("没有可推荐的候选题", "error"); return; }
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = "推荐中...";
+    try {
+        const prompt = `你是题库相似题推荐助手。请根据当前题目的参考标签、用户评价原话、AI摘要，从候选题中推荐最相似的题目。
+只输出JSON，不要解释正文。格式：
+{"recommended_ids":["候选题ID"],"reasons":{"候选题ID":"推荐原因"},"summary":"整体推荐思路"}
+
+当前题：
+${JSON.stringify({
+    id: current.id,
+    tags: current.question_tags.map(qt => qt.tags.name),
+    user_comment: current.user_comment || "",
+    summary: current.semantic_summary || ""
+})}
+
+候选题：
+${JSON.stringify(candidates.map(item => ({
+    id: item.q.id,
+    tags: item.q.question_tags.map(qt => qt.tags.name),
+    user_comment: item.q.user_comment || "",
+    summary: item.q.semantic_summary || "",
+    tag_hit: item.tagHit
+})))}`;
+        const resultText = await callCloudAI(prompt);
+        const parsed = parseSimilarAIResult(resultText);
+        const validIds = new Set(candidates.map(item => item.q.id));
+        const picked = parsed.ids.filter(id => validIds.has(id)).slice(0, 10);
+        similarAiReasons = new Map(Object.entries(parsed.reasons || {}));
+        const reasonEl = document.getElementById("similar-ai-reason");
+        reasonEl.textContent = parsed.summary || "AI 已按评价原话、标签和摘要重新排序候选题。";
+        reasonEl.style.display = "flex";
+        await renderSimilarCandidates(picked);
+        showStatus("AI 推荐完成", "success");
+    } catch (e) {
+        showStatus("AI 推荐失败: " + e.message, "error");
+    } finally {
+        btn.disabled = false;
+        btn.textContent = "AI 推荐";
+    }
+}
+
+async function confirmSimilarLinks() {
+    if (!currentQuestionId) return;
+    const ids = Array.from(document.querySelectorAll("#similar-candidate-list input[type='checkbox']:checked")).map(input => input.value);
+    if (!ids.length) { showStatus("请先勾选要关联的相似题", "error"); return; }
+    await dbAddSimilarQuestionLinks(currentQuestionId, ids);
+    ids.forEach(id => { if (isPendingLink(id)) removeFromPendingLink(id); });
+    await loadQuestions();
+    await renderSimilarQuestions(currentQuestionId);
+    closeSimilarModal();
+    showStatus("已关联 " + ids.length + " 道相似题", "success");
+}
 // 触摸滑动
 (function() {
     let sx=0,sy=0,st=0; const m=document.getElementById("question-modal");
