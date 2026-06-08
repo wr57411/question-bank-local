@@ -1,7 +1,7 @@
 #!/bin/bash
 # ship-feature.sh - 构建 APK 并记录到 PROJECT_MEMORY.md
 # 用法: ./scripts/ship-feature.sh "功能描述"
-# 可选环境变量: BUILD_SOURCE=main|worktree（默认 worktree）
+# 可选环境变量: BUILD_SOURCE=main|worktree（默认 main）
 
 set -e
 
@@ -9,19 +9,14 @@ DESCRIPTION="${1:-功能更新}"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 DATE=$(date +%Y-%m-%d)
 
-# 构建目录（源码所在位置）
-if [ "$BUILD_SOURCE" = "main" ]; then
-  PROJECT_DIR="/Users/john/question-bank-local"
-else
+if [ "$BUILD_SOURCE" = "worktree" ]; then
   PROJECT_DIR="/Users/john/.codex/worktrees/f640/question-bank-local"
+else
+  PROJECT_DIR="/Users/john/question-bank-local"
 fi
-
-# 输出目录（APK + 记录文件，固定为原项目根目录）
-OUTPUT_DIR="/Users/john/question-bank-local"
 
 cd "$PROJECT_DIR"
 echo ">>> 构建来源: $PROJECT_DIR"
-echo ">>> 输出目录: $OUTPUT_DIR"
 
 # 1. 同步 Capacitor
 echo ">>> 同步 Capacitor 资源..."
@@ -36,16 +31,16 @@ done
 # 3. 构建 APK
 echo ">>> 构建 debug APK..."
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
-cd android && ./gradlew clean assembleDebug
+cd android && ./gradlew assembleDebug
 cd ..
 
-# 4. 复制 APK 到原项目根目录
+# 4. 复制 APK
 APK_NAME="question-bank-local_${TIMESTAMP}.apk"
-cp android/app/build/outputs/apk/debug/app-debug.apk "$OUTPUT_DIR/$APK_NAME"
-echo ">>> APK 已生成: $OUTPUT_DIR/$APK_NAME"
+cp android/app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+echo ">>> APK 已生成: $APK_NAME"
 
-# 5. 更新原项目的 PROJECT_MEMORY.md
-MEMORY_FILE="$OUTPUT_DIR/PROJECT_MEMORY.md"
+# 5. 更新 PROJECT_MEMORY.md
+MEMORY_FILE="PROJECT_MEMORY.md"
 if [ ! -f "$MEMORY_FILE" ]; then
   echo "# PROJECT_MEMORY.md" > "$MEMORY_FILE"
   echo "" >> "$MEMORY_FILE"
@@ -60,4 +55,4 @@ echo "- **$TIMESTAMP** - $DESCRIPTION ($APK_NAME)" >> "$MEMORY_FILE"
 echo ">>> PROJECT_MEMORY.md 已更新"
 
 echo ""
-echo "✅ 完成！APK: $OUTPUT_DIR/$APK_NAME"
+echo "✅ 完成！APK: $APK_NAME"
