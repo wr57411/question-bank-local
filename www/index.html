@@ -11,54 +11,107 @@
     <script src="jspdf.umd.min.js"></script>
     <script src="cropper.min.js"></script>
     <style>
+        :root {
+            --primary: #1B7A4E;
+            --primary-light: #E8F5EE;
+            --primary-dark: #0F5C35;
+            --accent: #7C5CFC;
+            --accent-light: #F0ECFF;
+            --warning: #E8960A;
+            --warning-light: #FFF8E8;
+            --danger: #D93025;
+            --danger-light: #FDE7E7;
+            --text: #1A1C1E;
+            --text-secondary: #5F6368;
+            --text-tertiary: #9AA0A6;
+            --surface: #FFFFFF;
+            --surface-dim: #F1F3F4;
+            --surface-hover: #F8F9FA;
+            --border: #DADCE0;
+            --border-light: #E8EAED;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,.06);
+            --shadow-md: 0 2px 8px rgba(0,0,0,.08);
+            --shadow-lg: 0 4px 16px rgba(0,0,0,.12);
+            --shadow-xl: 0 8px 32px rgba(0,0,0,.16);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --space-xs: 4px;
+            --space-sm: 8px;
+            --space-md: 16px;
+            --space-lg: 24px;
+            --space-xl: 32px;
+        }
         *{margin:0;padding:0;box-sizing:border-box}
-        body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f0f2f5;min-height:100vh;min-height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
-        .container{max-width:800px;margin:0 auto;padding:12px}
-        header{background:linear-gradient(135deg,#3b82f6,#2563eb);padding:20px;border-radius:12px;margin-bottom:12px;color:#fff;box-shadow:0 4px 15px rgba(59,130,246,.3)}
-        header h1{font-size:22px;margin-bottom:4px}
-        header p{font-size:13px;opacity:.85}
-        .tabs{display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;-webkit-overflow-scrolling:touch}
-        .tab{padding:10px 18px;background:#fff;border:none;border-radius:20px;cursor:pointer;font-size:14px;font-weight:500;transition:all .3s;white-space:nowrap;color:#666}
-        .tab.active{background:#3b82f6;color:#fff;box-shadow:0 2px 8px rgba(59,130,246,.4)}
-        .card{background:#fff;padding:16px;border-radius:12px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-        .card h2{font-size:16px;margin-bottom:12px;color:#333}
-        .form-group{margin-bottom:12px}
-        label{display:block;margin-bottom:4px;font-weight:500;font-size:14px;color:#444}
-        input,select,textarea{width:100%;padding:10px 12px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px;transition:border-color .2s;-webkit-appearance:none}
-        input:focus,select:focus{outline:none;border-color:#3b82f6}
+        body{font-family:'Noto Sans SC',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#F8F9FA;color:var(--text);min-height:100vh;min-height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);line-height:1.5;-webkit-font-smoothing:antialiased}
+        .container{max-width:800px;margin:0 auto;padding:var(--space-md)}
+
+        /* Header */
+        header{background:linear-gradient(135deg,var(--primary) 0%,#22885A 100%);padding:28px 24px 24px;border-radius:0 0 var(--radius-xl) var(--radius-xl);margin:0 -12px var(--space-md);color:#fff;box-shadow:var(--shadow-lg);position:relative;overflow:hidden}
+        header::before{content:"";position:absolute;top:-30%;right:-20%;width:200px;height:200px;background:rgba(255,255,255,.06);border-radius:50%}
+        header::after{content:"";position:absolute;bottom:-20%;left:-10%;width:150px;height:150px;background:rgba(255,255,255,.04);border-radius:50%}
+        header h1{font-size:26px;margin-bottom:2px;font-weight:800;letter-spacing:-0.5px;position:relative}
+        header p{font-size:13px;opacity:.8;font-weight:400;letter-spacing:.2px}
+
+        /* Tabs */
+        .tabs{display:flex;gap:6px;margin-bottom:var(--space-md);overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:none}
+        .tabs::-webkit-scrollbar{display:none}
+        .tab{padding:10px 20px;background:var(--surface);border:none;border-radius:var(--radius-xl);cursor:pointer;font-size:14px;font-weight:600;transition:all .2s ease;white-space:nowrap;color:var(--text-secondary);box-shadow:var(--shadow-sm);position:relative}
+        .tab.active{background:var(--primary);color:#fff;box-shadow:0 4px 0 var(--primary-dark),var(--shadow-md);font-weight:700}
+        .tab:active{transform:translateY(1px)}
+
+        /* Cards */
+        .card{background:var(--surface);padding:20px;border-radius:var(--radius-lg);margin-bottom:var(--space-md);box-shadow:var(--shadow-sm);border:1px solid var(--border-light)}
+        .card h2{font-size:17px;margin-bottom:var(--space-md);color:var(--text);font-weight:700;letter-spacing:-0.2px}
+        .form-group{margin-bottom:var(--space-md)}
+        label{display:block;margin-bottom:6px;font-weight:600;font-size:13px;color:var(--text-secondary);letter-spacing:.1px}
+        input,select,textarea{width:100%;padding:12px 14px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:14px;transition:all .2s;-webkit-appearance:none;background:var(--surface);color:var(--text)}
+        input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-light)}
+        textarea{resize:none}
         input[type="file"]{display:none}
         input[type="checkbox"]{width:auto;-webkit-appearance:auto}
-        button{background:#3b82f6;color:#fff;padding:10px 20px;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:500;transition:all .2s}
-        button:active{transform:scale(.97)}
-        button:hover{background:#2563eb}
-        button.secondary{background:#6b7280}
-        button.danger{background:#ef4444}
-        button.danger:hover{background:#dc2626}
-        button.success{background:#10b981}
+
+        /* Buttons - 3D Candy Style */
+        button{background:var(--primary);color:#fff;padding:12px 24px;border:none;border-radius:var(--radius-md);cursor:pointer;font-size:14px;font-weight:700;transition:all .15s ease;box-shadow:0 4px 0 var(--primary-dark),var(--shadow-sm);letter-spacing:.1px}
+        button:active{transform:translateY(3px);box-shadow:0 1px 0 var(--primary-dark)}
+        button:hover{filter:brightness(1.05)}
+        button.secondary{background:var(--text-secondary);box-shadow:0 4px 0 #4A4E52}
+        button.secondary:active{box-shadow:0 1px 0 #4A4E52}
+        button.danger{background:var(--danger);box-shadow:0 4px 0 #B02520}
+        button.danger:active{box-shadow:0 1px 0 #B02520}
+        button.danger:hover{background:#C22B21}
+        button.success{background:var(--primary)}
         .btn-group{display:flex;gap:8px;flex-wrap:wrap}
         .btn-group button{flex:1;min-width:80px}
+
+        /* Upload Buttons */
         .upload-buttons{display:flex;gap:10px;flex-wrap:wrap}
-        .upload-btn{flex:1;min-width:70px;padding:14px;font-size:15px;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:8px}
-        .upload-btn.camera{background:#10b981}
-        .upload-btn.camera:hover{background:#059669}
-        .preview-wrap{position:relative;display:inline-block;max-width:100%;margin-top:8px}
-        .preview-image{max-width:100%;max-height:180px;object-fit:contain;border:2px solid #10b981;border-radius:8px;background:#f0fdf4}
-        .preview-delete{position:absolute;top:-8px;right:-8px;width:24px;height:24px;background:#ef4444;color:#fff;border:2px solid #fff;border-radius:50%;font-size:14px;line-height:20px;text-align:center;cursor:pointer;box-shadow:0 1px 4px rgba(0,0,0,.3);z-index:10}
-        .preview-label{color:#10b981;font-size:12px;margin-top:5px}
+        .upload-btn{flex:1;min-width:70px;padding:14px;font-size:14px;display:flex;align-items:center;justify-content:center;gap:6px;border-radius:var(--radius-md);font-weight:600}
+        .upload-btn.camera{background:var(--primary);box-shadow:0 3px 0 var(--primary-dark)}
+
+        /* Preview */
+        .preview-wrap{position:relative;display:inline-block;max-width:100%;margin-top:var(--space-sm)}
+        .preview-image{max-width:100%;max-height:180px;object-fit:contain;border:2px solid var(--primary);border-radius:var(--radius-md);background:var(--primary-light)}
+        .preview-delete{position:absolute;top:-8px;right:-8px;width:24px;height:24px;background:var(--danger);color:#fff;border:2px solid #fff;border-radius:50%;font-size:14px;line-height:20px;text-align:center;cursor:pointer;box-shadow:var(--shadow-md);z-index:10}
+        .preview-label{color:var(--primary);font-size:12px;margin-top:5px;font-weight:500}
         .crop-icon{cursor:pointer;margin-left:6px;font-size:16px;display:inline-block;transition:transform .2s}
         .crop-icon:hover{transform:scale(1.3)}
         #crop-image{display:block;max-width:100%}
+
+        /* Cropper Styles */
         .cropper-container{width:100%!important;height:100%!important;touch-action:none}
-        .cropper-point{width:24px!important;height:24px!important;background-color:rgba(255,255,255,.9)!important;border:3px solid #3b82f6!important;border-radius:50%!important;opacity:1!important;touch-action:none}
-        .cropper-line{background-color:rgba(59,130,246,.7)!important;touch-action:none}
+        .cropper-point{width:24px!important;height:24px!important;background-color:rgba(255,255,255,.9)!important;border:3px solid var(--primary)!important;border-radius:50%!important;opacity:1!important;touch-action:none}
+        .cropper-line{background-color:rgba(27,122,78,.7)!important;touch-action:none}
         .cropper-face{background-color:transparent!important;border:2px dashed rgba(255,255,255,.8)!important;touch-action:none}
         .cropper-dashed{border-color:rgba(255,255,255,.4)!important}
         .cropper-view-box{outline:none!important}
         .cropper-crop-box{touch-action:none}
-
         .cropper-line,.cropper-face,.cropper-center{display:none!important;pointer-events:none!important}
         .cropper-point.point-n,.cropper-point.point-e,.cropper-point.point-s,.cropper-point.point-w{display:none!important}
         .cropper-point.point-ne,.cropper-point.point-nw,.cropper-point.point-sw,.cropper-point.point-se{opacity:0!important;pointer-events:none!important}
+
+        /* Crop Interaction Layer */
         #crop-interaction-layer{position:absolute;inset:0;z-index:40;pointer-events:none}
         .crop-hit-corner{position:absolute;pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;width:96px;height:96px;border-radius:24px}
         .crop-hit-corner::before{content:"";position:absolute;box-sizing:border-box;border:0 solid rgba(255,255,255,.98);filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))}
@@ -70,124 +123,140 @@
         .crop-hit-corner.active::before{border-width:4px;border-color:#fff;filter:drop-shadow(0 2px 6px rgba(0,0,0,.7))}
         .crop-move-zone{position:absolute;pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;background:transparent}
         .crop-move-zone.active{background:rgba(255,255,255,.05)}
-        .tag-container{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
-        .tag{display:inline-flex;align-items:center;padding:4px 12px;background:#e5e7eb;border-radius:15px;font-size:12px;gap:4px}
-        .tag .remove{cursor:pointer;color:#888;font-size:14px;line-height:1}
-        .tag .remove:hover{color:#ef4444}
-        .tag-add-btn{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;background:#e5e7eb;border:1.5px dashed #aaa;border-radius:50%;font-size:16px;cursor:pointer;color:#666;line-height:1}
+
+        /* Tags */
+        .tag-container{display:flex;flex-wrap:wrap;gap:8px;margin-top:var(--space-sm)}
+        .tag{display:inline-flex;align-items:center;padding:5px 12px;background:var(--surface-dim);border-radius:var(--radius-xl);font-size:12px;gap:4px;font-weight:500;color:var(--text-secondary)}
+        .tag .remove{cursor:pointer;color:var(--text-tertiary);font-size:14px;line-height:1}
+        .tag .remove:hover{color:var(--danger)}
+        .tag-add-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;background:var(--surface-dim);border:1.5px dashed var(--border);border-radius:50%;font-size:16px;cursor:pointer;color:var(--text-secondary);line-height:1}
         .inline-tag-add{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}
         .inline-tag-add select{flex:1;min-width:80px;padding:4px 8px;font-size:12px;height:30px}
         .inline-tag-add button{padding:4px 12px;font-size:12px;height:30px}
-        .question-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px}
-        .question-card{position:relative;background:#fff;border-radius:10px;overflow:visible;box-shadow:0 2px 8px rgba(0,0,0,.08);cursor:pointer;transition:transform .2s,box-shadow .2s}
-        .question-card:active{transform:scale(.98)}
-        .question-card.selected{box-shadow:0 0 0 3px #3b82f6}
-        .question-card img{width:100%;height:130px;object-fit:contain;background:#f9f9f9;border-radius:10px 10px 0 0}
-        .question-card .info{padding:8px}
+
+        /* Question Grid */
+        .question-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--space-md)}
+        .question-card{position:relative;background:var(--surface);border-radius:var(--radius-lg);overflow:visible;box-shadow:var(--shadow-md);cursor:pointer;transition:all .2s ease;border:1px solid var(--border-light)}
+        .question-card:active{transform:scale(.97);box-shadow:var(--shadow-sm)}
+        .question-card.selected{box-shadow:0 0 0 3px var(--primary),var(--shadow-md);border-color:var(--primary)}
+        .question-card img{width:100%;height:130px;object-fit:contain;background:var(--surface-dim);border-radius:var(--radius-lg) var(--radius-lg) 0 0}
+        .question-card .info{padding:10px 12px}
         .question-card .tags{display:flex;flex-wrap:wrap;gap:4px}
-        .question-card .tag{font-size:10px;padding:2px 8px}
-        .q-checkbox{position:absolute;top:6px;left:6px;width:28px;height:28px;border-radius:50%;border:2px solid #ddd;background:rgba(255,255,255,.9);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:5;color:#3b82f6;font-weight:bold}
-        .q-checkbox.checked{background:#3b82f6;border-color:#3b82f6;color:#fff}
-        .basket-fab{position:fixed;bottom:max(20px,env(safe-area-inset-bottom));right:20px;width:56px;height:56px;border-radius:50%;background:#f59e0b;color:#fff;border:none;font-size:24px;box-shadow:0 4px 12px rgba(245,158,11,.4);cursor:pointer;z-index:999;display:flex;align-items:center;justify-content:center}
-        .basket-fab .badge{position:absolute;top:-4px;right:-4px;background:#ef4444;color:#fff;border-radius:10px;min-width:20px;height:20px;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0 4px}
-        .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:1000;-webkit-overflow-scrolling:touch}
+        .question-card .tag{font-size:10px;padding:2px 8px;border-radius:var(--radius-xl)}
+        .q-checkbox{position:absolute;top:8px;left:8px;width:28px;height:28px;border-radius:var(--radius-sm);border:2px solid var(--border);background:rgba(255,255,255,.95);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:5;color:var(--primary);font-weight:bold;backdrop-filter:blur(4px);transition:all .2s}
+        .q-checkbox.checked{background:var(--primary);border-color:var(--primary);color:#fff}
+
+        /* FAB */
+        .basket-fab{position:fixed;bottom:max(20px,env(safe-area-inset-bottom));right:20px;width:56px;height:56px;border-radius:var(--radius-lg);background:var(--warning);color:#1A1A2E;border:none;font-size:24px;box-shadow:0 4px 0 #C07A08,var(--shadow-lg);cursor:pointer;z-index:999;display:flex;align-items:center;justify-content:center;transition:all .15s}
+        .basket-fab:active{transform:translateY(3px);box-shadow:var(--shadow-sm)}
+        .basket-fab .badge{position:absolute;top:-4px;right:-4px;background:var(--danger);color:#fff;border-radius:10px;min-width:20px;height:20px;font-size:11px;display:flex;align-items:center;justify-content:center;padding:0 4px;font-weight:700}
+
+        /* Modal */
+        .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);backdrop-filter:blur(4px);z-index:1000;-webkit-overflow-scrolling:touch}
         .modal.active{display:flex;align-items:center;justify-content:center}
-        .modal-content{background:#fff;padding:20px;border-radius:14px;max-width:500px;width:94%;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
-        .modal-content h2,.modal-content h3{font-size:18px;margin-bottom:16px}
+        .modal-content{background:var(--surface);padding:var(--space-lg);border-radius:var(--radius-xl);max-width:500px;width:94%;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;box-shadow:var(--shadow-xl)}
+        .modal-content h2,.modal-content h3{font-size:20px;margin-bottom:var(--space-md);font-weight:700;color:var(--text)}
         .hidden{display:none!important}
-        .status{padding:10px 14px;border-radius:8px;margin-bottom:12px;font-size:14px}
-        .status.success{background:#d1fae5;color:#065f46}
-        .status.error{background:#fee2e2;color:#991b1b}
-        .paper-card{background:#fff;padding:14px;border-radius:10px;margin-bottom:10px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
-        .paper-card h3{font-size:15px;margin-bottom:6px;color:#333}
-        .paper-card p{font-size:13px;color:#666;margin-bottom:4px}
-        .toolbar{display:flex;gap:8px;margin-bottom:12px}
-        .toolbar button{flex:1;font-size:13px;padding:8px}
-        .empty-state{text-align:center;padding:40px 20px;color:#999;font-size:14px}
-        .empty-state .icon{font-size:48px;margin-bottom:12px}
-        .search-bar{display:flex;gap:8px;margin-bottom:12px}
+
+        /* Status */
+        .status{padding:12px 16px;border-radius:var(--radius-md);margin-bottom:var(--space-md);font-size:14px;font-weight:500}
+        .status.success{background:var(--primary-light);color:var(--primary-dark);border:1px solid rgba(27,122,78,.2)}
+        .status.error{background:var(--danger-light);color:#A50E0E;border:1px solid rgba(217,48,37,.2)}
+
+        /* Paper Cards */
+        .paper-card{background:var(--surface);padding:16px;border-radius:var(--radius-lg);margin-bottom:var(--space-sm);box-shadow:var(--shadow-sm);border:1px solid var(--border-light);transition:all .2s}
+        .paper-card:hover{box-shadow:var(--shadow-md)}
+        .paper-card h3{font-size:15px;margin-bottom:6px;color:var(--text);font-weight:600}
+        .paper-card p{font-size:13px;color:var(--text-secondary);margin-bottom:4px;line-height:1.5}
+
+        /* Toolbar */
+        .toolbar{display:flex;gap:8px;margin-bottom:var(--space-md);flex-wrap:wrap}
+        .toolbar button{flex:1;font-size:13px;padding:10px;border-radius:var(--radius-md);min-width:0}
+
+        /* Empty State */
+        .empty-state{text-align:center;padding:48px 24px;color:var(--text-tertiary);font-size:14px}
+        .empty-state .icon{font-size:56px;margin-bottom:var(--space-md);opacity:.6}
+
+        /* Search & Filter */
+        .search-bar{display:flex;gap:8px;margin-bottom:var(--space-md)}
         .search-bar input{flex:1}
-        .filter-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-        .filter-tag{padding:4px 12px;border-radius:15px;font-size:12px;cursor:pointer;border:1.5px solid #e0e0e0;background:#fff;color:#666;transition:all .2s}
-        .filter-tag.active{background:#3b82f6;color:#fff;border-color:#3b82f6}
-        .similar-list{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:8px}
-        .similar-card{border:1px solid #e5e7eb;border-radius:8px;padding:8px;background:#fff;cursor:pointer}
-        .similar-card img{width:100%;height:82px;object-fit:contain;background:#f9fafb;border-radius:6px}
-        .similar-card .similar-title{font-size:11px;color:#374151;line-height:1.35;margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-        .similar-result{display:grid;grid-template-columns:24px 72px 1fr;gap:8px;align-items:flex-start;padding:8px;border:1px solid #e5e7eb;border-radius:8px;margin-bottom:8px;background:#fff}
-        .similar-result.ai-picked{border-color:#8b5cf6;background:#f5f3ff}
-        .similar-result img{width:72px;height:72px;object-fit:contain;background:#f9fafb;border-radius:6px}
+        .filter-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-md)}
+        .filter-tag{padding:6px 14px;border-radius:var(--radius-xl);font-size:12px;cursor:pointer;border:1.5px solid var(--border);background:var(--surface);color:var(--text-secondary);transition:all .2s;font-weight:500}
+        .filter-tag.active{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 2px 0 var(--primary-dark)}
+
+        /* Similar */
+        .similar-list{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--space-sm);margin-top:var(--space-sm)}
+        .similar-card{border:1px solid var(--border-light);border-radius:var(--radius-md);padding:var(--space-sm);background:var(--surface);cursor:pointer;transition:all .2s}
+        .similar-card:hover{box-shadow:var(--shadow-md)}
+        .similar-card img{width:100%;height:82px;object-fit:contain;background:var(--surface-dim);border-radius:var(--radius-sm)}
+        .similar-card .similar-title{font-size:11px;color:var(--text-secondary);line-height:1.4;margin-top:6px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+        .similar-result{display:grid;grid-template-columns:24px 72px 1fr;gap:8px;align-items:flex-start;padding:var(--space-sm);border:1px solid var(--border-light);border-radius:var(--radius-md);margin-bottom:var(--space-sm);background:var(--surface);transition:all .2s}
+        .similar-result.ai-picked{border-color:var(--accent);background:var(--accent-light)}
+        .similar-result img{width:72px;height:72px;object-fit:contain;background:var(--surface-dim);border-radius:var(--radius-sm)}
         .similar-result input{margin-top:26px}
-        .similar-meta{font-size:11px;color:#6b7280;line-height:1.45;margin-top:3px}
-        .layout-option{display:flex;align-items:center;gap:6px;cursor:pointer;padding:10px 16px;border:2px solid #e5e7eb;border-radius:10px;flex:1;text-align:center;transition:all .2s}
-        .mode-option{display:flex;align-items:center;gap:10px;padding:12px;border:2px solid #e5e7eb;border-radius:10px;cursor:pointer;margin-bottom:8px;transition:all .2s}
-        .mode-option.selected{border-color:#3b82f6;background:#3b82f610}
-        .mode-option .mode-label{font-weight:600;font-size:14px}
-        .mode-option .mode-desc{font-size:12px;color:#888}
-        .spacing-option{flex:1;text-align:center;padding:10px 6px;border:2px solid #e5e7eb;border-radius:10px;cursor:pointer;transition:all .2s}
-        .spacing-option.selected{border-color:#3b82f6;background:#3b82f610}
+        .similar-meta{font-size:11px;color:var(--text-secondary);line-height:1.45;margin-top:3px}
 
-        /* AI 摘要样式 */
-        .ai-summary-wrap {
-            margin: 4px 0 8px;
-            padding: 6px 8px;
-            background: #f8fafc;
-            border-left: 3px solid #8b5cf6;
-            border-radius: 4px;
-            font-size: 11px;
-            color: #4b5563;
-            line-height: 1.4;
-            display: flex;
-            align-items: flex-start;
-            gap: 6px;
-        }
-        .ai-badge {
-            background: #8b5cf6;
-            color: #fff;
-            padding: 1px 4px;
-            border-radius: 3px;
-            font-size: 9px;
-            font-weight: bold;
-            flex-shrink: 0;
-            margin-top: 1px;
-        }
-        .summary-text {
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .loading-dots::after {
-            content: " .";
-            animation: dots 1.5s steps(5, end) infinite;
-        }
-        @keyframes dots {
-            0%, 20% { content: " ."; }
-            40% { content: " .."; }
-            60% { content: " ..."; }
-            80%, 100% { content: ""; }
-        }
+        /* Mode Options */
+        .layout-option{display:flex;align-items:center;gap:6px;cursor:pointer;padding:12px 16px;border:2px solid var(--border);border-radius:var(--radius-md);flex:1;text-align:center;transition:all .2s;font-weight:500}
+        .layout-option:hover{border-color:var(--primary);background:var(--primary-light)}
+        .mode-option{display:flex;align-items:center;gap:10px;padding:14px;border:2px solid var(--border);border-radius:var(--radius-md);cursor:pointer;margin-bottom:var(--space-sm);transition:all .2s}
+        .mode-option:hover{border-color:var(--primary);background:var(--primary-light)}
+        .mode-option.selected{border-color:var(--primary);background:var(--primary-light);box-shadow:0 0 0 3px rgba(27,122,78,.1)}
+        .mode-option .mode-label{font-weight:600;font-size:14px;color:var(--text)}
+        .mode-option .mode-desc{font-size:12px;color:var(--text-secondary)}
+        .spacing-option{flex:1;text-align:center;padding:12px 6px;border:2px solid var(--border);border-radius:var(--radius-md);cursor:pointer;transition:all .2s;font-weight:500}
+        .spacing-option:hover{border-color:var(--primary);background:var(--primary-light)}
+        .spacing-option.selected{border-color:var(--primary);background:var(--primary-light)}
 
-        @media(max-width:480px){.container{padding:10px}header{padding:16px;border-radius:10px}header h1{font-size:20px}.question-grid{grid-template-columns:repeat(2,1fr);gap:8px}.question-card img{height:110px}.modal-content{width:98%;padding:16px;border-radius:12px}}
-        @media(min-width:768px){.container{padding:20px}.question-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px}.question-card img{height:160px}.card{padding:20px}.modal-content{max-width:600px}}
+        /* AI Styles */
+        .ai-summary-wrap{margin:var(--space-xs) 0 var(--space-sm);padding:10px 12px;background:var(--accent-light);border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:12px;color:var(--text-secondary);line-height:1.5;display:flex;align-items:flex-start;gap:8px}
+        .ai-badge{background:var(--accent);color:#fff;padding:2px 8px;border-radius:var(--radius-sm);font-size:10px;font-weight:700;flex-shrink:0;letter-spacing:.3px}
+        .summary-text{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;text-overflow:ellipsis}
+        .loading-dots::after{content:" .";animation:dots 1.5s steps(5,end) infinite}
+        @keyframes dots{0%,20%{content:" ."}40%{content:" .."}60%{content:" ..."}80%,100%{content:""}}
+
+        /* AI Engine Card */
+        [style*="border: 1px solid #8b5cf6"]{border-color:var(--accent)!important;background:var(--accent-light)!important}
+        [style*="color:#5b21b6"]{color:var(--accent)!important}
+
+        /* Responsive */
+        @media(max-width:480px){
+            .container{padding:12px}
+            header{padding:24px 20px 20px;border-radius:0 0 var(--radius-lg) var(--radius-lg)}
+            header h1{font-size:22px}
+            .question-grid{grid-template-columns:repeat(2,1fr);gap:var(--space-sm)}
+            .question-card img{height:110px}
+            .modal-content{width:98%;padding:var(--space-md);border-radius:var(--radius-lg)}
+            .toolbar{gap:6px}
+            .toolbar button{padding:8px 12px;font-size:12px}
+        }
+        @media(min-width:768px){
+            .container{padding:var(--space-lg)}
+            .question-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--space-md)}
+            .question-card img{height:160px}
+            .card{padding:var(--space-lg)}
+            .modal-content{max-width:600px}
+        }
         @media(min-width:1024px){.container{max-width:1000px}.question-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}}
     </style>
 </head>
 <body>
 <div class="container">
     <header>
-        <div style="display:flex;justify-content:space-between;align-items:center">
-            <div><h1>本地题库</h1><p id="user-status">数据存储在本地，无需联网</p></div>
-            <button id="login-btn" onclick="showLoginModal()" style="padding:8px 16px;background:rgba(255,255,255,.2);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:8px;font-size:13px">👤 登录</button>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+                <h1>📚 本地题库</h1>
+                <p id="user-status">数据存储在本地，无需联网</p>
+            </div>
+            <button id="login-btn" onclick="showLoginModal()" style="padding:8px 16px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:var(--radius-xl);font-size:13px;backdrop-filter:blur(4px);box-shadow:none;font-weight:500">👤 登录</button>
         </div>
     </header>
     <div class="toolbar">
-        <button class="success" onclick="exportAllData()">导出备份</button>
-        <button style="background:#f59e0b" onclick="showBackupModal()">☁️ 备份设置</button>
-        <button class="secondary" onclick="document.getElementById('import-file').click()">导入数据</button>
+        <button class="success" onclick="exportAllData()">📤 导出</button>
+        <button style="background:var(--warning);box-shadow:0 4px 0 #B07A08" onclick="showBackupModal()">☁️ 备份</button>
+        <button class="secondary" onclick="document.getElementById('import-file').click()">📥 导入</button>
         <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
-        <button id="floating-toggle-btn" style="background:#3b82f6" onclick="console.log('[Floating] Button clicked!');toggleFloatingWindow()">   悬浮窗</button>
+        <button id="floating-toggle-btn" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0" onclick="console.log('[Floating] Button clicked!');toggleFloatingWindow()">📋 悬浮窗</button>
     </div>
     <div class="tabs">
         <button class="tab active" onclick="showTab('questions',this)">题目管理</button>
@@ -200,39 +269,39 @@
 
     <!-- 题目管理 -->
     <div id="questions-tab">
-        <div class="card" style="border: 1px solid #8b5cf6; background: #f5f3ff">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-                <h3 style="margin:0;color:#5b21b6">🤖 AI 引擎管理</h3>
-                <span id="ai-status-label" class="ai-badge" style="background:#ef4444">未就绪</span>
+        <div class="card" style="border:1px solid var(--accent);background:var(--accent-light)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <h3 style="margin:0;color:var(--accent);font-size:16px;font-weight:700">🤖 AI 引擎管理</h3>
+                <span id="ai-status-label" class="ai-badge" style="background:var(--danger)">未就绪</span>
             </div>
-            <p id="ai-status-desc" style="font-size:12px;color:#6b7280;margin-bottom:12px">请将 Gemma 4 模型文件 (gemma-4-E2B-it-Q3_K_S.gguf) 放入手机的 Download 目录，然后点击"加载模型"。</p>
+            <p id="ai-status-desc" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5">请将 Gemma 4 模型文件放入手机的 Download 目录，然后点击"加载模型"。</p>
 
             <!-- 进度条容器 -->
             <div id="ai-download-progress-wrap" class="hidden" style="margin-bottom:12px">
-                <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:11px;color:#8b5cf6">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:11px;color:var(--accent);font-weight:600">
                     <span id="ai-progress-text">正在准备下载...</span>
                     <span id="ai-progress-percent">0%</span>
                 </div>
-                <div style="width:100%;height:8px;background:#e5e7eb;border-radius:4px;overflow:hidden">
-                    <div id="ai-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,#8b5cf6,#6366f1);transition:width 0.3s"></div>
+                <div style="width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+                    <div id="ai-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--accent),#6366f1);transition:width .3s;border-radius:3px"></div>
                 </div>
             </div>
 
             <div class="btn-group">
-                <button id="ai-load-btn" onclick="handleLoadModel()" style="background:#8b5cf6;font-size:12px">🧠 加载模型</button>
-                <button id="ai-batch-btn" onclick="handleBatchAnalyze()" class="secondary" style="font-size:12px;display:none">📊 批量分析已有题目</button>
+                <button id="ai-load-btn" onclick="handleLoadModel()" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0;font-size:13px">🧠 加载模型</button>
+                <button id="ai-batch-btn" onclick="handleBatchAnalyze()" class="secondary" style="font-size:13px;display:none">📊 批量分析</button>
             </div>
 
             <!-- 模型服务商管理 -->
-            <details style="margin-top:12px">
-                <summary style="font-size:12px;color:#6b7280;cursor:pointer">☁️ 模型服务商管理</summary>
-                <div style="margin-top:8px;padding:10px;background:#f9fafb;border-radius:8px">
+            <details style="margin-top:var(--space-md)">
+                <summary style="font-size:12px;color:var(--text-secondary);cursor:pointer;font-weight:500">☁️ 模型服务商管理</summary>
+                <div style="margin-top:8px;padding:12px;background:var(--surface);border-radius:var(--radius-md);border:1px solid var(--border-light)">
                     <!-- 已保存的服务商按钮列表 -->
                     <div id="provider-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
                         <!-- 动态填充 -->
                     </div>
-                    <button onclick="showAddProviderModal()" style="background:#6366f1;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">➕ 添加服务商</button>
-                    <span id="current-provider-name" style="font-size:11px;color:#6b7280;margin-left:8px"></span>
+                    <button onclick="showAddProviderModal()" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0;color:#fff;border:none;border-radius:var(--radius-sm);padding:8px 14px;font-size:12px;cursor:pointer;font-weight:600">➕ 添加服务商</button>
+                    <span id="current-provider-name" style="font-size:11px;color:var(--text-tertiary);margin-left:8px"></span>
                 </div>
             </details>
         </div>
@@ -306,9 +375,9 @@
                     <label>题目图片 *</label>
                     <div class="upload-buttons">
                         <button type="button" class="upload-btn camera" onclick="takePhoto('question')">📷 拍照</button>
-                        <button type="button" class="upload-btn" onclick="pickFromGallery('question')">🖼️ 相册</button>
-                        <button type="button" class="upload-btn" style="background:#8b5cf6" onclick="crossPageShoot('question')">📸 跨页拍摄</button>
-                        <button type="button" class="upload-btn" style="background:#0ea5e9" onclick="pickFromFloating('question')">📋 悬浮窗</button>
+                        <button type="button" class="upload-btn" onclick="pickFromGallery('question')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
+                        <button type="button" class="upload-btn" style="background:var(--accent);box-shadow:0 3px 0 #5A3DC0" onclick="crossPageShoot('question')">📸 跨页</button>
+                        <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('question')">📋 悬浮窗</button>
                     </div>
                     <div class="preview-wrap" id="question-preview-wrap" style="display:none">
                         <span class="preview-delete" onclick="removeImage('question')">×</span>
@@ -320,9 +389,9 @@
                     <label>答案图片（可选）</label>
                     <div class="upload-buttons">
                         <button type="button" class="upload-btn camera" onclick="takePhoto('answer')">📷 拍照</button>
-                        <button type="button" class="upload-btn" onclick="pickFromGallery('answer')">🖼️ 相册</button>
-                        <button type="button" class="upload-btn" style="background:#8b5cf6" onclick="crossPageShoot('answer')">📸 跨页拍摄</button>
-                        <button type="button" class="upload-btn" style="background:#0ea5e9" onclick="pickFromFloating('answer')">📋 悬浮窗</button>
+                        <button type="button" class="upload-btn" onclick="pickFromGallery('answer')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
+                        <button type="button" class="upload-btn" style="background:var(--accent);box-shadow:0 3px 0 #5A3DC0" onclick="crossPageShoot('answer')">📸 跨页</button>
+                        <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('answer')">📋 悬浮窗</button>
                     </div>
                     <div class="preview-wrap" id="answer-preview-wrap" style="display:none">
                         <span class="preview-delete" onclick="removeImage('answer')">×</span>
@@ -333,15 +402,15 @@
                 <div class="form-group">
                     <label>空白版图片（可选，学生用）</label>
                     <div class="upload-buttons">
-                        <button type="button" class="upload-btn" style="background:#f59e0b" onclick="takePhoto('blank')">📷 拍空白版</button>
-                        <button type="button" class="upload-btn" onclick="pickFromGallery('blank')">🖼️ 相册</button>
-                        <button type="button" class="upload-btn" style="background:#0ea5e9" onclick="pickFromFloating('blank')">📋 悬浮窗</button>
+                        <button type="button" class="upload-btn" style="background:var(--warning);box-shadow:0 3px 0 #B07A08" onclick="takePhoto('blank')">📷 拍空白版</button>
+                        <button type="button" class="upload-btn" onclick="pickFromGallery('blank')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
+                        <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('blank')">📋 悬浮窗</button>
                     </div>
                     <div class="preview-wrap" id="blank-preview-wrap" style="display:none">
                         <span class="preview-delete" onclick="removeImage('blank')">×</span>
                         <img id="blank-preview" class="preview-image" style="border-color:#f59e0b" />
                     </div>
-                    <div id="blank-preview-label" class="preview-label hidden" style="color:#f59e0b">✓ 空白版图片已选择 <span class="crop-icon" onclick="startCrop('blank')" title="裁剪图片">✂️</span></div>
+                    <div id="blank-preview-label" class="preview-label hidden" style="color:var(--warning)">✓ 空白版图片已选择 <span class="crop-icon" onclick="startCrop('blank')" title="裁剪图片">✂️</span></div>
                 </div>
                 <div class="form-group">
                     <label>排版适用性 *</label>
@@ -355,15 +424,15 @@
                     <select id="tag-select" multiple style="height:90px"></select>
                     <small style="color:#888;font-size:12px">按住可多选</small>
                 </div>
-                <button type="submit" style="width:100%">添加题目</button>
+                <button type="submit" style="width:100%;padding:14px;font-size:15px;border-radius:var(--radius-lg)">✨ 添加题目</button>
             </form>
         </div>
         <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
-                <h2 style="margin:0">题目列表 <span id="question-count" style="font-size:14px;color:#888;font-weight:normal"></span></h2>
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:var(--space-md)">
+                <h2 style="margin:0">📋 题目列表 <span id="question-count" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h2>
                 <div style="display:flex;gap:8px;align-items:center">
-                    <span id="selected-count" style="font-size:13px;color:#3b82f6;display:none">已选 <b id="selected-num">0</b> 题</span>
-                    <button onclick="exportSelectedOrAll()" style="padding:8px 16px;font-size:14px;background:#10b981;color:#fff;border:none;border-radius:8px">📄 导出 PDF</button>
+                    <span id="selected-count" style="font-size:13px;color:var(--primary);display:none;font-weight:600">已选 <b id="selected-num">0</b> 题</span>
+                    <button onclick="exportSelectedOrAll()" style="padding:10px 18px;font-size:13px;border-radius:var(--radius-md)">📄 导出 PDF</button>
                 </div>
             </div>
             <div class="filter-tags" id="filter-tags"></div>
@@ -377,8 +446,8 @@
             <h2>添加标签</h2>
             <form id="tag-form">
                 <div class="form-group"><label>标签名称 *</label><input type="text" id="tag-name" required placeholder="例如：数学、第一章" /></div>
-                <div class="form-group"><label>标签颜色</label><input type="color" id="tag-color" value="#3B82F6" /></div>
-                <button type="submit" style="width:100%">添加标签</button>
+                <div class="form-group"><label>标签颜色</label><input type="color" id="tag-color" value="#1B7A4E" /></div>
+                <button type="submit" style="width:100%;padding:14px;border-radius:var(--radius-lg)">➕ 添加标签</button>
             </form>
         </div>
         <div class="card"><h2>标签列表</h2><div class="tag-container" id="tags-list"></div></div>
@@ -386,16 +455,16 @@
 
     <!-- 试卷管理 -->
     <div id="papers-tab" class="hidden">
-        <div class="card">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-                <h2 style="margin:0">✨ AI 智能推荐组卷</h2>
-                <span class="ai-badge" style="padding:4px 8px;font-size:11px">Gemma 4 Power</span>
+        <div class="card" style="border:1px solid var(--accent);background:var(--accent-light)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
+                <h2 style="margin:0;color:var(--accent)">✨ AI 智能推荐组卷</h2>
+                <span class="ai-badge">Gemma 4</span>
             </div>
             <div class="form-group">
-                <label>告诉 AI 你的组卷需求 (例如: "想要 3 道很难的几何题")</label>
-                <textarea id="ai-paper-requirement" placeholder="请输入您的主观要求，AI 将结合题目摘要和您的评价进行精准推荐..." rows="3" style="resize:none;margin-top:4px"></textarea>
+                <label style="color:var(--accent)">告诉 AI 你的组卷需求</label>
+                <textarea id="ai-paper-requirement" placeholder="例如：想要 3 道很难的几何题..." rows="3" style="resize:none;margin-top:4px"></textarea>
             </div>
-            <button class="success" style="width:100%;background:linear-gradient(135deg,#8b5cf6,#6366f1);border:none" onclick="startAIPaperGeneration()">开始 AI 智能推荐</button>
+            <button style="width:100%;background:var(--accent);box-shadow:0 4px 0 #5A3DC0;padding:14px;font-size:15px" onclick="startAIPaperGeneration()">🚀 开始 AI 智能推荐</button>
         </div>
 
         <div class="card">
@@ -406,7 +475,7 @@
                     <select id="paper-tag-select" multiple style="height:90px"></select>
                     <small style="color:#888;font-size:12px">选择标签后，将自动添加包含这些标签的题目</small>
                 </div>
-                <button type="submit" style="width:100%">手动创建试卷</button>
+                <button type="submit" style="width:100%;padding:14px;border-radius:var(--radius-lg)">📝 手动创建试卷</button>
             </form>
         </div>
         <div class="card"><h2>试卷列表</h2><div id="papers-list"></div></div>
@@ -415,15 +484,15 @@
     <!-- AI 推荐结果展示弹窗 -->
     <div id="ai-recommend-modal" class="modal">
         <div class="modal-content" style="max-width:600px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-                <h2>AI 智能推荐结果</h2>
-                <button class="secondary" onclick="closeAIRecommendModal()" style="padding:4px 12px">关闭</button>
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
+                <h2>🤖 AI 智能推荐结果</h2>
+                <button class="secondary" onclick="closeAIRecommendModal()" style="padding:6px 14px">关闭</button>
             </div>
-            <div id="ai-recommend-reason" class="ai-summary-wrap" style="margin-bottom:16px;font-size:13px;line-height:1.6"></div>
+            <div id="ai-recommend-reason" class="ai-summary-wrap" style="margin-bottom:var(--space-md);font-size:13px;line-height:1.6"></div>
             <div id="ai-recommend-list" class="question-grid" style="grid-template-columns:repeat(2,1fr)"></div>
-            <div class="btn-group" style="margin-top:20px">
+            <div class="btn-group" style="margin-top:var(--space-lg)">
                 <button class="secondary" onclick="closeAIRecommendModal()">重新调整要求</button>
-                <button class="success" id="ai-create-paper-btn" style="background:#8b5cf6">一键生成此试卷</button>
+                <button id="ai-create-paper-btn" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0;padding:12px 20px">🚀 一键生成此试卷</button>
             </div>
         </div>
     </div>
@@ -431,8 +500,8 @@
     <!-- 垃圾篓 -->
     <div id="trash-tab" class="hidden">
         <div class="card">
-            <h2>🗑️ 垃圾篓 <span id="trash-count" style="font-size:14px;color:#888"></span></h2>
-            <p style="color:#888;font-size:13px;margin-bottom:15px">点击「恢复」可将题目移回题库，点击「彻底删除」将永久删除（不可恢复）。</p>
+            <h2>🗑️ 垃圾篓 <span id="trash-count" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:var(--space-md);line-height:1.5">点击「恢复」可将题目移回题库，点击「彻底删除」将永久删除（不可恢复）。</p>
             <div id="trash-list"></div>
         </div>
     </div>
@@ -440,8 +509,8 @@
     <!-- 待关联 -->
     <div id="pending-link-tab" class="hidden">
         <div class="card">
-            <h2>🔗 待关联题目 <span id="pending-link-count-text" style="font-size:14px;color:#888"></span></h2>
-            <p style="color:#888;font-size:13px;margin-bottom:15px">标记后可在列表中快速查看，点击题目打开详情。</p>
+            <h2>🔗 待关联题目 <span id="pending-link-count-text" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:var(--space-md);line-height:1.5">标记后可在列表中快速查看，点击题目打开详情。</p>
             <div id="pending-link-list"></div>
         </div>
     </div>
@@ -450,20 +519,20 @@
 <!-- 图片裁剪弹窗 -->
 <div id="crop-modal" class="modal">
     <div class="modal-content" style="max-width:100%;width:100%;max-height:100dvh;height:100dvh;padding:0;display:flex;flex-direction:column;background:#000">
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;flex-shrink:0">
-            <h2 style="margin:0;font-size:16px;color:#fff">裁剪图片</h2>
-            <span style="cursor:pointer;font-size:28px;color:#fff" onclick="cancelCrop()">×</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;flex-shrink:0">
+            <h2 style="margin:0;font-size:16px;color:#fff;font-weight:600">✂️ 裁剪图片</h2>
+            <span style="cursor:pointer;font-size:28px;color:rgba(255,255,255,.7)" onclick="cancelCrop()">×</span>
         </div>
         <div id="crop-container" style="flex:1 1 0;background:#000;min-height:0;position:relative;overflow:hidden"><img id="crop-image" style="display:block" /></div>
-        <div style="display:flex;gap:8px;justify-content:center;padding:6px 12px 4px;flex-shrink:0">
-            <button onclick="rotateCrop(-5)" style="padding:10px 16px;font-size:16px;border-radius:20px">↺ 5°</button>
-            <button onclick="rotateCrop(-1)" style="padding:10px 16px;font-size:16px;border-radius:20px">← 1°</button>
-            <button onclick="rotateCrop(1)" style="padding:10px 16px;font-size:16px;border-radius:20px">1° →</button>
-            <button onclick="rotateCrop(5)" style="padding:10px 16px;font-size:16px;border-radius:20px">5° ↻</button>
+        <div style="display:flex;gap:8px;justify-content:center;padding:8px 12px 4px;flex-shrink:0">
+            <button onclick="rotateCrop(-5)" style="padding:10px 16px;font-size:14px;border-radius:var(--radius-xl);background:rgba(255,255,255,.15);color:#fff;box-shadow:none">↺ 5°</button>
+            <button onclick="rotateCrop(-1)" style="padding:10px 16px;font-size:14px;border-radius:var(--radius-xl);background:rgba(255,255,255,.15);color:#fff;box-shadow:none">← 1°</button>
+            <button onclick="rotateCrop(1)" style="padding:10px 16px;font-size:14px;border-radius:var(--radius-xl);background:rgba(255,255,255,.15);color:#fff;box-shadow:none">1° →</button>
+            <button onclick="rotateCrop(5)" style="padding:10px 16px;font-size:14px;border-radius:var(--radius-xl);background:rgba(255,255,255,.15);color:#fff;box-shadow:none">5° ↻</button>
         </div>
-        <div style="display:flex;gap:10px;justify-content:center;padding:8px 12px max(12px,env(safe-area-inset-bottom));flex-shrink:0">
-            <button onclick="confirmCrop()" style="flex:1;max-width:200px;padding:14px;font-size:16px;border-radius:8px">确认裁剪</button>
-            <button class="secondary" onclick="cancelCrop()" style="flex:1;max-width:200px;padding:14px;font-size:16px;border-radius:8px">取消</button>
+        <div style="display:flex;gap:10px;justify-content:center;padding:10px 12px max(12px,env(safe-area-inset-bottom));flex-shrink:0">
+            <button onclick="confirmCrop()" style="flex:1;max-width:200px;padding:14px;font-size:15px;border-radius:var(--radius-md)">✅ 确认裁剪</button>
+            <button class="secondary" onclick="cancelCrop()" style="flex:1;max-width:200px;padding:14px;font-size:15px;border-radius:var(--radius-md)">取消</button>
         </div>
     </div>
 </div>
@@ -484,11 +553,11 @@
         <div id="modal-tags"></div>
         <div id="modal-similar-questions" style="margin-top:12px"></div>
         <!-- 用户评价生成标签 -->
-        <div style="margin-top:12px;padding:10px;background:#fffbeb;border-radius:8px;border-left:3px solid #f59e0b">
+        <div style="margin-top:12px;padding:12px;background:var(--warning-light);border-radius:var(--radius-md);border-left:3px solid var(--warning)">
             <div style="font-size:12px;color:#92400e;font-weight:600;margin-bottom:8px">📝 基于评价生成标签</div>
             <div style="display:flex;gap:6px">
-                <input id="user-comment" type="text" placeholder="输入您对题目的评价（如：典型勾股定理题）" style="flex:1;font-size:12px;padding:6px;border:1px solid #fcd34d;border-radius:6px" />
-                <button onclick="generateTagsFromComment()" style="background:#f59e0b;color:#fff;border:none;border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer">生成</button>
+                <input id="user-comment" type="text" placeholder="输入您对题目的评价（如：典型勾股定理题）" style="flex:1;font-size:12px;padding:8px 10px;border:1px solid #FCD34D;border-radius:var(--radius-sm)" />
+                <button onclick="generateTagsFromComment()" style="background:var(--warning);color:#fff;border:none;border-radius:var(--radius-sm);padding:6px 12px;font-size:12px;cursor:pointer;box-shadow:0 2px 0 #B07A08;font-weight:600">生成</button>
             </div>
             <div id="generated-tags" style="margin-top:8px;display:none">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
@@ -498,12 +567,12 @@
                 <div id="generated-tags-list" style="display:flex;flex-wrap:wrap;gap:4px"></div>
             </div>
         </div>
-        <div id="modal-ai-summary" style="display:none;margin-top:12px;padding:10px;background:#f5f3ff;border-radius:8px;border-left:3px solid #8b5cf6">
-            <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-                <span style="background:#8b5cf6;color:#fff;padding:2px 6px;border-radius:3px;font-size:10px">AI</span>
-                <span style="font-size:12px;color:#5b21b6;font-weight:600">分析结果</span>
+        <div id="modal-ai-summary" style="display:none;margin-top:12px;padding:12px;background:var(--accent-light);border-radius:var(--radius-md);border-left:3px solid var(--accent)">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span class="ai-badge">AI</span>
+                <span style="font-size:12px;color:var(--accent);font-weight:700">分析结果</span>
             </div>
-            <div id="modal-ai-text" style="font-size:13px;color:#4b5563;line-height:1.5"></div>
+            <div id="modal-ai-text" style="font-size:13px;color:var(--text-secondary);line-height:1.6"></div>
         </div>
         <div style="margin-top:16px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;gap:8px">
             <span style="font-size:12px;color:#6b7280">分析方式:</span>
@@ -512,35 +581,35 @@
                 <option value="local">🤖 本地模型</option>
             </select>
         </div>
-        <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;display:flex;gap:10px;justify-content:center">
-            <button onclick="navigateDetail(-1)" id="btn-prev" style="padding:10px 20px;font-size:14px">← 上一题</button>
-            <button onclick="analyzeSingleQuestion()" style="padding:10px 20px;font-size:14px;background:#8b5cf6;color:#fff;border:none;border-radius:8px;cursor:pointer">🧠 分析此题</button>
-            <button class="danger" onclick="deleteQuestion()">移至垃圾篓</button>
-            <button onclick="navigateDetail(1)" id="btn-next" style="padding:10px 20px;font-size:14px">下一题 →</button>
+        <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border-light);display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+            <button onclick="navigateDetail(-1)" id="btn-prev" style="padding:10px 18px;font-size:13px;border-radius:var(--radius-md)">← 上一题</button>
+            <button onclick="analyzeSingleQuestion()" style="padding:10px 18px;font-size:13px;background:var(--accent);box-shadow:0 4px 0 #5A3DC0;border-radius:var(--radius-md)">🧠 分析此题</button>
+            <button class="danger" onclick="deleteQuestion()" style="border-radius:var(--radius-md)">移至垃圾篓</button>
+            <button onclick="navigateDetail(1)" id="btn-next" style="padding:10px 18px;font-size:13px;border-radius:var(--radius-md)">下一题 →</button>
         </div>
     </div>
 </div>
 
 <div id="similar-modal" class="modal" onclick="if(event.target===this)closeSimilarModal()">
     <div class="modal-content" style="max-width:700px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <h2 style="margin:0">关联相似题</h2>
-            <span style="cursor:pointer;font-size:28px;color:#999" onclick="closeSimilarModal()">×</span>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
+            <h2 style="margin:0">🔗 关联相似题</h2>
+            <span style="cursor:pointer;font-size:28px;color:var(--text-tertiary)" onclick="closeSimilarModal()">×</span>
         </div>
         <div class="form-group">
             <label>参考标签</label>
             <select id="similar-tag-select" multiple style="height:90px" onchange="renderSimilarCandidates()"></select>
-            <small style="color:#888;font-size:12px">默认使用当前题标签，可调整后重新筛选</small>
+            <small style="color:var(--text-tertiary);font-size:12px">默认使用当前题标签，可调整后重新筛选</small>
         </div>
-        <div class="btn-group" style="margin-bottom:12px">
+        <div class="btn-group" style="margin-bottom:var(--space-md)">
             <button onclick="renderSimilarCandidates()">按标签筛选</button>
-            <button onclick="loadPendingLinkCandidates()" id="btn-pending-similar" style="background:#f59e0b">📌 从待关联选取 (<span id="btn-pending-similar-count">0</span>)</button>
-            <button onclick="recommendSimilarWithAI()" style="background:#8b5cf6">AI 推荐</button>
+            <button onclick="loadPendingLinkCandidates()" id="btn-pending-similar" style="background:var(--warning);box-shadow:0 4px 0 #B07A08">📌 待关联 (<span id="btn-pending-similar-count">0</span>)</button>
+            <button onclick="recommendSimilarWithAI()" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0">🤖 AI 推荐</button>
         </div>
-        <div id="similar-ai-reason" class="ai-summary-wrap" style="display:none;border-left-color:#10b981"></div>
+        <div id="similar-ai-reason" class="ai-summary-wrap" style="display:none;border-left-color:var(--primary)"></div>
         <div id="similar-candidate-list"></div>
-        <div class="btn-group" style="margin-top:14px">
-            <button onclick="confirmSimilarLinks()">确认关联</button>
+        <div class="btn-group" style="margin-top:var(--space-md)">
+            <button onclick="confirmSimilarLinks()" style="padding:14px">✅ 确认关联</button>
             <button class="secondary" onclick="closeSimilarModal()">取消</button>
         </div>
     </div>
@@ -549,10 +618,10 @@
 <!-- PDF 导出弹窗 -->
 <div id="export-modal" class="modal" onclick="if(event.target===this)closeExportModal()">
     <div class="modal-content" style="max-width:500px">
-        <h3>导出 PDF</h3>
-        <div id="export-summary" style="font-size:13px;color:#888;margin-bottom:14px"></div>
-        <div style="margin-bottom:16px">
-            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block">题目与答案</label>
+        <h3>📄 导出 PDF</h3>
+        <div id="export-summary" style="font-size:13px;color:var(--text-tertiary);margin-bottom:var(--space-md)"></div>
+        <div style="margin-bottom:var(--space-md)">
+            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">题目与答案</label>
             <div class="mode-option selected" onclick="selectExportMode(this,'merged')">
                 <div><div class="mode-label">📋 题目 + 答案在一起</div><div class="mode-desc">每道题后面紧跟对应答案</div></div>
             </div>
@@ -560,19 +629,19 @@
                 <div><div class="mode-label">📑 题目和答案分开</div><div class="mode-desc">前面全部是题目，后面全部是答案</div></div>
             </div>
         </div>
-        <div style="margin-bottom:16px">
-            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block">题后留空</label>
+        <div style="margin-bottom:var(--space-md)">
+            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">题后留空</label>
             <div style="display:flex;gap:10px">
                 <div class="spacing-option selected" onclick="selectSpacing(this,'none')">📏<br>无空</div>
-                <div class="spacing-option" onclick="selectSpacing(this,'small')">📐<br><input type="number" id="spc-small" value="2" min="0" max="20" step="0.5" onclick="event.stopPropagation()" style="width:48px;text-align:center;font-size:12px;border:1px solid #ddd;border-radius:4px;padding:2px"> cm</div>
-                <div class="spacing-option" onclick="selectSpacing(this,'large')">📄<br><input type="number" id="spc-large" value="8" min="0" max="30" step="0.5" onclick="event.stopPropagation()" style="width:48px;text-align:center;font-size:12px;border:1px solid #ddd;border-radius:4px;padding:2px"> cm</div>
+                <div class="spacing-option" onclick="selectSpacing(this,'small')">📐<br><input type="number" id="spc-small" value="2" min="0" max="20" step="0.5" onclick="event.stopPropagation()" style="width:48px;text-align:center;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px"> cm</div>
+                <div class="spacing-option" onclick="selectSpacing(this,'large')">📄<br><input type="number" id="spc-large" value="8" min="0" max="30" step="0.5" onclick="event.stopPropagation()" style="width:48px;text-align:center;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px"> cm</div>
             </div>
         </div>
         <div class="btn-group">
             <button class="secondary" onclick="closeExportModal()">取消</button>
             <div style="display:flex;gap:8px">
-                <button class="success" onclick="doExportPDF()">📄 导出 PDF</button>
-                <button class="success" onclick="doExportImagesFromBasket()" style="background:#f59e0b">📁 导出图片文件夹</button>
+                <button onclick="doExportPDF()" style="padding:12px 18px">📄 导出 PDF</button>
+                <button onclick="doExportImagesFromBasket()" style="background:var(--warning);box-shadow:0 4px 0 #B07A08;padding:12px 18px">📁 导出图片</button>
             </div>
         </div>
     </div>
@@ -581,21 +650,21 @@
 <!-- 新建标签弹窗 -->
 <div id="new-tag-modal" class="modal" onclick="if(event.target===this)closeNewTagModal()">
     <div class="modal-content" style="max-width:400px">
-        <h3>新建标签</h3>
+        <h3>✨ 新建标签</h3>
         <div class="form-group"><label>标签名称</label><input type="text" id="new-tag-name" placeholder="输入标签名称" onkeydown="if(event.key==='Enter'){event.preventDefault();submitNewTag()}" /></div>
-        <div class="form-group"><label>标签颜色</label><input type="color" id="new-tag-color" value="#3B82F6" /></div>
-        <div class="btn-group"><button class="secondary" onclick="closeNewTagModal()">取消</button><button onclick="submitNewTag()">创建</button></div>
+        <div class="form-group"><label>标签颜色</label><input type="color" id="new-tag-color" value="#1B7A4E" /></div>
+        <div class="btn-group"><button class="secondary" onclick="closeNewTagModal()">取消</button><button onclick="submitNewTag()" style="padding:12px 20px">创建</button></div>
     </div>
 </div>
 
 <!-- 试题篮弹窗 -->
 <div id="basket-modal" class="modal" onclick="if(event.target===this)closeBasketModal()">
     <div class="modal-content">
-        <h3>🧺 试题篮 <span id="basket-modal-count" style="font-size:13px;color:#888;font-weight:400"></span></h3>
+        <h3>🧺 试题篮 <span id="basket-modal-count" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h3>
         <div id="basket-items" style="max-height:50vh;overflow-y:auto"></div>
-        <div class="btn-group" style="margin-top:16px">
+        <div class="btn-group" style="margin-top:var(--space-md)">
             <button class="secondary" onclick="closeBasketModal()">取消</button>
-            <button class="success" onclick="exportFromBasket()">确认导出</button>
+            <button onclick="exportFromBasket()" style="padding:12px 20px">✅ 确认导出</button>
         </div>
     </div>
 </div>
@@ -603,13 +672,13 @@
 <!-- 试卷详情弹窗 -->
 <div id="paper-modal" class="modal" onclick="if(event.target===this)closePaperModal()">
     <div class="modal-content" style="max-width:700px">
-        <h3 id="paper-modal-title" style="margin:0 0 12px 0"></h3>
-        <div id="paper-modal-questions" style="max-height:60vh;overflow-y:auto;margin-bottom:16px"></div>
+        <h3 id="paper-modal-title" style="margin:0 0 var(--space-md) 0"></h3>
+        <div id="paper-modal-questions" style="max-height:60vh;overflow-y:auto;margin-bottom:var(--space-md)"></div>
         <div class="btn-group" style="justify-content:space-between">
             <button class="secondary" onclick="closePaperModal()">关闭</button>
             <div style="display:flex;gap:8px">
-                <button class="success" onclick="exportPaperAsPDF()" style="background:#10b981">📄 导出 PDF</button>
-                <button class="success" onclick="exportPaperAsImages()" style="background:#f59e0b">📁 导出图片文件夹</button>
+                <button onclick="exportPaperAsPDF()" style="padding:12px 18px">📄 导出 PDF</button>
+                <button onclick="exportPaperAsImages()" style="background:var(--warning);box-shadow:0 4px 0 #B07A08;padding:12px 18px">📁 导出图片</button>
             </div>
         </div>
     </div>
@@ -619,17 +688,17 @@
 <div id="export-images-modal" class="modal" onclick="if(event.target===this)closeExportImagesModal()">
     <div class="modal-content" style="max-width:450px">
         <h3>📁 导出图片文件夹</h3>
-        <div style="font-size:13px;color:#888;margin-bottom:14px">将试卷中的题目图片导出到本地文件夹</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:var(--space-md)">将试卷中的题目图片导出到本地文件夹</div>
         <div class="form-group">
             <label>文件夹名称</label>
-            <input type="text" id="export-images-folder" placeholder="例如：2026年4月错题集" style="width:100%;padding:10px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:14px" />
+            <input type="text" id="export-images-folder" placeholder="例如：2026年4月错题集" />
         </div>
-        <div id="export-images-summary" style="font-size:13px;color:#888;margin-bottom:14px"></div>
-        <div id="export-images-progress" style="display:none;margin-bottom:12px">
-            <div style="background:#e5e7eb;border-radius:8px;height:8px;overflow:hidden">
-                <div id="export-images-progress-bar" style="background:#f59e0b;height:100%;width:0%;transition:width .3s;border-radius:8px"></div>
+        <div id="export-images-summary" style="font-size:13px;color:var(--text-tertiary);margin-bottom:var(--space-md)"></div>
+        <div id="export-images-progress" style="display:none;margin-bottom:var(--space-md)">
+            <div style="background:var(--border);border-radius:3px;height:6px;overflow:hidden">
+                <div id="export-images-progress-bar" style="background:var(--warning);height:100%;width:0%;transition:width .3s;border-radius:3px"></div>
             </div>
-            <p id="export-images-progress-text" style="font-size:12px;color:#888;margin-top:4px">导出中...</p>
+            <p id="export-images-progress-text" style="font-size:12px;color:var(--text-tertiary);margin-top:6px">导出中...</p>
         </div>
         <div class="form-group">
             <label>导出内容</label>
@@ -650,7 +719,7 @@
         </div>
         <div class="btn-group">
             <button class="secondary" onclick="closeExportImagesModal()">取消</button>
-            <button class="success" onclick="doExportImages()" style="background:#f59e0b">确认导出</button>
+            <button onclick="doExportImages()" style="background:var(--warning);box-shadow:0 4px 0 #B07A08;padding:12px 20px">确认导出</button>
         </div>
     </div>
 </div>
