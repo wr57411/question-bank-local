@@ -266,6 +266,7 @@
         <button class="tab" onclick="showTab('trash',this);loadTrashed()">🗑️ 垃圾篓</button>
         <button class="tab" onclick="showTab('pending-link',this);renderPendingLinkList()">🔗 待关联<span id="pending-link-count" class="badge" style="display:none;margin-left:4px;background:#f59e0b;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
         <button class="tab" onclick="showPendingBlankList()" id="pending-blank-tab">📷 待补拍<span id="pending-blank-count" class="badge" style="display:none;margin-left:4px;background:#ef4444;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
+        <button class="tab" onclick="showPendingPhotosTab()" id="pending-photos-tab">📸 待处理<span id="pending-photos-count" class="badge" style="display:none;margin-left:4px;background:#8B5CF6;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
     </div>
 
     <!-- 题目管理 -->
@@ -536,6 +537,15 @@
             <h2>🔗 待关联题目 <span id="pending-link-count-text" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h2>
             <p style="color:var(--text-secondary);font-size:13px;margin-bottom:var(--space-md);line-height:1.5">标记后可在列表中快速查看，点击题目打开详情。</p>
             <div id="pending-link-list"></div>
+        </div>
+    </div>
+
+    <!-- 待处理照片 Tab -->
+    <div id="pending-photos-tab" class="hidden">
+        <div class="card">
+            <h2>📸 待处理照片</h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:var(--space-md);line-height:1.5">以下照片来自快速拍照，点击可处理（关联到题目）。</p>
+            <div id="pending-photos-list"></div>
         </div>
     </div>
 </div>
@@ -812,6 +822,49 @@
         </div>
         <div class="btn-group">
             <button class="secondary" onclick="closePendingBlankModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 待处理照片弹窗 -->
+<div id="pending-photos-modal" class="modal" onclick="if(event.target===this)closePendingPhotosModal()">
+    <div class="modal-content" style="max-width:500px">
+        <h3>📸 待处理照片</h3>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">以下照片来自快速拍照，点击可处理（关联到题目）</div>
+        <div id="pending-photos-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px">
+            <!-- 动态填充 -->
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closePendingPhotosModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 处理单张照片弹窗 -->
+<div id="process-photo-modal" class="modal" onclick="if(event.target===this)closeProcessPhotoModal()">
+    <div class="modal-content" style="max-width:500px">
+        <h3>📝 处理照片</h3>
+        <div id="process-photo-preview" style="text-align:center;margin-bottom:14px">
+            <img id="process-photo-img" style="max-width:100%;max-height:200px;border-radius:8px" />
+        </div>
+        <div class="form-group">
+            <label>关联到题目</label>
+            <select id="process-photo-question" style="width:100%">
+                <option value="">-- 新建题目 --</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>笔记版本名称</label>
+            <input id="process-photo-label" type="text" placeholder="例如：笔记 v1" />
+        </div>
+        <div class="form-group">
+            <label>选择标签</label>
+            <select id="process-photo-tags" multiple style="height:80px"></select>
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeProcessPhotoModal()">取消</button>
+            <button class="danger" onclick="deletePendingPhoto()">删除</button>
+            <button onclick="confirmProcessPhoto()">保存</button>
         </div>
     </div>
 </div>
@@ -1282,6 +1335,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (syncToggle) syncToggle.checked = syncEnabled;
     await refreshAll();
     updatePendingLinkBadge();
+    await updatePendingPhotosBadge();
     restartSyncPolling();
     if (currentUser && autoSyncEnabled && syncEnabled) queueAutoSync(true);
     checkAppUpdate();
@@ -1490,7 +1544,7 @@ function renderVersionFilterTags() {
 
 function showTab(tabName, btn) {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
-    document.querySelectorAll('[id$="-tab"]').forEach(t => t.classList.add("hidden"));
+    document.querySelectorAll('div[id$="-tab"]').forEach(t => t.classList.add("hidden"));
     btn.classList.add("active");
     document.getElementById(tabName + "-tab").classList.remove("hidden");
 }
@@ -2763,8 +2817,8 @@ function addExtraNoteVersion() {
             <button type="button" onclick="removeExtraNoteVersion(${idx})" style="padding:2px 8px;font-size:11px;background:var(--danger);color:#fff;border:none;border-radius:4px;cursor:pointer">删除</button>
         </div>
         <div class="upload-buttons">
-            <button type="button" class="upload-btn camera" onclick="takePhoto('extra_${idx}')" style="font-size:12px;padding:10px">📷 拍照</button>
-            <button type="button" class="upload-btn" onclick="pickFromGallery('extra_${idx}')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 2px 0 var(--border);font-size:12px;padding:10px">🖼️ 相册</button>
+            <button type="button" class="upload-btn camera" onclick="takePhotoForExtra('extra_${idx}')" style="font-size:12px;padding:10px">📷 拍照</button>
+            <button type="button" class="upload-btn" onclick="pickFromGalleryForExtra('extra_${idx}')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 2px 0 var(--border);font-size:12px;padding:10px">🖼️ 相册</button>
         </div>
         <div class="preview-wrap" id="extra_${idx}-preview-wrap" style="display:none">
             <span class="preview-delete" onclick="removeExtraImage(${idx})">×</span>
@@ -2788,88 +2842,64 @@ function removeExtraImage(idx) {
     document.getElementById("extra_" + idx + "-preview-wrap").style.display = "none";
 }
 
-// 扩展 takePhoto 和 pickFromGallery 支持 extra_ 前缀
-const _origTakePhoto = takePhoto;
-const _origPickFromGallery = pickFromGallery;
-const _origCrossPageShoot = crossPageShoot;
-const _origPickFromFloating = pickFromFloating;
-
-function takePhoto(target) {
-    if (target.startsWith("extra_")) {
-        const idx = parseInt(target.split("_")[1]);
-        if (isNative && Camera) {
-            Camera.getPhoto({ quality: 85, allowEditing: false, resultType: 'dataUrl', source: 'CAMERA', direction: 'REAR' })
-                .then(photo => {
-                    const ev = extraNoteVersions.find(v => v.idx === idx);
-                    if (ev) ev.image = photo.dataUrl;
-                    document.getElementById("extra_" + idx + "-preview").src = photo.dataUrl;
+function takePhotoForExtra(target) {
+    const idx = parseInt(target.split("_")[1]);
+    if (isNative && Camera) {
+        Camera.getPhoto({ quality: 85, allowEditing: false, resultType: 'dataUrl', source: 'CAMERA', direction: 'REAR' })
+            .then(photo => {
+                const ev = extraNoteVersions.find(v => v.idx === idx);
+                if (ev) ev.image = photo.dataUrl;
+                document.getElementById("extra_" + idx + "-preview").src = photo.dataUrl;
+                document.getElementById("extra_" + idx + "-preview-wrap").style.display = "inline-block";
+            })
+            .catch(e => { if (e.message !== 'User cancelled photos app') showStatus("拍照失败: " + e.message, "error"); });
+    } else {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*'; input.setAttribute('capture', 'environment');
+        input.onchange = (e) => {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const evObj = extraNoteVersions.find(v => v.idx === idx);
+                    if (evObj) evObj.image = ev.target.result;
+                    document.getElementById("extra_" + idx + "-preview").src = ev.target.result;
                     document.getElementById("extra_" + idx + "-preview-wrap").style.display = "inline-block";
-                })
-                .catch(e => { if (e.message !== 'User cancelled photos app') showStatus("拍照失败: " + e.message, "error"); });
-        } else {
-            const input = document.createElement('input');
-            input.type = 'file'; input.accept = 'image/*'; input.setAttribute('capture', 'environment');
-            input.onchange = (e) => {
-                if (e.target.files && e.target.files[0]) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        const evObj = extraNoteVersions.find(v => v.idx === idx);
-                        if (evObj) evObj.image = ev.target.result;
-                        document.getElementById("extra_" + idx + "-preview").src = ev.target.result;
-                        document.getElementById("extra_" + idx + "-preview-wrap").style.display = "inline-block";
-                    };
-                    reader.readAsDataURL(e.target.files[0]);
-                }
-            };
-            input.click();
-        }
-        return;
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        };
+        input.click();
     }
-    _origTakePhoto(target);
 }
 
-function pickFromGallery(target) {
-    if (target.startsWith("extra_")) {
-        const idx = parseInt(target.split("_")[1]);
-        if (isNative && Camera) {
-            Camera.getPhoto({ quality: 85, allowEditing: false, resultType: 'dataUrl', source: 'PHOTOS' })
-                .then(photo => {
-                    const ev = extraNoteVersions.find(v => v.idx === idx);
-                    if (ev) ev.image = photo.dataUrl;
-                    document.getElementById("extra_" + idx + "-preview").src = photo.dataUrl;
+function pickFromGalleryForExtra(target) {
+    const idx = parseInt(target.split("_")[1]);
+    if (isNative && Camera) {
+        Camera.getPhoto({ quality: 85, allowEditing: false, resultType: 'dataUrl', source: 'PHOTOS' })
+            .then(photo => {
+                const ev = extraNoteVersions.find(v => v.idx === idx);
+                if (ev) ev.image = photo.dataUrl;
+                document.getElementById("extra_" + idx + "-preview").src = photo.dataUrl;
+                document.getElementById("extra_" + idx + "-preview-wrap").style.display = "inline-block";
+            })
+            .catch(e => { if (e.message !== 'User cancelled photos app') showStatus("选择图片失败: " + e.message, "error"); });
+    } else {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*';
+        input.onchange = (e) => {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const evObj = extraNoteVersions.find(v => v.idx === idx);
+                    if (evObj) evObj.image = ev.target.result;
+                    document.getElementById("extra_" + idx + "-preview").src = ev.target.result;
                     document.getElementById("extra_" + idx + "-preview-wrap").style.display = "inline-block";
-                })
-                .catch(e => { if (e.message !== 'User cancelled photos app') showStatus("选择图片失败: " + e.message, "error"); });
-        } else {
-            const input = document.createElement('input');
-            input.type = 'file'; input.accept = 'image/*';
-            input.onchange = (e) => {
-                if (e.target.files && e.target.files[0]) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => {
-                        const evObj = extraNoteVersions.find(v => v.idx === idx);
-                        if (evObj) evObj.image = ev.target.result;
-                        document.getElementById("extra_" + idx + "-preview").src = ev.target.result;
-                        document.getElementById("extra_" + idx + "-preview-wrap").style.display = "inline-block";
-                    };
-                    reader.readAsDataURL(e.target.files[0]);
-                }
-            };
-            input.click();
-        }
-        return;
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        };
+        input.click();
     }
-    _origPickFromGallery(target);
-}
-
-function crossPageShoot(target) {
-    if (target.startsWith("extra_")) { showStatus("跨页拍摄暂不支持额外版本", "error"); return; }
-    _origCrossPageShoot(target);
-}
-
-function pickFromFloating(target) {
-    if (target.startsWith("extra_")) { showStatus("悬浮窗暂不支持额外版本", "error"); return; }
-    _origPickFromFloating(target);
 }
 
 // ========== 详情弹窗 + 前后切换 ==========
@@ -3606,6 +3636,254 @@ async function doExportImages() {
     setTimeout(() => closeExportImagesModal(), 2000);
 }
 
+// ========== 待处理照片 ==========
+let currentProcessPhotoId = null;
+
+async function showPendingPhotosTab() {
+    showTab('pending-photos', document.querySelector('.tab[onclick*="pending-photos"]'));
+    await loadPendingPhotos();
+}
+
+async function loadPendingPhotos() {
+    const groups = await dbGetPendingPhotosGrouped();
+    const c = document.getElementById("pending-photos-list");
+    const countBadge = document.getElementById("pending-photos-count");
+    const allPhotos = await dbGetPendingPhotos();
+
+    if (allPhotos.length > 0) {
+        countBadge.textContent = allPhotos.length;
+        countBadge.style.display = "inline-block";
+    } else {
+        countBadge.style.display = "none";
+    }
+
+    if (!allPhotos.length) {
+        c.innerHTML = '<div style="text-align:center;color:var(--text-tertiary);padding:30px">暂无待处理照片<br><small>长按 App 图标选择「快速拍照」</small></div>';
+        return;
+    }
+
+    c.replaceChildren();
+    const groupKeys = Object.keys(groups);
+
+    groupKeys.forEach(gid => {
+        const photos = groups[gid];
+        const isUngrouped = gid === "未分组";
+        const label = isUngrouped ? "📷 未分组" : "📌 " + gid.replace("group_", "第") + "组";
+
+        // 组标题
+        const header = document.createElement("div");
+        header.style.cssText = "display:flex;justify-content:space-between;align-items:center;padding:10px 0 6px;border-bottom:2px solid var(--border)";
+        const title = document.createElement("div");
+        title.textContent = label + " (" + photos.length + "张)";
+        title.style.cssText = "font-size:14px;font-weight:700;color:var(--text)";
+        header.appendChild(title);
+
+        if (!isUngrouped && photos.length > 1) {
+            const batchBtn = document.createElement("button");
+            batchBtn.textContent = "批量处理";
+            batchBtn.style.cssText = "padding:6px 14px;font-size:12px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer";
+            batchBtn.onclick = () => openBatchProcessModal(gid);
+            header.appendChild(batchBtn);
+        }
+        c.appendChild(header);
+
+        // 照片列表
+        const list = document.createElement("div");
+        list.style.cssText = "display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;padding:8px 0";
+        photos.forEach(p => {
+            const item = document.createElement("div");
+            item.style.cssText = "position:relative;cursor:pointer";
+            item.onclick = () => openProcessPhotoModal(p.id);
+            const img = document.createElement("img");
+            img.src = p.image_url;
+            img.style.cssText = "width:100%;aspect-ratio:1;object-fit:cover;border-radius:6px;border:1px solid var(--border-light)";
+            const del = document.createElement("span");
+            del.textContent = "×";
+            del.style.cssText = "position:absolute;top:-4px;right:-4px;width:20px;height:20px;background:var(--danger);color:#fff;border-radius:50%;font-size:12px;display:flex;align-items:center;justify-content:center;cursor:pointer";
+            del.onclick = (e) => { e.stopPropagation(); deletePendingPhotoById(p.id); };
+            item.append(img, del);
+            list.appendChild(item);
+        });
+        c.appendChild(list);
+    });
+}
+
+let currentBatchGroupId = null;
+
+async function openProcessPhotoModal(photoId) {
+    currentProcessPhotoId = photoId;
+    currentBatchGroupId = null;
+    const photo = await dbPendingPhotos.getItem(photoId);
+    if (!photo) return;
+
+    document.getElementById("process-photo-img").src = photo.image_url;
+    document.getElementById("process-photo-img").style.display = "block";
+    document.getElementById("process-photo-label").value = "";
+
+    const qSelect = document.getElementById("process-photo-question");
+    qSelect.innerHTML = '<option value="">-- 新建题目 --</option>';
+    allQuestions.filter(q => !q.deleted_at).forEach(q => {
+        const opt = document.createElement("option");
+        opt.value = q.id;
+        opt.textContent = (q.semantic_summary || q.user_comment || q.id.substring(0, 8));
+        qSelect.appendChild(opt);
+    });
+
+    const tSelect = document.getElementById("process-photo-tags");
+    tSelect.innerHTML = "";
+    allTags.forEach(t => {
+        const opt = document.createElement("option");
+        opt.value = t.id;
+        opt.textContent = t.name;
+        tSelect.appendChild(opt);
+    });
+
+    document.getElementById("process-photo-modal").classList.add("active");
+}
+
+function openBatchProcessModal(groupId) {
+    currentBatchGroupId = groupId;
+    document.getElementById("process-photo-label").value = "";
+    document.getElementById("process-photo-img").style.display = "none";
+
+    const qSelect = document.getElementById("process-photo-question");
+    qSelect.innerHTML = '<option value="">-- 新建题目 --</option>';
+    allQuestions.filter(q => !q.deleted_at).forEach(q => {
+        const opt = document.createElement("option");
+        opt.value = q.id;
+        opt.textContent = (q.semantic_summary || q.user_comment || q.id.substring(0, 8));
+        qSelect.appendChild(opt);
+    });
+
+    const tSelect = document.getElementById("process-photo-tags");
+    tSelect.innerHTML = "";
+    allTags.forEach(t => {
+        const opt = document.createElement("option");
+        opt.value = t.id;
+        opt.textContent = t.name;
+        tSelect.appendChild(opt);
+    });
+
+    document.getElementById("process-photo-modal").classList.add("active");
+}
+
+async function confirmProcessPhoto() {
+    if (currentBatchGroupId) {
+        // 批量处理模式
+        const questionId = document.getElementById("process-photo-question").value;
+        const label = document.getElementById("process-photo-label").value.trim();
+        const tags = Array.from(document.getElementById("process-photo-tags").selectedOptions).map(o => o.value);
+
+        const groups = await dbGetPendingPhotosGrouped();
+        const photos = groups[currentBatchGroupId] || [];
+
+        if (questionId) {
+            for (let i = 0; i < photos.length; i++) {
+                const v = label ? label + " v" + (i + 1) : "笔记 v" + (i + 1);
+                await dbAddQuestionNote(questionId, photos[i].image_url, v, "");
+                await dbMarkPendingPhotoProcessed(photos[i].id, questionId);
+            }
+            if (tags.length) {
+                for (const tagId of tags) await dbAddTagToQuestion(questionId, tagId);
+            }
+        } else {
+            const newQ = await dbCreateQuestion(photos[0].image_url, null, tags, 0, null, []);
+            for (let i = 0; i < photos.length; i++) {
+                const v = label ? label + " v" + (i + 1) : "笔记 v" + (i + 1);
+                await dbAddQuestionNote(newQ.id, photos[i].image_url, v, "");
+                await dbMarkPendingPhotoProcessed(photos[i].id, newQ.id);
+            }
+        }
+
+        currentBatchGroupId = null;
+        closeProcessPhotoModal();
+        await loadPendingPhotos();
+        await loadQuestions();
+        showStatus("批量处理完成", "success");
+        return;
+    }
+
+    // 单张处理模式
+    if (!currentProcessPhotoId) return;
+    const photo = await dbPendingPhotos.getItem(currentProcessPhotoId);
+    if (!photo) return;
+
+    const questionId = document.getElementById("process-photo-question").value;
+    const label = document.getElementById("process-photo-label").value.trim() || "笔记 v1";
+    const tags = Array.from(document.getElementById("process-photo-tags").selectedOptions).map(o => o.value);
+
+    if (questionId) {
+        await dbAddQuestionNote(questionId, photo.image_url, label, "");
+        if (tags.length) {
+            for (const tagId of tags) await dbAddTagToQuestion(questionId, tagId);
+        }
+    } else {
+        const newQ = await dbCreateQuestion(photo.image_url, null, tags, 0, null, []);
+        await dbAddQuestionNote(newQ.id, photo.image_url, label, "");
+    }
+
+    await dbMarkPendingPhotoProcessed(currentProcessPhotoId, questionId || "new");
+    closeProcessPhotoModal();
+    await loadPendingPhotos();
+    await loadQuestions();
+    showStatus("照片已处理", "success");
+}
+
+function closeProcessPhotoModal() {
+    document.getElementById("process-photo-modal").classList.remove("active");
+    currentProcessPhotoId = null;
+}
+
+async function confirmProcessPhoto() {
+    if (!currentProcessPhotoId) return;
+    const photo = await dbPendingPhotos.getItem(currentProcessPhotoId);
+    if (!photo) return;
+
+    const questionId = document.getElementById("process-photo-question").value;
+    const label = document.getElementById("process-photo-label").value.trim() || "笔记 v1";
+    const tags = Array.from(document.getElementById("process-photo-tags").selectedOptions).map(o => o.value);
+
+    if (questionId) {
+        // 关联到已有题目
+        await dbAddQuestionNote(questionId, photo.image_url, label, "");
+        if (tags.length) {
+            for (const tagId of tags) {
+                await dbAddTagToQuestion(questionId, tagId);
+            }
+        }
+    } else {
+        // 创建新题目
+        const newQ = await dbCreateQuestion(photo.image_url, null, tags, 0, null, []);
+        await dbAddQuestionNote(newQ.id, photo.image_url, label, "");
+    }
+
+    await dbMarkPendingPhotoProcessed(currentProcessPhotoId, questionId || "new");
+    closeProcessPhotoModal();
+    await loadPendingPhotos();
+    await loadQuestions();
+    showStatus("照片已处理", "success");
+}
+
+async function deletePendingPhoto() {
+    if (!currentProcessPhotoId) return;
+    if (!confirm("确定删除这张照片？")) return;
+    await dbDeletePendingPhoto(currentProcessPhotoId);
+    closeProcessPhotoModal();
+    await loadPendingPhotos();
+    showStatus("照片已删除", "success");
+}
+
+async function deletePendingPhotoById(photoId) {
+    if (!confirm("确定删除这张照片？")) return;
+    await dbDeletePendingPhoto(photoId);
+    await loadPendingPhotos();
+    showStatus("照片已删除", "success");
+}
+
+function closePendingPhotosModal() {
+    document.getElementById("pending-photos-modal").classList.remove("active");
+}
+
 // ========== 专题管理 ==========
 let currentTopicId = null;
 
@@ -3909,6 +4187,68 @@ function updatePendingLinkBadge() {
     if (badge) { badge.textContent = count; badge.style.display = count > 0 ? 'inline-block' : 'none'; }
     if (textEl) textEl.textContent = count > 0 ? `(${count})` : '';
 }
+
+async function updatePendingPhotosBadge() {
+    const count = await dbGetPendingPhotoCount();
+    const badge = document.getElementById('pending-photos-count');
+    if (badge) {
+        badge.textContent = count;
+        badge.style.display = count > 0 ? 'inline-block' : 'none';
+    }
+}
+
+// 从 native 端导入待处理照片
+async function importPendingPhotosFromNative(filePaths, groupInfo) {
+    if (!filePaths || !filePaths.length) return;
+
+    const groups = groupInfo ? JSON.parse(groupInfo) : {};
+    const totalGroups = groups.total_groups || 0;
+
+    // 读取文件并导入到 IndexedDB
+    for (const filePath of filePaths) {
+        try {
+            // 从文件路径解析 group_id
+            const match = filePath.match(/photo_\d+_\d+_(.+)\.jpg$/);
+            let groupId = "未分组";
+            if (match) {
+                const rawGroupId = match[1];
+                if (rawGroupId.startsWith("group_")) {
+                    groupId = rawGroupId;
+                }
+            }
+
+            // 尝试通过 Capacitor Filesystem 读取文件
+            let imageDataUrl = null;
+            if (isNative && window.Capacitor?.Plugins?.Filesystem) {
+                try {
+                    const result = await window.Capacitor.Plugins.Filesystem.readFile({
+                        path: filePath,
+                        directory: 'DATA'
+                    });
+                    imageDataUrl = 'data:image/jpeg;base64,' + result.data;
+                } catch (e) {
+                    console.warn("无法读取文件:", filePath, e);
+                    continue;
+                }
+            } else {
+                console.warn("非原生环境，无法读取文件:", filePath);
+                continue;
+            }
+
+            if (imageDataUrl) {
+                await dbAddPendingPhoto(imageDataUrl, groupId);
+            }
+        } catch (e) {
+            console.error("导入照片失败:", filePath, e);
+        }
+    }
+
+    await updatePendingPhotosBadge();
+    showStatus("已导入 " + filePaths.length + " 张待处理照片", "success");
+}
+
+// 暴露给 native 端调用
+window.importPendingPhotos = importPendingPhotosFromNative;
 
 function togglePendingLinkInDetail() {
     if (!currentQuestionId) return;

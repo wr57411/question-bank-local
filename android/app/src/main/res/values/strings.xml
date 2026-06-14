@@ -4,4 +4,6 @@
     <string name="title_activity_main">本地题库</string>
     <string name="package_name">com.questionbank.local</string>
     <string name="custom_url_scheme">com.questionbank.local</string>
+    <string name="quick_capture_label">快速拍照</string>
+    <string name="quick_capture_long_label">快速拍照题目</string>
 </resources>

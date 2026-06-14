@@ -12,6 +12,7 @@ const dbSimilarQuestionLinks = localforage.createInstance({ name: 'questionBank'
 const dbTopics = localforage.createInstance({ name: 'questionBank', storeName: 'topics' });
 const dbTopicQuestions = localforage.createInstance({ name: 'questionBank', storeName: 'topic_questions' });
 const dbQuestionNotes = localforage.createInstance({ name: 'questionBank', storeName: 'question_notes' });
+const dbPendingPhotos = localforage.createInstance({ name: 'questionBank', storeName: 'pending_photos' });
 
 function generateId() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -900,6 +901,72 @@ async function _collectQuestionNoteDetails(questionId) {
   return await dbGetQuestionNotes(questionId);
 }
 
+// ========== 待处理照片 CRUD ==========
+
+async function dbGetPendingPhotos() {
+  const photos = [];
+  await dbPendingPhotos.iterate((v, key) => {
+    if (v && !v.processed) photos.push(v);
+  });
+  return photos.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+}
+
+async function dbGetPendingPhotosGrouped() {
+  const photos = await dbGetPendingPhotos();
+  const groups = {};
+  photos.forEach(p => {
+    const gid = p.group_id || "未分组";
+    if (!groups[gid]) groups[gid] = [];
+    groups[gid].push(p);
+  });
+  return groups;
+}
+
+async function dbAddPendingPhoto(imageUrl, groupId) {
+  const id = generateId();
+  const now = _nowIso();
+  const photo = {
+    id,
+    image_url: imageUrl,
+    group_id: groupId || "未分组",
+    created_at: now,
+    processed: false,
+    question_id: null
+  };
+  await dbPendingPhotos.setItem(id, photo);
+  return photo;
+}
+
+async function dbMarkPendingPhotoProcessed(photoId, questionId) {
+  const photo = await dbPendingPhotos.getItem(photoId);
+  if (!photo) return;
+  await dbPendingPhotos.setItem(photoId, {
+    ...photo,
+    processed: true,
+    question_id: questionId,
+    updated_at: _nowIso()
+  });
+}
+
+async function dbBatchMarkGroupProcessed(groupId, questionId) {
+  const photos = await dbGetPendingPhotos();
+  for (const p of photos) {
+    if (p.group_id === groupId) {
+      await dbMarkPendingPhotoProcessed(p.id, questionId);
+    }
+  }
+}
+
+async function dbDeletePendingPhoto(photoId) {
+  await dbPendingPhotos.removeItem(photoId);
+}
+
+async function dbGetPendingPhotoCount() {
+  let count = 0;
+  await dbPendingPhotos.iterate((v) => { if (v && !v.processed) count++; });
+  return count;
+}
+
 async function _collectQuestionTagIds(questionId) {
   const rawTagIds = [];
   await dbQuestionTags.iterate((qt) => {
@@ -1284,6 +1351,7 @@ async function dbClearAllData() {
   await dbTopics.clear();
   await dbTopicQuestions.clear();
   await dbQuestionNotes.clear();
+  await dbPendingPhotos.clear();
 }
 
 async function dbReplaceWithRemoteSnapshot(snapshot) {
@@ -1474,7 +1542,7 @@ async function generatePaperPDF(paperId) {
 // ========== 数据导入/导出 ==========
 
 async function exportAllData() {
-  const data = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [], similar_question_links: [], pending_link_list: [], topics: [], topic_questions: [], question_notes: [] };
+  const data = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [], similar_question_links: [], pending_link_list: [], topics: [], topic_questions: [], question_notes: [], pending_photos: [] };
   await dbQuestions.iterate((v) => data.questions.push(v));
   await dbTags.iterate((v) => data.tags.push(v));
   await dbQuestionTags.iterate((v) => data.question_tags.push(v));
@@ -1484,6 +1552,7 @@ async function exportAllData() {
   await dbTopics.iterate((v) => data.topics.push(v));
   await dbTopicQuestions.iterate((v) => data.topic_questions.push(v));
   await dbQuestionNotes.iterate((v) => data.question_notes.push(v));
+  await dbPendingPhotos.iterate((v) => data.pending_photos.push(v));
   data.pending_link_list = JSON.parse(localStorage.getItem('pendingLinkList') || '[]');
   const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1503,6 +1572,7 @@ async function importAllData(file) {
     ...(data.topics || []).map(t => dbTopics.setItem(t.id, t)),
     ...(data.topic_questions || []).map(tq => dbTopicQuestions.setItem(`${tq.topic_id}_${tq.question_id}`, tq)),
     ...(data.question_notes || []).map(n => dbQuestionNotes.setItem(n.id, n)),
+    ...(data.pending_photos || []).map(p => dbPendingPhotos.setItem(p.id, p)),
   ]);
   if (data.similar_question_links) {
     await Promise.all(data.similar_question_links.map(link => {
@@ -1512,5 +1582,5 @@ async function importAllData(file) {
     }));
   }
   if (data.pending_link_list) localStorage.setItem('pendingLinkList', JSON.stringify(data.pending_link_list));
-  return { questions: data.questions?.length || 0, tags: data.tags?.length || 0, papers: data.papers?.length || 0, topics: data.topics?.length || 0, question_notes: data.question_notes?.length || 0 };
+  return { questions: data.questions?.length || 0, tags: data.tags?.length || 0, papers: data.papers?.length || 0, topics: data.topics?.length || 0, question_notes: data.question_notes?.length || 0, pending_photos: data.pending_photos?.length || 0 };
 }

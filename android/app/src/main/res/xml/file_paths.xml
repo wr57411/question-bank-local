@@ -4,4 +4,5 @@
     <cache-path name="my_cache_images" path="." />
     <external-path name="my_documents" path="Documents/" />
     <external-files-path name="my_app_documents" path="Documents/" />
+    <files-path name="pending_photos" path="pending_photos/" />
 </paths>

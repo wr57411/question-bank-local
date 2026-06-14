@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000">
+
+    <androidx.camera.view.PreviewView
+        android:id="@+id/quick_capture_preview"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- 顶部状态栏 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:background="#80000000"
+        android:gravity="center_vertical">
+
+        <Button
+            android:id="@+id/quick_capture_close"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="✕"
+            android:textSize="18sp"
+            android:textColor="#FFF"
+            android:background="@android:color/transparent" />
+
+        <TextView
+            android:id="@+id/quick_capture_count"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="已拍: 0 张"
+            android:textColor="#FFF"
+            android:textSize="16sp"
+            android:textAlignment="center"
+            android:fontFamily="sans-serif-medium" />
+
+        <Button
+            android:id="@+id/quick_capture_done"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="完成"
+            android:textSize="14sp"
+            android:textColor="#FFF"
+            android:background="#4CAF50"
+            android:paddingLeft="16dp"
+            android:paddingRight="16dp" />
+    </LinearLayout>
+
+    <!-- 底部按钮区 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingBottom="40dp"
+        android:paddingTop="20dp"
+        android:paddingStart="24dp"
+        android:paddingEnd="24dp"
+        android:background="#80000000">
+
+        <Button
+            android:id="@+id/quick_capture_group"
+            android:layout_width="wrap_content"
+            android:layout_height="48dp"
+            android:text="📌 分组"
+            android:textSize="14sp"
+            android:textColor="#FFF"
+            android:background="#FF9800"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:layout_marginEnd="16dp" />
+
+        <Button
+            android:id="@+id/quick_capture_shoot"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_gravity="center"
+            android:background="@drawable/capture_button_bg"
+            android:text=""
+            android:elevation="4dp" />
+
+        <View
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:layout_weight="1" />
+    </LinearLayout>
+</FrameLayout>
