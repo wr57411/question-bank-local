@@ -242,10 +242,10 @@
 </head>
 <body>
 <div class="container">
-    <header>
+    <header id="app-header">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
             <div>
-                <h1>📚 本地题库</h1>
+                <h1 id="header-title">📚 本地题库</h1>
                 <p id="user-status">数据存储在本地，无需联网</p>
             </div>
             <button id="login-btn" onclick="showLoginModal()" style="padding:8px 16px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:var(--radius-xl);font-size:13px;backdrop-filter:blur(4px);box-shadow:none;font-weight:500">👤 登录</button>
@@ -262,6 +262,7 @@
         <button class="tab active" onclick="showTab('questions',this)">题目管理</button>
         <button class="tab" onclick="showTab('tags',this)">标签管理</button>
         <button class="tab" onclick="showTab('papers',this)">试卷管理</button>
+        <button class="tab" onclick="showTab('topics',this);loadTopics();renderTopicQuestionPicker()">📚 专题</button>
         <button class="tab" onclick="showTab('trash',this);loadTrashed()">🗑️ 垃圾篓</button>
         <button class="tab" onclick="showTab('pending-link',this);renderPendingLinkList()">🔗 待关联<span id="pending-link-count" class="badge" style="display:none;margin-left:4px;background:#f59e0b;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
         <button class="tab" onclick="showPendingBlankList()" id="pending-blank-tab">📷 待补拍<span id="pending-blank-count" class="badge" style="display:none;margin-left:4px;background:#ef4444;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
@@ -372,7 +373,7 @@
             <div id="status-message"></div>
             <form id="question-form">
                 <div class="form-group">
-                    <label>题目图片 *</label>
+                    <label>题目图片（笔记）*</label>
                     <div class="upload-buttons">
                         <button type="button" class="upload-btn camera" onclick="takePhoto('question')">📷 拍照</button>
                         <button type="button" class="upload-btn" onclick="pickFromGallery('question')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
@@ -384,6 +385,8 @@
                         <img id="question-preview" class="preview-image" />
                     </div>
                     <div id="question-preview-label" class="preview-label hidden">✓ 题目图片已选择 <span class="crop-icon" onclick="startCrop('question')" title="裁剪图片">✂️</span></div>
+                    <button type="button" onclick="addExtraNoteVersion()" style="margin-top:8px;padding:6px 14px;font-size:12px;background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 2px 0 var(--border)">+ 添加另一版本</button>
+                    <div id="extra-note-versions"></div>
                 </div>
                 <div class="form-group">
                     <label>答案图片（可选）</label>
@@ -418,6 +421,11 @@
                         <label class="layout-option" onclick="selectLayout(this,0)"><input type="radio" name="layout_type" value="0" required style="accent-color:#3B82F6"><span>📐 仅适合单栏</span></label>
                         <label class="layout-option" onclick="selectLayout(this,1)"><input type="radio" name="layout_type" value="1" style="accent-color:#3B82F6"><span>📏 单双栏均可</span></label>
                     </div>
+                </div>
+                <div class="form-group">
+                    <label>适用版本</label>
+                    <div id="version-checkboxes" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px"></div>
+                    <small style="color:#888;font-size:12px">不勾选则所有版本均可见（标记为未分配）</small>
                 </div>
                 <div class="form-group">
                     <label>选择标签 <span style="cursor:pointer;color:#3b82f6" onclick="showNewTagModal('form')" title="新建标签">＋</span></label>
@@ -479,6 +487,22 @@
             </form>
         </div>
         <div class="card"><h2>试卷列表</h2><div id="papers-list"></div></div>
+    </div>
+
+    <!-- 专题管理 -->
+    <div id="topics-tab" class="hidden">
+        <div class="card">
+            <h2>创建专题</h2>
+            <form id="topic-form">
+                <div class="form-group"><label>专题名称 *</label><input type="text" id="topic-name" required placeholder="例如：勾股定理专练" /></div>
+                <div class="form-group"><label>学习目标（可选）</label><textarea id="topic-desc" rows="2" placeholder="描述这个专题的学习重点..."></textarea></div>
+                <div class="form-group"><label>选择题目 <small style="color:var(--text-tertiary)">（不选则创建空专题）</small></label>
+                    <div id="topic-question-picker" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);padding:8px"></div>
+                </div>
+                <button type="submit" style="width:100%;padding:14px">✨ 创建专题</button>
+            </form>
+        </div>
+        <div class="card"><h2>专题列表</h2><div id="topics-list"></div></div>
     </div>
 
     <!-- AI 推荐结果展示弹窗 -->
@@ -548,7 +572,17 @@
                 <span style="cursor:pointer;font-size:28px;color:#999" onclick="closeModal()">×</span>
             </div>
         </div>
+        <div id="modal-note-version-bar" style="display:flex;align-items:center;gap:8px;padding:8px 0;margin-bottom:8px;border-bottom:1px solid var(--border-light)">
+            <span style="font-size:12px;color:var(--text-secondary);font-weight:600">📝 题目图片:</span>
+            <select id="modal-note-version-select" onchange="switchNoteVersion(this.value)" style="flex:1;padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)"></select>
+            <button onclick="showAddNoteVersionModal()" style="padding:6px 12px;font-size:12px;border-radius:var(--radius-sm)">+ 添加版本</button>
+        </div>
         <div id="modal-question-image"></div>
+        <div id="modal-question-text-note-wrap" style="margin:8px 0">
+            <div style="font-size:12px;color:var(--text-secondary);font-weight:600;margin-bottom:4px">📝 文字笔记</div>
+            <textarea id="modal-question-text-note" rows="2" placeholder="输入文字笔记..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;resize:none"></textarea>
+            <button onclick="saveTextNote()" style="margin-top:4px;padding:4px 12px;font-size:12px">保存笔记</button>
+        </div>
         <div id="modal-answer-image"></div>
         <div id="modal-tags"></div>
         <div id="modal-similar-questions" style="margin-top:12px"></div>
@@ -684,6 +718,49 @@
     </div>
 </div>
 
+<!-- 专题详情弹窗 -->
+<div id="topic-detail-modal" class="modal" onclick="if(event.target===this)closeTopicDetailModal()">
+    <div class="modal-content" style="max-width:600px">
+        <h3 id="topic-detail-title" style="margin:0 0 4px 0"></h3>
+        <p id="topic-detail-desc" style="color:var(--text-secondary);font-size:13px;margin-bottom:16px"></p>
+        <div id="topic-detail-questions" style="max-height:60vh;overflow-y:auto"></div>
+        <div class="btn-group" style="margin-top:16px">
+            <button class="secondary" onclick="closeTopicDetailModal()">关闭</button>
+            <button onclick="exportTopicPDF()">📄 导出 PDF</button>
+        </div>
+    </div>
+</div>
+
+<!-- 添加笔记版本弹窗 -->
+<div id="add-note-version-modal" class="modal" onclick="if(event.target===this)closeAddNoteVersionModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3>📝 添加题目图片版本</h3>
+        <div class="form-group">
+            <label>版本名称</label>
+            <input id="note-version-label" type="text" placeholder="例如：考前复习、期末冲刺" />
+        </div>
+        <div class="form-group">
+            <label>题目图片 *</label>
+            <div class="upload-buttons">
+                <button type="button" class="upload-btn camera" onclick="takePhotoForNoteVersion('question')">📷 拍照</button>
+                <button type="button" class="upload-btn" onclick="pickFromGalleryForNoteVersion('question')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
+            </div>
+            <div class="preview-wrap" id="note-version-preview-wrap" style="display:none">
+                <span class="preview-delete" onclick="removeNoteVersionImage()">×</span>
+                <img id="note-version-preview" class="preview-image" />
+            </div>
+        </div>
+        <div class="form-group">
+            <label>文字笔记（可选）</label>
+            <textarea id="note-version-text" rows="2" placeholder="输入文字笔记..."></textarea>
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeAddNoteVersionModal()">取消</button>
+            <button onclick="confirmAddNoteVersion()">添加</button>
+        </div>
+    </div>
+</div>
+
 <!-- 导出图片文件夹弹窗 -->
 <div id="export-images-modal" class="modal" onclick="if(event.target===this)closeExportImagesModal()">
     <div class="modal-content" style="max-width:450px">
@@ -735,6 +812,68 @@
         </div>
         <div class="btn-group">
             <button class="secondary" onclick="closePendingBlankModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 添加/编辑版本弹窗 -->
+<div id="version-modal" class="modal" onclick="if(event.target===this)closeVersionModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3 id="version-modal-title">添加版本</h3>
+        <div class="form-group">
+            <label>版本名称</label>
+            <input id="version-name-input" type="text" placeholder="例如：竞赛版" />
+        </div>
+        <div class="form-group">
+            <label>版本图标 (Emoji)</label>
+            <input id="version-emoji-input" type="text" placeholder="例如：🏆" maxlength="4" style="font-size:24px;text-align:center" />
+        </div>
+        <div class="form-group">
+            <label>版本标语</label>
+            <input id="version-tagline-input" type="text" placeholder="例如：挑战极限，追求卓越" />
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeVersionModal()">取消</button>
+            <button onclick="saveVersion()" id="version-save-btn">保存</button>
+            <button class="danger" onclick="deleteVersion()" id="version-delete-btn" style="display:none">删除版本</button>
+        </div>
+    </div>
+</div>
+
+<!-- 删除版本密码确认弹窗 -->
+<div id="version-delete-modal" class="modal" onclick="if(event.target===this)closeVersionDeleteModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3>⚠️ 删除版本确认</h3>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">删除版本需要输入系统密码。该版本的题目不会被删除，但会从该版本中移除。</p>
+        <div class="form-group">
+            <label>系统密码</label>
+            <input id="version-delete-password" type="password" placeholder="输入系统密码" />
+        </div>
+        <div id="version-delete-error" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeVersionDeleteModal()">取消</button>
+            <button class="danger" onclick="confirmDeleteVersion()">确认删除</button>
+        </div>
+    </div>
+</div>
+
+<!-- 系统密码设置弹窗 -->
+<div id="system-password-modal" class="modal" onclick="if(event.target===this)closeSystemPasswordModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3>🔐 系统密码设置</h3>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">设置系统密码用于保护敏感操作（如删除版本）。</p>
+        <div class="form-group">
+            <label id="system-password-label">设置密码</label>
+            <input id="system-password-input" type="password" placeholder="输入密码" />
+        </div>
+        <div class="form-group" id="system-password-confirm-group">
+            <label>确认密码</label>
+            <input id="system-password-confirm" type="password" placeholder="再次输入密码" />
+        </div>
+        <div id="system-password-error" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeSystemPasswordModal()">取消</button>
+            <button onclick="saveSystemPassword()">保存</button>
         </div>
     </div>
 </div>
@@ -797,6 +936,23 @@
                 </div>
                 <button onclick="unbindBaidu()" class="secondary" style="width:100%;margin-top:8px;font-size:13px;padding:8px">解除绑定</button>
             </div>
+        </div>
+
+        <!-- 版本皮肤切换 -->
+        <div style="border-top:1px solid #e5e7eb;padding-top:14px;margin-top:14px">
+            <label style="font-weight:600;font-size:14px;margin-bottom:10px;display:block">🎨 题库版本</label>
+            <div id="version-switcher" style="display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap"></div>
+            <small style="color:#999;font-size:12px;display:block;margin-bottom:8px">切换版本改变界面风格和题目筛选，点击版本名称可编辑</small>
+        </div>
+
+        <!-- 系统密码 -->
+        <div style="border-top:1px solid #e5e7eb;padding-top:14px;margin-top:14px">
+            <label style="font-weight:600;font-size:14px;margin-bottom:10px;display:block">🔐 系统密码</label>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font-size:13px;color:#666">用于删除版本等敏感操作</span>
+                <button onclick="showSystemPasswordModal()" style="padding:8px 16px;font-size:13px" id="system-password-btn">设置密码</button>
+            </div>
+            <div id="system-password-status" style="font-size:13px;color:#888;margin-top:8px"></div>
         </div>
 
         <details style="margin-top:16px">
@@ -971,7 +1127,154 @@ const Camera = isNative ? window.Capacitor.Plugins.Camera : null;
 const APP_VERSION_CODE = 2;
 const APP_VERSION_NAME = '1.1';
 
+// ========== 版本皮肤系统 ==========
+const DEFAULT_VERSIONS = [
+    { id: 'peiyou', name: '培优版', emoji: '🚀', tagline: '挑战难题，突破自我',
+      theme: { primary: '#6366F1', primaryLight: '#EDE9FE', primaryDark: '#4338CA', accent: '#F59E0B', accentLight: '#FEF3C7', headerGradStart: '#6366F1', headerGradEnd: '#4F46E5' } },
+    { id: 'gaosan', name: '高三总复习版', emoji: '📖', tagline: '系统复习，冲刺高考',
+      theme: { primary: '#1E40AF', primaryLight: '#DBEAFE', primaryDark: '#1E3A8A', accent: '#DC2626', accentLight: '#FEE2E2', headerGradStart: '#1E40AF', headerGradEnd: '#2563EB' } },
+    { id: 'tongblian', name: '同步练版', emoji: '📝', tagline: '紧跟进度，同步提升',
+      theme: { primary: '#059669', primaryLight: '#D1FAE5', primaryDark: '#047857', accent: '#D97706', accentLight: '#FEF3C7', headerGradStart: '#059669', headerGradEnd: '#10B981' } },
+];
+
+function loadAppVersions() {
+    const saved = localStorage.getItem('appVersions');
+    if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+    }
+    return DEFAULT_VERSIONS.map(v => ({ ...v }));
+}
+
+function saveAppVersions(versions) {
+    localStorage.setItem('appVersions', JSON.stringify(versions));
+}
+
+function getAppVersions() {
+    return loadAppVersions();
+}
+
+function getAppVersionById(id) {
+    return getAppVersions().find(v => v.id === id) || null;
+}
+
+const DEFAULT_VERSION_ID = 'peiyou';
+
+function getCurrentVersionId() {
+    return localStorage.getItem('appVersion') || DEFAULT_VERSION_ID;
+}
+
+function getCurrentVersion() {
+    const id = getCurrentVersionId();
+    return getAppVersionById(id) || getAppVersionById(DEFAULT_VERSION_ID);
+}
+
+function applyVersionTheme(versionId) {
+    const version = getAppVersionById(versionId);
+    if (!version) return;
+
+    const t = version.theme;
+    const root = document.documentElement;
+
+    root.style.setProperty('--primary', t.primary);
+    root.style.setProperty('--primary-light', t.primaryLight);
+    root.style.setProperty('--primary-dark', t.primaryDark);
+    root.style.setProperty('--accent', t.accent);
+    root.style.setProperty('--accent-light', t.accentLight);
+
+    const header = document.getElementById('app-header');
+    if (header) {
+        header.style.background = `linear-gradient(135deg,${t.headerGradStart} 0%,${t.headerGradEnd} 100%)`;
+    }
+
+    const title = document.getElementById('header-title');
+    if (title) {
+        title.textContent = version.emoji + ' ' + version.name;
+    }
+}
+
+function setAppVersion(versionId) {
+    const version = getAppVersionById(versionId);
+    if (!version) return;
+    localStorage.setItem('appVersion', versionId);
+    applyVersionTheme(versionId);
+    renderVersionSwitcher();
+    renderVersionFilterTags();
+    renderQuestions();
+    showStatus('已切换到' + version.name, 'success');
+}
+
+function renderVersionSwitcher() {
+    const container = document.getElementById('version-switcher');
+    if (!container) return;
+
+    const currentId = getCurrentVersionId();
+    const versions = getAppVersions();
+    container.innerHTML = '';
+
+    versions.forEach(version => {
+        const isActive = version.id === currentId;
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'flex:1;min-width:100px;position:relative';
+
+        const card = document.createElement('div');
+        card.style.cssText = `padding:14px;border:2px solid ${isActive ? version.theme.primary : 'var(--border)'};border-radius:var(--radius-md);cursor:pointer;transition:all .2s;text-align:center;background:${isActive ? version.theme.primaryLight : 'var(--surface)'}`;
+        card.onclick = () => setAppVersion(version.id);
+
+        const emoji = document.createElement('div');
+        emoji.style.cssText = 'font-size:28px;margin-bottom:6px';
+        emoji.textContent = version.emoji;
+
+        const name = document.createElement('div');
+        name.style.cssText = `font-size:13px;font-weight:700;color:${isActive ? version.theme.primary : 'var(--text)'};margin-bottom:2px`;
+        name.textContent = version.name;
+
+        const tagline = document.createElement('div');
+        tagline.style.cssText = 'font-size:10px;color:var(--text-secondary);line-height:1.3';
+        tagline.textContent = version.tagline;
+
+        const badge = document.createElement('div');
+        if (isActive) {
+            badge.style.cssText = `margin-top:6px;display:inline-block;padding:2px 8px;background:${version.theme.primary};color:#fff;border-radius:10px;font-size:10px;font-weight:700`;
+            badge.textContent = '当前使用';
+        }
+
+        card.append(emoji, name, tagline, badge);
+        wrapper.appendChild(card);
+
+        const editBtn = document.createElement('button');
+        editBtn.textContent = '✏️';
+        editBtn.style.cssText = 'position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;border:none;background:rgba(255,255,255,.9);font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 3px rgba(0,0,0,.2);z-index:5';
+        editBtn.onclick = (e) => { e.stopPropagation(); showEditVersionModal(version.id); };
+        wrapper.appendChild(editBtn);
+
+        container.appendChild(wrapper);
+    });
+
+    const addBtn = document.createElement('div');
+    addBtn.style.cssText = 'flex:0 0 auto;padding:14px;border:2px dashed var(--border);border-radius:var(--radius-md);cursor:pointer;transition:all .2s;text-align:center;min-width:80px;display:flex;flex-direction:column;align-items:center;justify-content:center';
+    addBtn.onclick = () => showAddVersionModal();
+    addBtn.innerHTML = '<div style="font-size:28px;margin-bottom:6px;color:var(--text-tertiary)">+</div><div style="font-size:13px;font-weight:600;color:var(--text-tertiary)">添加版本</div>';
+    container.appendChild(addBtn);
+
+    const systemPasswordStatus = document.getElementById('system-password-status');
+    const systemPasswordBtn = document.getElementById('system-password-btn');
+    if (systemPasswordStatus) {
+        const hasPassword = !!localStorage.getItem('systemPassword');
+        systemPasswordStatus.textContent = hasPassword ? '已设置密码' : '尚未设置密码';
+        systemPasswordStatus.style.color = hasPassword ? '#10b981' : '#888';
+    }
+    if (systemPasswordBtn) {
+        const hasPassword = !!localStorage.getItem('systemPassword');
+        systemPasswordBtn.textContent = hasPassword ? '修改密码' : '设置密码';
+    }
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
+    // 初始化版本皮肤
+    applyVersionTheme(getCurrentVersionId());
+    renderVersionCheckboxes();
+    renderVersionSwitcher();
+
     // 初始化远程同步
     initRemoteSync(serverUrl, apiToken, syncEnabled);
     // 恢复实时同步开关状态
@@ -1011,7 +1314,179 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 });
 
-async function refreshAll() { await loadTags(); await loadQuestions(); await loadPapers(); }
+async function refreshAll() { await _migrateQuestionNotes(); await Promise.all([loadTags(), loadQuestions(), loadPapers(), loadTopics()]); }
+
+// ========== 版本管理 ==========
+let editingVersionId = null;
+let deletingVersionId = null;
+
+function showAddVersionModal() {
+    editingVersionId = null;
+    document.getElementById('version-modal-title').textContent = '添加版本';
+    document.getElementById('version-name-input').value = '';
+    document.getElementById('version-emoji-input').value = '';
+    document.getElementById('version-tagline-input').value = '';
+    document.getElementById('version-delete-btn').style.display = 'none';
+    document.getElementById('version-modal').classList.add('active');
+}
+
+function showEditVersionModal(versionId) {
+    const version = getAppVersionById(versionId);
+    if (!version) return;
+    editingVersionId = versionId;
+    document.getElementById('version-modal-title').textContent = '编辑版本';
+    document.getElementById('version-name-input').value = version.name;
+    document.getElementById('version-emoji-input').value = version.emoji;
+    document.getElementById('version-tagline-input').value = version.tagline || '';
+    document.getElementById('version-delete-btn').style.display = 'inline-block';
+    document.getElementById('version-modal').classList.add('active');
+}
+
+function closeVersionModal() {
+    document.getElementById('version-modal').classList.remove('active');
+    editingVersionId = null;
+}
+
+function saveVersion() {
+    const name = document.getElementById('version-name-input').value.trim();
+    const emoji = document.getElementById('version-emoji-input').value.trim();
+    const tagline = document.getElementById('version-tagline-input').value.trim();
+
+    if (!name) { showStatus('请输入版本名称', 'error'); return; }
+    if (!emoji) { showStatus('请选择版本图标', 'error'); return; }
+
+    const versions = getAppVersions();
+
+    if (editingVersionId) {
+        const idx = versions.findIndex(v => v.id === editingVersionId);
+        if (idx !== -1) {
+            versions[idx].name = name;
+            versions[idx].emoji = emoji;
+            versions[idx].tagline = tagline;
+        }
+    } else {
+        const id = 'custom_' + Date.now();
+        const hue = Math.floor(Math.random() * 360);
+        versions.push({
+            id,
+            name,
+            emoji,
+            tagline,
+            theme: {
+                primary: `hsl(${hue}, 70%, 45%)`,
+                primaryLight: `hsl(${hue}, 70%, 95%)`,
+                primaryDark: `hsl(${hue}, 70%, 30%)`,
+                accent: `hsl(${(hue + 180) % 360}, 70%, 45%)`,
+                accentLight: `hsl(${(hue + 180) % 360}, 70%, 95%)`,
+                headerGradStart: `hsl(${hue}, 70%, 45%)`,
+                headerGradEnd: `hsl(${hue + 20}, 60%, 50%)`,
+            }
+        });
+    }
+
+    saveAppVersions(versions);
+    closeVersionModal();
+    renderVersionSwitcher();
+    renderVersionCheckboxes();
+    renderVersionFilterTags();
+    showStatus(editingVersionId ? '版本已更新' : '版本已添加', 'success');
+}
+
+function deleteVersion() {
+    if (!editingVersionId) return;
+    const systemPassword = localStorage.getItem('systemPassword');
+    if (!systemPassword) {
+        showStatus('请先在设置中设置系统密码', 'error');
+        return;
+    }
+    deletingVersionId = editingVersionId;
+    document.getElementById('version-delete-password').value = '';
+    document.getElementById('version-delete-error').style.display = 'none';
+    document.getElementById('version-delete-modal').classList.add('active');
+}
+
+function closeVersionDeleteModal() {
+    document.getElementById('version-delete-modal').classList.remove('active');
+    deletingVersionId = null;
+}
+
+async function confirmDeleteVersion() {
+    if (!deletingVersionId) return;
+    const password = document.getElementById('version-delete-password').value;
+    const systemPassword = localStorage.getItem('systemPassword');
+
+    if (password !== systemPassword) {
+        document.getElementById('version-delete-error').textContent = '密码错误';
+        document.getElementById('version-delete-error').style.display = 'block';
+        return;
+    }
+
+    const versions = getAppVersions().filter(v => v.id !== deletingVersionId);
+    saveAppVersions(versions);
+
+    await dbRemoveVersionFromAllQuestions(deletingVersionId);
+
+    if (getCurrentVersionId() === deletingVersionId) {
+        localStorage.setItem('appVersion', versions[0]?.id || DEFAULT_VERSION_ID);
+        applyVersionTheme(getCurrentVersionId());
+    }
+
+    closeVersionDeleteModal();
+    closeVersionModal();
+    renderVersionSwitcher();
+    renderVersionCheckboxes();
+    renderVersionFilterTags();
+    await loadQuestions();
+    showStatus('版本已删除', 'success');
+}
+
+// 系统密码管理
+function showSystemPasswordModal() {
+    const hasPassword = !!localStorage.getItem('systemPassword');
+    document.getElementById('system-password-label').textContent = hasPassword ? '修改密码' : '设置密码';
+    document.getElementById('system-password-confirm-group').style.display = hasPassword ? 'none' : 'block';
+    document.getElementById('system-password-input').value = '';
+    document.getElementById('system-password-confirm').value = '';
+    document.getElementById('system-password-error').style.display = 'none';
+    document.getElementById('system-password-modal').classList.add('active');
+}
+
+function closeSystemPasswordModal() {
+    document.getElementById('system-password-modal').classList.remove('active');
+}
+
+function saveSystemPassword() {
+    const hasPassword = !!localStorage.getItem('systemPassword');
+    const password = document.getElementById('system-password-input').value;
+    const confirm = document.getElementById('system-password-confirm').value;
+
+    if (!password) {
+        document.getElementById('system-password-error').textContent = '请输入密码';
+        document.getElementById('system-password-error').style.display = 'block';
+        return;
+    }
+
+    if (!hasPassword && password !== confirm) {
+        document.getElementById('system-password-error').textContent = '两次输入的密码不一致';
+        document.getElementById('system-password-error').style.display = 'block';
+        return;
+    }
+
+    localStorage.setItem('systemPassword', password);
+    closeSystemPasswordModal();
+    showStatus(hasPassword ? '密码已修改' : '密码已设置', 'success');
+}
+
+function renderVersionFilterTags() {
+    const versions = getAppVersions();
+    const currentId = getCurrentVersionId();
+    const currentVersion = getAppVersionById(currentId);
+
+    const statusEl = document.getElementById('user-status');
+    if (statusEl && currentVersion) {
+        statusEl.textContent = currentVersion.tagline || '数据存储在本地，无需联网';
+    }
+}
 
 function showTab(tabName, btn) {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -1404,6 +1879,35 @@ function mergeImagesVertically(dataUrl1, dataUrl2) {
 function selectLayout(el, val) {
     document.querySelectorAll('.layout-option').forEach(l => { l.style.borderColor = '#e5e7eb'; l.style.background = '#fff'; });
     el.style.borderColor = '#3B82F6'; el.style.background = '#3B82F610';
+}
+
+// ========== 版本勾选 ==========
+function renderVersionCheckboxes() {
+    const container = document.getElementById('version-checkboxes');
+    if (!container) return;
+    const versions = getAppVersions();
+    container.innerHTML = '';
+    versions.forEach(v => {
+        const label = document.createElement('label');
+        label.style.cssText = `display:flex;align-items:center;gap:6px;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-md);cursor:pointer;font-size:13px;font-weight:500;transition:all .2s;background:var(--surface)`;
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.name = 'question_versions';
+        cb.value = v.id;
+        cb.style.cssText = 'accent-color:' + v.theme.primary;
+        const span = document.createElement('span');
+        span.textContent = v.emoji + ' ' + v.name;
+        label.append(cb, span);
+        container.appendChild(label);
+    });
+}
+
+function getSelectedVersions() {
+    return Array.from(document.querySelectorAll('input[name="question_versions"]:checked')).map(cb => cb.value);
+}
+
+function resetVersionCheckboxes() {
+    document.querySelectorAll('input[name="question_versions"]').forEach(cb => { cb.checked = false; });
 }
 
 // ========== 裁剪 ==========
@@ -1940,28 +2444,57 @@ document.getElementById("question-form").addEventListener("submit", async (e) =>
     e.preventDefault();
     const qi = croppedImages.question, ai = croppedImages.answer, bi = croppedImages.blank;
     const tags = Array.from(document.getElementById("tag-select").selectedOptions).map(o => o.value);
+    const versions = getSelectedVersions();
     if (!qi) { showStatus("请先选择题目图片", "error"); return; }
     const lr = document.querySelector('input[name="layout_type"]:checked');
     const lt = lr ? parseInt(lr.value) : 0;
     try {
         const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = "处理中...";
-        const newQuestion = await dbCreateQuestion(qi, ai, tags, lt, bi);
+        const newQuestion = await dbCreateQuestion(qi, ai, tags, lt, bi, versions);
+
+        // 创建主版本笔记
+        await dbAddQuestionNote(newQuestion.id, qi, "笔记 v1", "");
+
+        // 创建额外版本笔记
+        let noteIdx = 2;
+        for (const ev of extraNoteVersions) {
+            if (ev.image) {
+                const labelInput = document.getElementById("extra_" + ev.idx + "-label");
+                const label = (labelInput ? labelInput.value.trim() : "") || "笔记 v" + noteIdx;
+                await dbAddQuestionNote(newQuestion.id, ev.image, label, "");
+                noteIdx++;
+            }
+        }
+        extraNoteVersions = [];
+        extraNoteVersionCounter = 0;
+        document.getElementById("extra-note-versions").innerHTML = "";
+
         removeImage("question"); removeImage("answer"); removeImage("blank");
         document.getElementById("tag-select").selectedIndex = -1;
         document.querySelectorAll('.layout-option').forEach(l => { l.style.borderColor = '#e5e7eb'; l.style.background = '#fff'; });
+        resetVersionCheckboxes();
         await loadQuestions(); showStatus("题目添加成功", "success");
         btn.disabled = false; btn.textContent = "添加题目";
     } catch (err) { showStatus("添加失败: " + err.message, "error"); e.target.querySelector('button[type="submit"]').disabled = false; e.target.querySelector('button[type="submit"]').textContent = "添加题目"; }
 });
 async function loadQuestions() { allQuestions = await dbGetAllQuestions(); renderQuestions(); }
 function getFilteredQuestions() {
-    if (!activeFilterTags.length) return [...allQuestions];
-    return allQuestions.filter(q => { const qt = q.question_tags.map(t => t.tags.id); return activeFilterTags.some(f => qt.includes(f)); });
+    const currentVersionId = getCurrentVersionId();
+    let filtered = allQuestions.filter(q => {
+        const versions = q.versions || [];
+        return versions.length === 0 || versions.includes(currentVersionId);
+    });
+    if (activeFilterTags.length) {
+        filtered = filtered.filter(q => { const qt = q.question_tags.map(t => t.tags.id); return activeFilterTags.some(f => qt.includes(f)); });
+    }
+    return filtered;
 }
 function renderQuestions() {
     const container = document.getElementById("questions-list");
     const filtered = getFilteredQuestions();
-    document.getElementById("question-count").textContent = activeFilterTags.length ? `(筛选: ${filtered.length}/${allQuestions.length})` : `(${allQuestions.length})`;
+    const currentVersionId = getCurrentVersionId();
+    const currentVersion = getAppVersionById(currentVersionId);
+    document.getElementById("question-count").textContent = activeFilterTags.length ? `(筛选: ${filtered.length}/${allQuestions.length})` : `(${filtered.length}/${allQuestions.length})`;
     updateSelectedCount();
     if (!filtered.length) { container.innerHTML = '<div class="empty-state"><div class="icon">📝</div>暂无题目</div>'; return; }
     container.replaceChildren();
@@ -1980,6 +2513,28 @@ function renderQuestions() {
         img.onclick = () => showQuestionDetail(q.id); card.appendChild(img);
         // info
         const info = document.createElement("div"); info.className = "info"; info.onclick = () => showQuestionDetail(q.id);
+
+        // 版本标签
+        const versions = q.versions || [];
+        if (versions.length === 0) {
+            const unassigned = document.createElement("span");
+            unassigned.style.cssText = 'display:inline-block;padding:2px 8px;background:var(--surface-dim);border:1px dashed var(--border);border-radius:10px;font-size:10px;color:var(--text-tertiary);margin-bottom:6px';
+            unassigned.textContent = '未分配';
+            info.appendChild(unassigned);
+        } else {
+            const versionWrap = document.createElement("div");
+            versionWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px';
+            versions.forEach(vid => {
+                const v = getAppVersionById(vid);
+                if (v) {
+                    const badge = document.createElement("span");
+                    badge.style.cssText = `display:inline-block;padding:2px 8px;background:${v.theme.primaryLight};color:${v.theme.primary};border-radius:10px;font-size:10px;font-weight:600`;
+                    badge.textContent = v.emoji + ' ' + v.name;
+                    versionWrap.appendChild(badge);
+                }
+            });
+            info.appendChild(versionWrap);
+        }
 
         // AI 摘要展示
         if (q.semantic_summary) {
@@ -2029,6 +2584,294 @@ function updateSelectedCount() {
     else el.style.display = "none";
 }
 
+// ========== 笔记版本管理 ==========
+let currentNoteVersions = [];
+let currentNoteVersionId = null;
+let addNoteVersionImage = null;
+let extraNoteVersions = [];
+let extraNoteVersionCounter = 0;
+
+async function loadNoteVersionsForDetail(questionId) {
+    currentNoteVersions = await dbGetQuestionNotes(questionId);
+    const select = document.getElementById("modal-note-version-select");
+    const bar = document.getElementById("modal-note-version-bar");
+    const imgDiv = document.getElementById("modal-question-image");
+    const textDiv = document.getElementById("modal-question-text-note");
+
+    if (currentNoteVersions.length === 0) {
+        // 迁移：使用旧的 question_image_url
+        const q = allQuestions.find(q => q.id === questionId);
+        if (q && q.question_image_url) {
+            const note = await dbAddQuestionNote(questionId, q.question_image_url, '笔记 v1', '');
+            currentNoteVersions = [note];
+        }
+    }
+
+    if (currentNoteVersions.length === 0) {
+        bar.style.display = "none";
+        imgDiv.innerHTML = '<p style="color:var(--text-tertiary);text-align:center;padding:20px">暂无题目图片</p>';
+        textDiv.style.display = "none";
+        return;
+    }
+
+    bar.style.display = "flex";
+    select.innerHTML = "";
+    currentNoteVersions.forEach(n => {
+        const opt = document.createElement("option");
+        opt.value = n.id;
+        opt.textContent = n.label || "笔记";
+        select.appendChild(opt);
+    });
+
+    // 恢复上次查看的版本
+    const lastId = dbGetLastViewedNote(questionId);
+    const lastNote = currentNoteVersions.find(n => n.id === lastId);
+    if (lastNote) {
+        select.value = lastId;
+    }
+
+    displayCurrentNoteVersion();
+}
+
+async function displayCurrentNoteVersion() {
+    const select = document.getElementById("modal-note-version-select");
+    const noteId = select.value;
+    const note = currentNoteVersions.find(n => n.id === noteId);
+    if (!note) return;
+
+    currentNoteVersionId = noteId;
+    dbSetLastViewedNote(currentQuestionId, noteId);
+
+    const imgDiv = document.getElementById("modal-question-image");
+    imgDiv.innerHTML = '<img src="' + note.note_image_url + '" style="max-width:100%;border-radius:8px">';
+
+    const textarea = document.getElementById("modal-question-text-note");
+    textarea.value = note.text_note || "";
+}
+
+function saveTextNote() {
+    if (!currentNoteVersionId) return;
+    const textarea = document.getElementById("modal-question-text-note");
+    const text = textarea.value;
+    dbUpdateQuestionNote(currentNoteVersionId, { text_note: text });
+    const note = currentNoteVersions.find(n => n.id === currentNoteVersionId);
+    if (note) note.text_note = text;
+    showStatus("笔记已保存", "success");
+}
+
+function switchNoteVersion(noteId) {
+    displayCurrentNoteVersion();
+}
+
+function showAddNoteVersionModal() {
+    addNoteVersionImage = null;
+    document.getElementById("note-version-label").value = "";
+    document.getElementById("note-version-text").value = "";
+    document.getElementById("note-version-preview-wrap").style.display = "none";
+    document.getElementById("add-note-version-modal").classList.add("active");
+}
+
+function closeAddNoteVersionModal() {
+    document.getElementById("add-note-version-modal").classList.remove("active");
+    addNoteVersionImage = null;
+}
+
+function takePhotoForNoteVersion(target) {
+    if (isNative && Camera) {
+        Camera.getPhoto({ quality: 85, allowEditing: false, resultType: 'dataUrl', source: 'CAMERA', direction: 'REAR' })
+            .then(photo => {
+                addNoteVersionImage = photo.dataUrl;
+                document.getElementById("note-version-preview").src = photo.dataUrl;
+                document.getElementById("note-version-preview-wrap").style.display = "inline-block";
+            })
+            .catch(e => { if (e.message !== 'User cancelled photos app') showStatus("拍照失败: " + e.message, "error"); });
+    } else {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*'; input.setAttribute('capture', 'environment');
+        input.onchange = (e) => {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    addNoteVersionImage = ev.target.result;
+                    document.getElementById("note-version-preview").src = ev.target.result;
+                    document.getElementById("note-version-preview-wrap").style.display = "inline-block";
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        };
+        input.click();
+    }
+}
+
+function pickFromGalleryForNoteVersion(target) {
+    if (isNative && Camera) {
+        Camera.getPhoto({ quality: 85, allowEditing: false, resultType: 'dataUrl', source: 'PHOTOS' })
+            .then(photo => {
+                addNoteVersionImage = photo.dataUrl;
+                document.getElementById("note-version-preview").src = photo.dataUrl;
+                document.getElementById("note-version-preview-wrap").style.display = "inline-block";
+            })
+            .catch(e => { if (e.message !== 'User cancelled photos app') showStatus("选择图片失败: " + e.message, "error"); });
+    } else {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*';
+        input.onchange = (e) => {
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    addNoteVersionImage = ev.target.result;
+                    document.getElementById("note-version-preview").src = ev.target.result;
+                    document.getElementById("note-version-preview-wrap").style.display = "inline-block";
+                };
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        };
+        input.click();
+    }
+}
+
+function removeNoteVersionImage() {
+    addNoteVersionImage = null;
+    document.getElementById("note-version-preview-wrap").style.display = "none";
+}
+
+async function confirmAddNoteVersion() {
+    if (!currentQuestionId) return;
+    if (!addNoteVersionImage) { showStatus("请先选择题目图片", "error"); return; }
+    const label = document.getElementById("note-version-label").value.trim() || "笔记 " + (currentNoteVersions.length + 1);
+    const textNote = document.getElementById("note-version-text").value.trim();
+    const note = await dbAddQuestionNote(currentQuestionId, addNoteVersionImage, label, textNote);
+    closeAddNoteVersionModal();
+    await loadNoteVersionsForDetail(currentQuestionId);
+    // 切换到新添加的版本
+    document.getElementById("modal-note-version-select").value = note.id;
+    displayCurrentNoteVersion();
+    showStatus("笔记版本已添加", "success");
+}
+
+// ========== 创建时额外版本管理 ==========
+function addExtraNoteVersion() {
+    extraNoteVersionCounter++;
+    const idx = extraNoteVersionCounter;
+    const container = document.getElementById("extra-note-versions");
+    const div = document.createElement("div");
+    div.style.cssText = "margin-top:10px;padding:10px;border:1px dashed var(--border);border-radius:var(--radius-md)";
+    div.id = "extra-note-" + idx;
+    div.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+            <span style="font-size:12px;color:var(--text-secondary);font-weight:600">版本 ${idx + 1}</span>
+            <button type="button" onclick="removeExtraNoteVersion(${idx})" style="padding:2px 8px;font-size:11px;background:var(--danger);color:#fff;border:none;border-radius:4px;cursor:pointer">删除</button>
+        </div>
+        <div class="upload-buttons">
+            <button type="button" class="upload-btn camera" onclick="takePhoto('extra_${idx}')" style="font-size:12px;padding:10px">📷 拍照</button>
+            <button type="button" class="upload-btn" onclick="pickFromGallery('extra_${idx}')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 2px 0 var(--border);font-size:12px;padding:10px">🖼️ 相册</button>
+        </div>
+        <div class="preview-wrap" id="extra_${idx}-preview-wrap" style="display:none">
+            <span class="preview-delete" onclick="removeExtraImage(${idx})">×</span>
+            <img id="extra_${idx}-preview" class="preview-image" />
+        </div>
+        <input type="text" id="extra_${idx}-label" placeholder="版本名称（可选）" style="width:100%;margin-top:6px;padding:6px 10px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
+    `;
+    container.appendChild(div);
+    extraNoteVersions.push({ idx, image: null });
+}
+
+function removeExtraNoteVersion(idx) {
+    const div = document.getElementById("extra-note-" + idx);
+    if (div) div.remove();
+    extraNoteVersions = extraNoteVersions.filter(v => v.idx !== idx);
+}
+
+function removeExtraImage(idx) {
+    const ev = extraNoteVersions.find(v => v.idx === idx);
+    if (ev) ev.image = null;
+    document.getElementById("extra_" + idx + "-preview-wrap").style.display = "none";
+}
+
+// 扩展 takePhoto 和 pickFromGallery 支持 extra_ 前缀
+const _origTakePhoto = takePhoto;
+const _origPickFromGallery = pickFromGallery;
+const _origCrossPageShoot = crossPageShoot;
+const _origPickFromFloating = pickFromFloating;
+
+function takePhoto(target) {
+    if (target.startsWith("extra_")) {
+        const idx = parseInt(target.split("_")[1]);
+        if (isNative && Camera) {
+            Camera.getPhoto({ quality: 85, allowEditing: false, resultType: 'dataUrl', source: 'CAMERA', direction: 'REAR' })
+                .then(photo => {
+                    const ev = extraNoteVersions.find(v => v.idx === idx);
+                    if (ev) ev.image = photo.dataUrl;
+                    document.getElementById("extra_" + idx + "-preview").src = photo.dataUrl;
+                    document.getElementById("extra_" + idx + "-preview-wrap").style.display = "inline-block";
+                })
+                .catch(e => { if (e.message !== 'User cancelled photos app') showStatus("拍照失败: " + e.message, "error"); });
+        } else {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = 'image/*'; input.setAttribute('capture', 'environment');
+            input.onchange = (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const evObj = extraNoteVersions.find(v => v.idx === idx);
+                        if (evObj) evObj.image = ev.target.result;
+                        document.getElementById("extra_" + idx + "-preview").src = ev.target.result;
+                        document.getElementById("extra_" + idx + "-preview-wrap").style.display = "inline-block";
+                    };
+                    reader.readAsDataURL(e.target.files[0]);
+                }
+            };
+            input.click();
+        }
+        return;
+    }
+    _origTakePhoto(target);
+}
+
+function pickFromGallery(target) {
+    if (target.startsWith("extra_")) {
+        const idx = parseInt(target.split("_")[1]);
+        if (isNative && Camera) {
+            Camera.getPhoto({ quality: 85, allowEditing: false, resultType: 'dataUrl', source: 'PHOTOS' })
+                .then(photo => {
+                    const ev = extraNoteVersions.find(v => v.idx === idx);
+                    if (ev) ev.image = photo.dataUrl;
+                    document.getElementById("extra_" + idx + "-preview").src = photo.dataUrl;
+                    document.getElementById("extra_" + idx + "-preview-wrap").style.display = "inline-block";
+                })
+                .catch(e => { if (e.message !== 'User cancelled photos app') showStatus("选择图片失败: " + e.message, "error"); });
+        } else {
+            const input = document.createElement('input');
+            input.type = 'file'; input.accept = 'image/*';
+            input.onchange = (e) => {
+                if (e.target.files && e.target.files[0]) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const evObj = extraNoteVersions.find(v => v.idx === idx);
+                        if (evObj) evObj.image = ev.target.result;
+                        document.getElementById("extra_" + idx + "-preview").src = ev.target.result;
+                        document.getElementById("extra_" + idx + "-preview-wrap").style.display = "inline-block";
+                    };
+                    reader.readAsDataURL(e.target.files[0]);
+                }
+            };
+            input.click();
+        }
+        return;
+    }
+    _origPickFromGallery(target);
+}
+
+function crossPageShoot(target) {
+    if (target.startsWith("extra_")) { showStatus("跨页拍摄暂不支持额外版本", "error"); return; }
+    _origCrossPageShoot(target);
+}
+
+function pickFromFloating(target) {
+    if (target.startsWith("extra_")) { showStatus("悬浮窗暂不支持额外版本", "error"); return; }
+    _origPickFromFloating(target);
+}
+
 // ========== 详情弹窗 + 前后切换 ==========
 function showQuestionDetail(qId) {
     currentQuestionId = qId;
@@ -2039,10 +2882,24 @@ function showQuestionDetail(qId) {
     updatePendingLinkBtnStyle(qId);
 }
 function renderDetailContent(q) {
-    document.getElementById("modal-question-image").innerHTML = '<h3>题目</h3><img src="' + q.question_image_url + '" style="max-width:100%;border-radius:8px">';
+    // 加载笔记版本
+    loadNoteVersionsForDetail(q.id);
+
     document.getElementById("modal-answer-image").innerHTML = q.answer_image_url ? '<h3 style="margin-top:12px">答案</h3><img src="' + q.answer_image_url + '" style="max-width:100%;border-radius:8px">' : '<p style="color:#999;margin-top:12px">无答案图片</p>';
     const tags = q.question_tags.map(qt => qt.tags);
     document.getElementById("modal-tags").innerHTML = tags.length ? '<h3 style="margin-top:12px">标签（点击移除）</h3><div class="tag-container">' + tags.map(t => '<span class="tag" style="background:' + t.color + '20;border:1px solid ' + t.color + ';cursor:pointer" onclick="removeTagFromQuestion(\'' + t.id + '\')">' + t.name + ' ✕</span>').join("") + '</div>' : '';
+
+    // 版本归属编辑
+    const versions = q.versions || [];
+    const allVersions = getAppVersions();
+    let versionHtml = '<h3 style="margin-top:12px">适用版本</h3><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">';
+    allVersions.forEach(v => {
+        const checked = versions.includes(v.id);
+        versionHtml += `<label style="display:flex;align-items:center;gap:4px;padding:6px 10px;border:1.5px solid ${checked ? v.theme.primary : 'var(--border)'};border-radius:var(--radius-md);cursor:pointer;font-size:12px;background:${checked ? v.theme.primaryLight : 'var(--surface)'}"><input type="checkbox" onchange="toggleQuestionVersion('${q.id}','${v.id}',this.checked)" ${checked ? 'checked' : ''} style="accent-color:${v.theme.primary}"><span>${v.emoji} ${v.name}</span></label>`;
+    });
+    versionHtml += '</div><small style="color:#888;font-size:11px">不勾选则所有版本均可见</small>';
+    document.getElementById("modal-tags").innerHTML += versionHtml;
+
     renderSimilarQuestions(q.id);
     // AI 摘要
     const aiDiv = document.getElementById("modal-ai-summary");
@@ -2061,6 +2918,21 @@ function renderDetailContent(q) {
     document.getElementById("btn-next").disabled = detailIndex >= filteredList.length - 1; document.getElementById("btn-next").style.opacity = detailIndex >= filteredList.length - 1 ? 0.4 : 1;
     updateDetailBasketBtn(q.id);
 }
+
+async function toggleQuestionVersion(questionId, versionId, checked) {
+    const q = await dbQuestions.getItem(questionId);
+    if (!q) return;
+    let versions = q.versions || [];
+    if (checked) {
+        if (!versions.includes(versionId)) versions.push(versionId);
+    } else {
+        versions = versions.filter(v => v !== versionId);
+    }
+    await dbUpdateQuestionVersions(questionId, versions);
+    await loadQuestions();
+    showStatus('版本归属已更新', 'success');
+}
+
 function updateDetailBasketBtn(qId) {
     const btn = document.getElementById("detail-basket-btn");
     if (questionBasket.has(qId)) { btn.textContent = "✓"; btn.style.background = "#3B82F6"; btn.style.color = "#fff"; }
@@ -2732,6 +3604,161 @@ async function doExportImages() {
     const folderNames = tasks.length > 1 ? `${folderName}/ 和 ${folderName}-空白/` : `${folderName}/`;
     document.getElementById("export-images-summary").textContent = `✅ 已导出 ${taskLabels} 到 ${folderNames}`;
     setTimeout(() => closeExportImagesModal(), 2000);
+}
+
+// ========== 专题管理 ==========
+let currentTopicId = null;
+
+function renderTopicQuestionPicker() {
+    const container = document.getElementById("topic-question-picker");
+    if (!container) return;
+    const currentVersionId = getCurrentVersionId();
+    const filtered = allQuestions.filter(q => {
+        const versions = q.versions || [];
+        return versions.length === 0 || versions.includes(currentVersionId);
+    });
+    container.innerHTML = '';
+    if (!filtered.length) {
+        container.innerHTML = '<div style="text-align:center;color:var(--text-tertiary);padding:16px">暂无题目</div>';
+        return;
+    }
+    filtered.forEach(q => {
+        const label = document.createElement("label");
+        label.style.cssText = "display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border-light);cursor:pointer";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.name = "topic_questions";
+        cb.value = q.id;
+        cb.style.cssText = "accent-color:var(--primary)";
+        const img = document.createElement("img");
+        img.src = q.question_image_url;
+        img.style.cssText = "width:40px;height:40px;object-fit:contain;border-radius:4px;background:var(--surface-dim)";
+        const info = document.createElement("div");
+        info.style.cssText = "flex:1;font-size:13px;color:var(--text)";
+        info.textContent = q.semantic_summary || q.user_comment || q.question_tags.map(qt => qt.tags.name).join("、") || "题目 " + q.id.substring(0, 8);
+        label.append(cb, img, info);
+        container.appendChild(label);
+    });
+}
+
+function getSelectedTopicQuestions() {
+    return Array.from(document.querySelectorAll('input[name="topic_questions"]:checked')).map(cb => cb.value);
+}
+
+document.getElementById("topic-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const name = document.getElementById("topic-name").value.trim();
+    const desc = document.getElementById("topic-desc").value.trim();
+    if (!name) return;
+    const questionIds = getSelectedTopicQuestions();
+    await dbCreateTopic(name, desc, questionIds);
+    document.getElementById("topic-form").reset();
+    await loadTopics();
+    showStatus("专题创建成功", "success");
+});
+
+async function loadTopics() {
+    const topics = await dbGetAllTopics();
+    const c = document.getElementById("topics-list");
+    if (!topics.length) { c.innerHTML = '<div class="empty-state"><div class="icon">📚</div>暂无专题</div>'; return; }
+    c.replaceChildren();
+    topics.forEach(t => {
+        const card = document.createElement("div");
+        card.className = "paper-card";
+        const title = document.createElement("h3");
+        title.textContent = t.name;
+        const desc = document.createElement("p");
+        desc.textContent = t.description || "暂无描述";
+        desc.style.cssText = "color:var(--text-secondary);font-size:13px";
+        const count = document.createElement("p");
+        count.textContent = (t.question_count || 0) + " 题 · 创建于 " + new Date(t.created_at).toLocaleDateString();
+        count.style.cssText = "color:var(--text-tertiary);font-size:12px";
+        const bg = document.createElement("div");
+        bg.className = "btn-group";
+        bg.style.marginTop = "10px";
+        const vw = document.createElement("button");
+        vw.textContent = "查看";
+        vw.onclick = () => showTopicDetail(t.id);
+        const dl = document.createElement("button");
+        dl.className = "secondary";
+        dl.textContent = "导出 PDF";
+        dl.onclick = () => exportTopicPDFForId(t.id);
+        const del = document.createElement("button");
+        del.className = "danger";
+        del.textContent = "删除";
+        del.onclick = async () => { if (!confirm("确定删除专题？")) return; await dbDeleteTopic(t.id); await loadTopics(); };
+        bg.append(vw, dl, del);
+        card.append(title, desc, count, bg);
+        c.appendChild(card);
+    });
+}
+
+async function showTopicDetail(topicId) {
+    currentTopicId = topicId;
+    const { topic, questions } = await dbGetTopicQuestions(topicId);
+    if (!topic) return;
+    document.getElementById("topic-detail-title").textContent = topic.name;
+    document.getElementById("topic-detail-desc").textContent = topic.description || "";
+    const c = document.getElementById("topic-detail-questions");
+    if (!questions.length) {
+        c.innerHTML = '<p style="color:var(--text-tertiary);text-align:center;padding:20px">该专题暂无题目</p>';
+    } else {
+        c.replaceChildren();
+        questions.forEach((q, i) => {
+            const d = document.createElement("div");
+            d.style.cssText = "margin-bottom:16px;padding:12px;background:var(--surface-dim);border-radius:var(--radius-md)";
+            const header = document.createElement("div");
+            header.style.cssText = "font-weight:600;margin-bottom:8px;font-size:14px";
+            header.textContent = "第" + (i + 1) + "题";
+            const img = document.createElement("img");
+            img.src = q.question_image_url;
+            img.style.cssText = "max-width:100%;border-radius:6px;margin-bottom:8px";
+            const commentLabel = document.createElement("div");
+            commentLabel.style.cssText = "font-size:12px;color:var(--text-secondary);margin-bottom:4px;font-weight:600";
+            commentLabel.textContent = "📝 教师评价";
+            const textarea = document.createElement("textarea");
+            textarea.value = q.teacher_comment || "";
+            textarea.placeholder = "输入教师对这道题在本专题中的评价...";
+            textarea.rows = 2;
+            textarea.style.cssText = "width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;resize:none;margin-bottom:6px";
+            const saveBtn = document.createElement("button");
+            saveBtn.textContent = "保存评价";
+            saveBtn.style.cssText = "padding:6px 14px;font-size:12px";
+            saveBtn.onclick = async () => {
+                await dbUpdateTopicQuestionComment(topicId, q.id, textarea.value);
+                showStatus("评价已保存", "success");
+            };
+            d.append(header, img, commentLabel, textarea, saveBtn);
+            c.appendChild(d);
+        });
+    }
+    document.getElementById("topic-detail-modal").classList.add("active");
+}
+
+function closeTopicDetailModal() {
+    document.getElementById("topic-detail-modal").classList.remove("active");
+    currentTopicId = null;
+}
+
+async function exportTopicPDF() {
+    if (!currentTopicId) return;
+    await exportTopicPDFForId(currentTopicId);
+}
+
+async function exportTopicPDFForId(topicId) {
+    const { topic, questions } = await dbGetTopicQuestions(topicId);
+    if (!topic || !questions.length) { showStatus("专题暂无题目", "error"); return; }
+    await generatePDF(questions, { mode: 'merged', title: topic.name });
+    showStatus("PDF 已生成", "success");
+}
+
+async function deleteTopic() {
+    if (!currentTopicId) return;
+    if (!confirm("确定删除这个专题？")) return;
+    await dbDeleteTopic(currentTopicId);
+    closeTopicDetailModal();
+    await loadTopics();
+    showStatus("专题已删除", "success");
 }
 
 // ========== AI 智能组卷逻辑 ==========
@@ -3951,6 +4978,18 @@ const _origCreatePaper = dbCreatePaper;
 dbCreatePaper = async function(...args) { const r = await _origCreatePaper(...args); doAutoBackup(); return r; };
 const _origDeletePaper = dbDeletePaper;
 dbDeletePaper = async function(...args) { const r = await _origDeletePaper(...args); doAutoBackup(); return r; };
+const _origCreateTopic = dbCreateTopic;
+dbCreateTopic = async function(...args) { const r = await _origCreateTopic(...args); doAutoBackup(); return r; };
+const _origDeleteTopic = dbDeleteTopic;
+dbDeleteTopic = async function(...args) { const r = await _origDeleteTopic(...args); doAutoBackup(); return r; };
+const _origUpdateTopicQuestionComment = dbUpdateTopicQuestionComment;
+dbUpdateTopicQuestionComment = async function(...args) { const r = await _origUpdateTopicQuestionComment(...args); doAutoBackup(); return r; };
+const _origAddQuestionNote = dbAddQuestionNote;
+dbAddQuestionNote = async function(...args) { const r = await _origAddQuestionNote(...args); doAutoBackup(); return r; };
+const _origUpdateQuestionNote = dbUpdateQuestionNote;
+dbUpdateQuestionNote = async function(...args) { const r = await _origUpdateQuestionNote(...args); doAutoBackup(); return r; };
+const _origDeleteQuestionNote = dbDeleteQuestionNote;
+dbDeleteQuestionNote = async function(...args) { const r = await _origDeleteQuestionNote(...args); doAutoBackup(); return r; };
 
 // 初始化时加载自动备份设置
 autoBackupEnabled = localStorage.getItem('autoBackup') === '1';

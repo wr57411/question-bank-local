@@ -9,6 +9,9 @@ const dbQuestionTags = localforage.createInstance({ name: 'questionBank', storeN
 const dbPapers = localforage.createInstance({ name: 'questionBank', storeName: 'papers' });
 const dbPaperQuestions = localforage.createInstance({ name: 'questionBank', storeName: 'paper_questions' });
 const dbSimilarQuestionLinks = localforage.createInstance({ name: 'questionBank', storeName: 'similar_question_links' });
+const dbTopics = localforage.createInstance({ name: 'questionBank', storeName: 'topics' });
+const dbTopicQuestions = localforage.createInstance({ name: 'questionBank', storeName: 'topic_questions' });
+const dbQuestionNotes = localforage.createInstance({ name: 'questionBank', storeName: 'question_notes' });
 
 function generateId() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -44,7 +47,16 @@ function compressImage(input, maxWidth = 800, quality = 0.7) {
 
 // ========== 辅助：构建标签索引 ==========
 
+let _tagIndexCache = null;
+let _tagIndexDirty = true;
+
+function _invalidateTagIndex() {
+  _tagIndexDirty = true;
+}
+
 async function _buildTagIndex() {
+  if (_tagIndexCache && !_tagIndexDirty) return _tagIndexCache;
+  
   const tagsById = new Map();
   const updates = [];
   await dbTags.iterate((tag, key) => {
@@ -63,7 +75,9 @@ async function _buildTagIndex() {
     qtByQuestionId.get(qt.question_id).push({ tags: tag });
   });
 
-  return qtByQuestionId;
+  _tagIndexCache = qtByQuestionId;
+  _tagIndexDirty = false;
+  return _tagIndexCache;
 }
 
 // ========== 远程同步 ==========
@@ -164,6 +178,8 @@ function _normalizeQuestionRecord(question, key) {
   if (!next.semantic_summary) next.semantic_summary = "";
   if (!next.ai_metadata) next.ai_metadata = {};
   if (!next.user_comment) next.user_comment = "";
+  // 版本归属字段
+  if (!next.versions) next.versions = [];
 
   return next;
 }
@@ -215,7 +231,22 @@ function _normalizePaperRecord(paper, key) {
 
 function _needsNormalization(original, normalized) {
   if (!original || !normalized) return false;
-  return JSON.stringify(original) !== JSON.stringify(normalized);
+  if (original === normalized) return false;
+  return (
+    original.id !== normalized.id ||
+    original.name !== normalized.name ||
+    original.title !== normalized.title ||
+    original.color !== normalized.color ||
+    original.question_image_url !== normalized.question_image_url ||
+    original.answer_image_url !== normalized.answer_image_url ||
+    original.question_image_blank_url !== normalized.question_image_blank_url ||
+    original.layoutType !== normalized.layoutType ||
+    original.layout_type !== normalized.layout_type ||
+    original.createdAt !== normalized.created_at ||
+    original.updatedAt !== normalized.updated_at ||
+    original.deletedAt !== normalized.deleted_at ||
+    original.purgedAt !== normalized.purged_at
+  );
 }
 
 function initRemoteSync(serverUrl, apiToken, syncEnabled) {
@@ -294,6 +325,7 @@ async function dbCreateTag(name, color) {
     deleted_at: null
   };
   await dbTags.setItem(id, tag);
+  _invalidateTagIndex();
   return tag;
 }
 
@@ -306,6 +338,7 @@ async function dbDeleteTag(tagId) {
     deleted_at: now,
     updated_at: now
   });
+  _invalidateTagIndex();
 }
 
 // ========== 题目 CRUD ==========
@@ -340,7 +373,7 @@ async function dbGetTrashedQuestions() {
   return questions.sort((a, b) => new Date(b.deleted_at) - new Date(a.deleted_at));
 }
 
-async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layoutType, blankFile) {
+async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layoutType, blankFile, versions) {
   const id = generateId();
   const qImg = await compressImage(questionFile);
   let aImg = null;
@@ -363,6 +396,7 @@ async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layout
     answer_image_url: _normalizeServerAssetUrl(aImgUrl),
     question_image_blank_url: _normalizeServerAssetUrl(bImgUrl),
     layout_type: layoutType || 0,
+    versions: versions || [],
     created_at: now,
     updated_at: now,
     deleted_at: null,
@@ -377,6 +411,7 @@ async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layout
   for (const tagId of selectedTagIds) {
     await dbQuestionTags.setItem(`${id}_${tagId}`, { question_id: id, tag_id: tagId });
   }
+  _invalidateTagIndex();
   return question;
 }
 
@@ -419,6 +454,7 @@ async function dbSoftDeleteQuestion(questionId) {
   if (!q) return;
   const now = _nowIso();
   await dbQuestions.setItem(questionId, { ...q, deleted_at: now, updated_at: now });
+  _invalidateTagIndex();
 }
 
 async function dbRestoreQuestion(questionId) {
@@ -451,6 +487,7 @@ async function dbAddTagToQuestion(questionId, tagId) {
   if (question) {
     await dbQuestions.setItem(questionId, { ...question, updated_at: _nowIso() });
   }
+  _invalidateTagIndex();
 }
 
 async function dbRemoveTagFromQuestion(questionId, tagId) {
@@ -459,6 +496,7 @@ async function dbRemoveTagFromQuestion(questionId, tagId) {
   if (question) {
     await dbQuestions.setItem(questionId, { ...question, updated_at: _nowIso() });
   }
+  _invalidateTagIndex();
 }
 
 // 更新题目的空白版图片
@@ -472,6 +510,37 @@ async function dbUpdateQuestionBlankImage(questionId, blankImageUrl) {
     updated_at: now
   });
   return question;
+}
+
+// 更新题目的版本归属
+async function dbUpdateQuestionVersions(questionId, versions) {
+  const question = await dbQuestions.getItem(questionId);
+  if (!question) throw new Error('题目不存在');
+  const now = _nowIso();
+  await dbQuestions.setItem(questionId, {
+    ...question,
+    versions: versions || [],
+    updated_at: now
+  });
+  return question;
+}
+
+// 从所有题目中移除某个版本 ID
+async function dbRemoveVersionFromAllQuestions(versionId) {
+  const updates = [];
+  await dbQuestions.iterate((q, key) => {
+    if (q && q.versions && q.versions.includes(versionId)) {
+      updates.push({ id: q.id, question: q });
+    }
+  });
+  const now = _nowIso();
+  for (const item of updates) {
+    await dbQuestions.setItem(item.id, {
+      ...item.question,
+      versions: item.question.versions.filter(v => v !== versionId),
+      updated_at: now
+    });
+  }
 }
 
 async function _markSimilarLinksForQuestionDeleted(questionId, now = _nowIso()) {
@@ -578,14 +647,12 @@ async function dbCreatePaper(name, selectedTagIds) {
   await dbPapers.setItem(id, paper);
   if (selectedTagIds.length > 0) {
     const qIds = new Set();
-    await dbQuestionTags.iterate((qt) => {
-      if (selectedTagIds.includes(qt.tag_id)) {
-        dbQuestions.getItem(qt.question_id).then(q => {
-          if (q && !q.deleted_at) qIds.add(qt.question_id);
-        });
-      }
-    });
-    await new Promise(r => setTimeout(r, 50));
+    const qtEntries = [];
+    await dbQuestionTags.iterate((qt) => { if (selectedTagIds.includes(qt.tag_id)) qtEntries.push(qt); });
+    await Promise.all(qtEntries.map(async (qt) => {
+      const q = await dbQuestions.getItem(qt.question_id);
+      if (q && !q.deleted_at) qIds.add(qt.question_id);
+    }));
     let n = 1;
     for (const qId of qIds) {
       await dbPaperQuestions.setItem(`${id}_${qId}`, { paper_id: id, question_id: qId, order_num: n++ });
@@ -607,16 +674,230 @@ async function dbGetPaperQuestions(paperId) {
   const pqs = [];
   await dbPaperQuestions.iterate((pq) => { if (pq.paper_id === paperId) pqs.push(pq); });
   pqs.sort((a, b) => a.order_num - b.order_num);
+  
+  const questions = await Promise.all(
+    pqs.map(pq => dbQuestions.getItem(pq.question_id).then(q => _normalizeQuestionRecord(q, pq.question_id)))
+  );
+  
+  const qtMap = await _buildTagIndex();
+  const valid = questions.filter(q => q && !q.deleted_at);
+  for (const q of valid) q.question_tags = qtMap.get(q.id) || [];
+  return { paper, questions: valid };
+}
+
+// ========== 专题 CRUD ==========
+
+function _normalizeTopicRecord(topic, key) {
+  if (!topic || typeof topic !== 'object') return null;
+  const next = { ...topic };
+  if (!next.id && key) next.id = key;
+  if (next.createdAt && !next.created_at) next.created_at = next.createdAt;
+  if (next.updatedAt && !next.updated_at) next.updated_at = next.updatedAt;
+  if (next.deletedAt && !next.deleted_at) next.deleted_at = next.deletedAt;
+  if (!next.description) next.description = '';
+  return next;
+}
+
+function _normalizeTopicQuestionRecord(record, key) {
+  if (!record || typeof record !== 'object') return null;
+  const next = { ...record };
+  if (!next.id && key) next.id = key;
+  if (!next.teacher_comment) next.teacher_comment = '';
+  if (!next.order_num) next.order_num = 0;
+  return next;
+}
+
+async function dbGetAllTopics() {
+  const topics = [];
+  const updates = [];
+  await dbTopics.iterate((v, key) => {
+    const topic = _normalizeTopicRecord(v, key);
+    if (!topic) return;
+    if (_needsNormalization(v, topic)) updates.push(topic);
+    if (!topic.deleted_at) topics.push(topic);
+  });
+  for (const topic of updates) await dbTopics.setItem(topic.id, topic);
+  for (const t of topics) {
+    let count = 0;
+    await dbTopicQuestions.iterate((tq) => { if (tq.topic_id === t.id) count++; });
+    t.question_count = count;
+  }
+  return topics.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+}
+
+async function dbCreateTopic(name, description, questionIds) {
+  const id = generateId();
+  const now = _nowIso();
+  const topic = { id, name, description: description || '', created_at: now, updated_at: now, deleted_at: null };
+  await dbTopics.setItem(id, topic);
+  if (questionIds && questionIds.length > 0) {
+    let n = 1;
+    for (const qId of questionIds) {
+      await dbTopicQuestions.setItem(`${id}_${qId}`, { topic_id: id, question_id: qId, order_num: n++, teacher_comment: '' });
+    }
+  }
+  return topic;
+}
+
+async function dbUpdateTopic(topicId, name, description) {
+  const topic = await dbTopics.getItem(topicId);
+  if (!topic) return;
+  const now = _nowIso();
+  await dbTopics.setItem(topicId, { ...topic, name, description: description || '', updated_at: now });
+}
+
+async function dbDeleteTopic(topicId) {
+  const topic = await dbTopics.getItem(topicId);
+  if (!topic) return;
+  const now = _nowIso();
+  await dbTopics.setItem(topicId, { ...topic, deleted_at: now, updated_at: now });
+}
+
+async function dbGetTopicQuestions(topicId) {
+  const topic = _normalizeTopicRecord(await dbTopics.getItem(topicId), topicId);
+  if (!topic || topic.deleted_at) return { topic: null, questions: [] };
+  const tqList = [];
+  await dbTopicQuestions.iterate((tq) => { if (tq.topic_id === topicId) tqList.push(tq); });
+  tqList.sort((a, b) => a.order_num - b.order_num);
+  const qtMap = await _buildTagIndex();
   const questions = [];
-  for (const pq of pqs) {
-    const q = _normalizeQuestionRecord(await dbQuestions.getItem(pq.question_id), pq.question_id);
+  for (const tq of tqList) {
+    const q = _normalizeQuestionRecord(await dbQuestions.getItem(tq.question_id), tq.question_id);
     if (q && !q.deleted_at) {
-      const qtMap = await _buildTagIndex();
       q.question_tags = qtMap.get(q.id) || [];
+      q.teacher_comment = tq.teacher_comment || '';
+      q.topic_question_id = tq.id;
       questions.push(q);
     }
   }
-  return { paper, questions };
+  return { topic, questions };
+}
+
+async function dbUpdateTopicQuestions(topicId, questionIds) {
+  const oldKeys = [];
+  await dbTopicQuestions.iterate((v, key) => { if (v.topic_id === topicId) oldKeys.push(key); });
+  for (const key of oldKeys) await dbTopicQuestions.removeItem(key);
+  let n = 1;
+  for (const qId of questionIds || []) {
+    await dbTopicQuestions.setItem(`${topicId}_${qId}`, { topic_id: topicId, question_id: qId, order_num: n++, teacher_comment: '' });
+  }
+}
+
+async function dbAddQuestionToTopic(topicId, questionId) {
+  const key = `${topicId}_${questionId}`;
+  const existing = await dbTopicQuestions.getItem(key);
+  if (existing) return;
+  let maxOrder = 0;
+  await dbTopicQuestions.iterate((tq) => { if (tq.topic_id === topicId && tq.order_num > maxOrder) maxOrder = tq.order_num; });
+  await dbTopicQuestions.setItem(key, { topic_id: topicId, question_id: questionId, order_num: maxOrder + 1, teacher_comment: '' });
+}
+
+async function dbRemoveQuestionFromTopic(topicId, questionId) {
+  await dbTopicQuestions.removeItem(`${topicId}_${questionId}`);
+}
+
+async function dbUpdateTopicQuestionComment(topicId, questionId, comment) {
+  const key = `${topicId}_${questionId}`;
+  const tq = await dbTopicQuestions.getItem(key);
+  if (!tq) return;
+  await dbTopicQuestions.setItem(key, { ...tq, teacher_comment: comment || '' });
+}
+
+async function _collectTopicQuestionIds(topicId) {
+  const ids = [];
+  await dbTopicQuestions.iterate((tq) => { if (tq.topic_id === topicId) ids.push(tq.question_id); });
+  return ids;
+}
+
+async function _collectTopicQuestionDetails(topicId) {
+  const details = [];
+  await dbTopicQuestions.iterate((tq) => { if (tq.topic_id === topicId) details.push(tq); });
+  details.sort((a, b) => a.order_num - b.order_num);
+  return details;
+}
+
+async function _removeTopicQuestionsForTopic(topicId) {
+  const keys = [];
+  await dbTopicQuestions.iterate((v, key) => { if (v.topic_id === topicId) keys.push(key); });
+  for (const key of keys) await dbTopicQuestions.removeItem(key);
+}
+
+// ========== 题目笔记版本 CRUD ==========
+
+function _normalizeQuestionNoteRecord(record, key) {
+  if (!record || typeof record !== 'object') return null;
+  const next = { ...record };
+  if (!next.id && key) next.id = key;
+  if (!next.text_note) next.text_note = '';
+  if (!next.label) next.label = '';
+  if (next.createdAt && !next.created_at) next.created_at = next.createdAt;
+  if (next.updatedAt && !next.updated_at) next.updated_at = next.updatedAt;
+  return next;
+}
+
+async function dbGetQuestionNotes(questionId) {
+  const notes = [];
+  await dbQuestionNotes.iterate((v, key) => {
+    const note = _normalizeQuestionNoteRecord(v, key);
+    if (note && note.question_id === questionId) notes.push(note);
+  });
+  return notes.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+}
+
+async function dbAddQuestionNote(questionId, imageUrl, label, textNote) {
+  const id = generateId();
+  const now = _nowIso();
+  const note = {
+    id,
+    question_id: questionId,
+    note_image_url: imageUrl,
+    label: label || '笔记',
+    text_note: textNote || '',
+    created_at: now,
+    updated_at: now
+  };
+  await dbQuestionNotes.setItem(id, note);
+  return note;
+}
+
+async function dbUpdateQuestionNote(noteId, updates) {
+  const note = await dbQuestionNotes.getItem(noteId);
+  if (!note) return;
+  const now = _nowIso();
+  await dbQuestionNotes.setItem(noteId, { ...note, ...updates, updated_at: now });
+}
+
+async function dbDeleteQuestionNote(noteId) {
+  await dbQuestionNotes.removeItem(noteId);
+}
+
+async function dbGetLastViewedNote(questionId) {
+  return localStorage.getItem('lastNoteVersion_' + questionId) || null;
+}
+
+function dbSetLastViewedNote(questionId, noteId) {
+  localStorage.setItem('lastNoteVersion_' + questionId, noteId);
+}
+
+async function _migrateQuestionNotes() {
+  await dbQuestions.iterate(async (q, key) => {
+    if (!q || q.deleted_at) return;
+    const notes = await dbGetQuestionNotes(q.id);
+    if (notes.length === 0 && q.question_image_url) {
+      await dbAddQuestionNote(q.id, q.question_image_url, '笔记 v1', '');
+    }
+  });
+}
+
+async function _removeQuestionNotesForQuestion(questionId) {
+  const notes = await dbGetQuestionNotes(questionId);
+  for (const note of notes) {
+    await dbQuestionNotes.removeItem(note.id);
+  }
+}
+
+async function _collectQuestionNoteDetails(questionId) {
+  return await dbGetQuestionNotes(questionId);
 }
 
 async function _collectQuestionTagIds(questionId) {
@@ -769,7 +1050,33 @@ async function dbBuildSyncPayload() {
   }
 
   const pending_link_list = JSON.parse(localStorage.getItem('pendingLinkList') || '[]');
-  return { tags, questions: questionPayload, papers: paperPayload, similar_links: similarLinks, pending_link_list };
+
+  const topics = [];
+  const topicUpdates = [];
+  await dbTopics.iterate((rawTopic, key) => {
+    const topic = _normalizeTopicRecord(rawTopic, key);
+    if (!topic) return;
+    if (_needsNormalization(rawTopic, topic)) topicUpdates.push(topic);
+    topics.push(topic);
+  });
+  for (const topic of topicUpdates) await dbTopics.setItem(topic.id, topic);
+  const topicPayload = [];
+  for (const topic of topics) {
+    topicPayload.push({
+      id: topic.id,
+      name: topic.name,
+      description: topic.description || '',
+      created_at: topic.created_at || topic.updated_at || _nowIso(),
+      updated_at: topic.updated_at || topic.created_at || _nowIso(),
+      deleted_at: topic.deleted_at || null,
+      topic_questions: await _collectTopicQuestionDetails(topic.id)
+    });
+  }
+
+  const questionNotes = [];
+  await dbQuestionNotes.iterate((v) => { questionNotes.push(v); });
+
+  return { tags, questions: questionPayload, papers: paperPayload, similar_links: similarLinks, pending_link_list, topics: topicPayload, question_notes: questionNotes };
 }
 
 async function _replaceQuestionTags(questionId, tagIds) {
@@ -897,6 +1204,49 @@ async function dbApplyRemoteSnapshot(snapshot) {
     }
   }
 
+  for (const topic of snapshot.topics || []) {
+    const localTopic = await dbTopics.getItem(topic.id);
+    const nextTopic = {
+      id: topic.id,
+      name: topic.name,
+      description: topic.description || '',
+      created_at: topic.created_at || topic.updated_at || _nowIso(),
+      updated_at: topic.updated_at || topic.created_at || _nowIso(),
+      deleted_at: topic.deleted_at || null
+    };
+    if (_isRemoteNewer(nextTopic, localTopic)) {
+      await dbTopics.setItem(topic.id, nextTopic);
+      if (topic.topic_questions) {
+        await _removeTopicQuestionsForTopic(topic.id);
+        for (const tq of topic.topic_questions) {
+          const key = `${topic.id}_${tq.question_id}`;
+          await dbTopicQuestions.setItem(key, {
+            topic_id: topic.id,
+            question_id: tq.question_id,
+            order_num: tq.order_num || 0,
+            teacher_comment: tq.teacher_comment || ''
+          });
+        }
+      }
+    }
+  }
+
+  for (const note of snapshot.question_notes || []) {
+    const localNote = await dbQuestionNotes.getItem(note.id);
+    const nextNote = {
+      id: note.id,
+      question_id: note.question_id,
+      note_image_url: note.note_image_url,
+      label: note.label || '',
+      text_note: note.text_note || '',
+      created_at: note.created_at || note.updated_at || _nowIso(),
+      updated_at: note.updated_at || note.created_at || _nowIso()
+    };
+    if (_isRemoteNewer(nextNote, localNote)) {
+      await dbQuestionNotes.setItem(note.id, nextNote);
+    }
+  }
+
   if (Array.isArray(snapshot.pending_link_list)) {
     localStorage.setItem('pendingLinkList', JSON.stringify(snapshot.pending_link_list));
   }
@@ -931,6 +1281,9 @@ async function dbClearAllData() {
   await dbPapers.clear();
   await dbPaperQuestions.clear();
   await dbSimilarQuestionLinks.clear();
+  await dbTopics.clear();
+  await dbTopicQuestions.clear();
+  await dbQuestionNotes.clear();
 }
 
 async function dbReplaceWithRemoteSnapshot(snapshot) {
@@ -943,24 +1296,56 @@ async function dbReplaceWithRemoteSnapshot(snapshot) {
 async function generatePDF(questions, options = {}) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-  const W = 210, H = 297, M = 20, maxW = W - M * 2;
+  const W = 210, H = 297, M = 15, maxW = W - M * 2;
   const { mode = 'merged', spacing = 'none', spacingCm = 5, title = '' } = options;
   const spcMm = spacing !== 'none' ? spacingCm * 10 : 0;
 
-  function addImg(dataUrl, y, maxH) {
+  function addImg(dataUrl, y, maxH, fullWidth) {
     return new Promise((resolve) => {
       if (!dataUrl || dataUrl.length < 50) { resolve(y + 5); return; }
       const img = new Image();
       img.onload = () => {
+        const availW = fullWidth ? maxW : maxW;
         const aH = maxH || (H - M - y);
-        const r = Math.min(maxW / img.width, aH / img.height, 1);
+        const r = Math.min(availW / img.width, aH / img.height, 1);
         const w = img.width * r, h = img.height * r;
         if (y + h > H - M) { doc.addPage(); y = M; }
-        doc.addImage(dataUrl, 'JPEG', (W - w) / 2, y, w, h);
-        resolve(y + h + 4);
+        doc.addImage(dataUrl, 'JPEG', M, y, w, h);
+        resolve(y + h + 2);
       };
       img.onerror = () => resolve(y + 5);
       setTimeout(() => resolve(y + 5), 5000);
+      img.src = dataUrl;
+    });
+  }
+
+  function addImgAt(dataUrl, x, y, availW, maxH) {
+    return new Promise((resolve) => {
+      if (!dataUrl || dataUrl.length < 50) { resolve(y); return; }
+      const img = new Image();
+      img.onload = () => {
+        const aH = maxH || (H - M - y);
+        const r = Math.min(availW / img.width, aH / img.height, 1);
+        const w = img.width * r, h = img.height * r;
+        doc.addImage(dataUrl, 'JPEG', x, y, w, h);
+        resolve(h);
+      };
+      img.onerror = () => resolve(0);
+      setTimeout(() => resolve(0), 5000);
+      img.src = dataUrl;
+    });
+  }
+
+  function estimateImgH(dataUrl, availW) {
+    return new Promise((resolve) => {
+      if (!dataUrl || dataUrl.length < 50) { resolve(0); return; }
+      const img = new Image();
+      img.onload = () => {
+        const r = Math.min(availW / img.width, 1);
+        resolve(img.height * r);
+      };
+      img.onerror = () => resolve(0);
+      setTimeout(() => resolve(0), 5000);
       img.src = dataUrl;
     });
   }
@@ -972,45 +1357,106 @@ async function generatePDF(questions, options = {}) {
     doc.text(`共 ${questions.length} 题`, W / 2, M + 13, { align: 'center' });
   }
 
-  let y = M + 20;
+  let y = title ? M + 20 : M;
 
   if (mode === 'merged') {
-    for (let i = 0; i < questions.length; i++) {
+    const halfW = (maxW - 4) / 2;
+    let i = 0;
+    while (i < questions.length) {
       const q = questions[i];
-      if (y > H - M - 30) { doc.addPage(); y = M; }
-      doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-      doc.text(`第 ${i + 1} 题`, M, y); y += 6;
+      if (y > H - M - 20) { doc.addPage(); y = M; }
+
+      const nextQ = questions[i + 1];
+      if (nextQ) {
+        const h1 = await estimateImgH(q.question_image_url, halfW);
+        const h2 = await estimateImgH(nextQ.question_image_url, halfW);
+        const labelH = 6;
+        const needH = Math.max(h1, h2) + labelH + 2;
+        if (needH > 0 && y + needH <= H - M && h1 > 0 && h2 > 0) {
+          doc.setFontSize(10); doc.setFont('helvetica', 'bold');
+          doc.text(`第 ${i + 1} 题`, M, y);
+          doc.text(`第 ${i + 2} 题`, M + halfW + 4, y);
+          y += labelH;
+          const usedH = Math.max(
+            await addImgAt(q.question_image_url, M, y, halfW, H - M - y),
+            await addImgAt(nextQ.question_image_url, M + halfW + 4, y, halfW, H - M - y)
+          );
+          y += usedH + 2;
+
+          const a1 = q.answer_image_url;
+          const a2 = nextQ.answer_image_url;
+          if (a1 || a2) {
+            const ah1 = a1 ? await estimateImgH(a1, halfW) : 0;
+            const ah2 = a2 ? await estimateImgH(a2, halfW) : 0;
+            const ansNeedH = Math.max(ah1, ah2) + 8;
+            if (y + ansNeedH <= H - M && ah1 > 0 && ah2 > 0) {
+              doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+              doc.text('答案:', M, y);
+              if (a2) doc.text('答案:', M + halfW + 4, y);
+              y += 5;
+              const uah = Math.max(
+                a1 ? await addImgAt(a1, M, y, halfW, H - M - y) : 0,
+                a2 ? await addImgAt(a2, M + halfW + 4, y, halfW, H - M - y) : 0
+              );
+              y += uah + 2;
+            } else {
+              if (a1) {
+                if (y + ah1 + 7 > H - M) { doc.addPage(); y = M; }
+                doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+                doc.text('答案:', M, y); y += 5;
+                y += await addImgAt(a1, M, y, halfW, H - M - y) + 2;
+              }
+              if (a2) {
+                if (y + ah2 + 7 > H - M) { doc.addPage(); y = M; }
+                doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+                doc.text('答案:', M, y); y += 5;
+                y += await addImgAt(a2, M, y, halfW, H - M - y) + 2;
+              }
+            }
+          }
+          i += 2;
+          if (spcMm > 0) {
+            doc.setDrawColor(200); doc.setLineDash([3, 3]);
+            doc.line(M, y, W - M, y); doc.setLineDash([]);
+            y += spcMm;
+          }
+          continue;
+        }
+      }
+
+      doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+      doc.text(`第 ${i + 1} 题`, M, y); y += 5;
       y = await addImg(q.question_image_url, y);
       if (q.answer_image_url) {
-        if (y > H - M - 20) { doc.addPage(); y = M; }
-        doc.setFontSize(10); doc.setFont('helvetica', 'normal');
-        doc.text('答案:', M, y); y += 5;
+        if (y + 10 > H - M) { doc.addPage(); y = M; }
+        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+        doc.text('答案:', M, y); y += 4;
         y = await addImg(q.answer_image_url, y);
       }
       if (spcMm > 0) {
-        y += 2;
         doc.setDrawColor(200); doc.setLineDash([3, 3]);
         doc.line(M, y, W - M, y); doc.setLineDash([]);
         y += spcMm;
       }
+      i++;
     }
   } else {
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      if (y > H - M - 30) { doc.addPage(); y = M; }
-      doc.setFontSize(12); doc.setFont('helvetica', 'bold');
-      doc.text(`第 ${i + 1} 题`, M, y); y += 6;
+      if (y > H - M - 20) { doc.addPage(); y = M; }
+      doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+      doc.text(`第 ${i + 1} 题`, M, y); y += 5;
       y = await addImg(q.question_image_url, y);
       if (spcMm > 0) { y += spcMm; }
     }
     doc.addPage(); y = M;
     doc.setFontSize(16); doc.setFont('helvetica', 'bold');
-    doc.text('参考答案', W / 2, y, { align: 'center' }); y += 12;
+    doc.text('参考答案', W / 2, y, { align: 'center' }); y += 10;
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
       if (!q.answer_image_url) continue;
-      if (y > H - M - 20) { doc.addPage(); y = M; }
-      doc.setFontSize(11); doc.setFont('helvetica', 'bold');
+      if (y + 10 > H - M) { doc.addPage(); y = M; }
+      doc.setFontSize(10); doc.setFont('helvetica', 'bold');
       doc.text(`第 ${i + 1} 题`, M, y); y += 5;
       y = await addImg(q.answer_image_url, y);
     }
@@ -1028,13 +1474,16 @@ async function generatePaperPDF(paperId) {
 // ========== 数据导入/导出 ==========
 
 async function exportAllData() {
-  const data = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [], similar_question_links: [], pending_link_list: [] };
+  const data = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [], similar_question_links: [], pending_link_list: [], topics: [], topic_questions: [], question_notes: [] };
   await dbQuestions.iterate((v) => data.questions.push(v));
   await dbTags.iterate((v) => data.tags.push(v));
   await dbQuestionTags.iterate((v) => data.question_tags.push(v));
   await dbPapers.iterate((v) => data.papers.push(v));
   await dbPaperQuestions.iterate((v) => data.paper_questions.push(v));
   await dbSimilarQuestionLinks.iterate((v) => data.similar_question_links.push(v));
+  await dbTopics.iterate((v) => data.topics.push(v));
+  await dbTopicQuestions.iterate((v) => data.topic_questions.push(v));
+  await dbQuestionNotes.iterate((v) => data.question_notes.push(v));
   data.pending_link_list = JSON.parse(localStorage.getItem('pendingLinkList') || '[]');
   const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1045,16 +1494,23 @@ async function exportAllData() {
 
 async function importAllData(file) {
   const data = JSON.parse(await file.text());
-  if (data.tags) for (const t of data.tags) await dbTags.setItem(t.id, t);
-  if (data.questions) for (const q of data.questions) await dbQuestions.setItem(q.id, q);
-  if (data.question_tags) for (const qt of data.question_tags) await dbQuestionTags.setItem(`${qt.question_id}_${qt.tag_id}`, qt);
-  if (data.papers) for (const p of data.papers) await dbPapers.setItem(p.id, p);
-  if (data.paper_questions) for (const pq of data.paper_questions) await dbPaperQuestions.setItem(`${pq.paper_id}_${pq.question_id}`, pq);
-  if (data.similar_question_links) for (const link of data.similar_question_links) {
-    const normalized = _normalizeSimilarLinkRecord(link);
-    const key = normalized ? _similarLinkKey(normalized.question_id, normalized.similar_question_id) : null;
-    if (key) await dbSimilarQuestionLinks.setItem(key, normalized);
+  await Promise.all([
+    ...(data.tags || []).map(t => dbTags.setItem(t.id, t)),
+    ...(data.questions || []).map(q => dbQuestions.setItem(q.id, q)),
+    ...(data.question_tags || []).map(qt => dbQuestionTags.setItem(`${qt.question_id}_${qt.tag_id}`, qt)),
+    ...(data.papers || []).map(p => dbPapers.setItem(p.id, p)),
+    ...(data.paper_questions || []).map(pq => dbPaperQuestions.setItem(`${pq.paper_id}_${pq.question_id}`, pq)),
+    ...(data.topics || []).map(t => dbTopics.setItem(t.id, t)),
+    ...(data.topic_questions || []).map(tq => dbTopicQuestions.setItem(`${tq.topic_id}_${tq.question_id}`, tq)),
+    ...(data.question_notes || []).map(n => dbQuestionNotes.setItem(n.id, n)),
+  ]);
+  if (data.similar_question_links) {
+    await Promise.all(data.similar_question_links.map(link => {
+      const normalized = _normalizeSimilarLinkRecord(link);
+      const key = normalized ? _similarLinkKey(normalized.question_id, normalized.similar_question_id) : null;
+      if (key) return dbSimilarQuestionLinks.setItem(key, normalized);
+    }));
   }
   if (data.pending_link_list) localStorage.setItem('pendingLinkList', JSON.stringify(data.pending_link_list));
-  return { questions: data.questions?.length || 0, tags: data.tags?.length || 0, papers: data.papers?.length || 0 };
+  return { questions: data.questions?.length || 0, tags: data.tags?.length || 0, papers: data.papers?.length || 0, topics: data.topics?.length || 0, question_notes: data.question_notes?.length || 0 };
 }
