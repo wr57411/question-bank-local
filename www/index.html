@@ -130,9 +130,14 @@
         .tag .remove{cursor:pointer;color:var(--text-tertiary);font-size:14px;line-height:1}
         .tag .remove:hover{color:var(--danger)}
         .tag-add-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;background:var(--surface-dim);border:1.5px dashed var(--border);border-radius:50%;font-size:16px;cursor:pointer;color:var(--text-secondary);line-height:1}
-        .inline-tag-add{display:flex;gap:6px;align-items:center;margin-top:6px;flex-wrap:wrap}
-        .inline-tag-add select{flex:1;min-width:80px;padding:4px 8px;font-size:12px;height:30px}
-        .inline-tag-add button{padding:4px 12px;font-size:12px;height:30px}
+        .inline-tag-add{margin-top:8px;padding:10px;background:var(--surface);border:1px solid var(--border-light);border-radius:var(--radius-md);box-shadow:var(--shadow-sm)}
+        .inline-tag-add input[type="text"]{width:100%;padding:8px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-sm);margin-bottom:6px}
+        .inline-tag-add input[type="text"]:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 2px var(--primary-light)}
+        .inline-tag-results{max-height:120px;overflow-y:auto;margin-bottom:6px}
+        .inline-tag-result{display:inline-flex;align-items:center;padding:4px 10px;margin:2px;background:var(--surface-dim);border:1px solid var(--border-light);border-radius:var(--radius-xl);font-size:12px;cursor:pointer;transition:all .15s}
+        .inline-tag-result:hover{background:var(--primary-light);border-color:var(--primary);color:var(--primary-dark)}
+        .inline-tag-added{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border-light)}
+        .inline-tag-added .tag{font-size:11px;padding:3px 8px;background:var(--primary-light);color:var(--primary-dark);border:1px solid rgba(27,122,78,.2)}
 
         /* Question Grid */
         .question-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--space-md)}
@@ -238,6 +243,32 @@
             .modal-content{max-width:600px}
         }
         @media(min-width:1024px){.container{max-width:1000px}.question-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}}
+        
+        /* Mode Toggle */
+        #mode-photo-btn, #mode-text-btn {
+            transition: all 0.2s ease;
+        }
+        #mode-photo-btn:hover, #mode-text-btn:hover {
+            filter: brightness(1.05);
+        }
+        
+        /* Book Info */
+        #book-info-section {
+            background: var(--primary-light);
+            padding: 12px;
+            border-radius: var(--radius-md);
+            border: 1px solid rgba(27,122,78,0.2);
+        }
+        #book-info-section label {
+            color: var(--primary-dark);
+        }
+        
+        /* Search Input */
+        #search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-light);
+        }
     </style>
 </head>
 <body>
@@ -374,47 +405,77 @@
             <div id="status-message"></div>
             <form id="question-form">
                 <div class="form-group">
-                    <label>题目图片（笔记）*</label>
-                    <div class="upload-buttons">
-                        <button type="button" class="upload-btn camera" onclick="takePhoto('question')">📷 拍照</button>
-                        <button type="button" class="upload-btn" onclick="pickFromGallery('question')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
-                        <button type="button" class="upload-btn" style="background:var(--accent);box-shadow:0 3px 0 #5A3DC0" onclick="crossPageShoot('question')">📸 跨页</button>
-                        <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('question')">📋 悬浮窗</button>
+                    <label>添加方式</label>
+                    <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+                        <button type="button" id="mode-photo-btn" onclick="switchAddMode('photo')" style="flex:1;padding:10px;font-size:13px;background:var(--primary);box-shadow:0 3px 0 var(--primary-dark)">📸 拍照添加</button>
+                        <button type="button" id="mode-text-btn" onclick="switchAddMode('text')" style="flex:1;padding:10px;font-size:13px;background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">✏️ 纯文字记录</button>
+                        <button type="button" id="mode-batch-btn" onclick="switchAddMode('batch')" style="flex:1;padding:10px;font-size:13px;background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">📋 批量录入</button>
                     </div>
-                    <div class="preview-wrap" id="question-preview-wrap" style="display:none">
-                        <span class="preview-delete" onclick="removeImage('question')">×</span>
-                        <img id="question-preview" class="preview-image" />
-                    </div>
-                    <div id="question-preview-label" class="preview-label hidden">✓ 题目图片已选择 <span class="crop-icon" onclick="startCrop('question')" title="裁剪图片">✂️</span></div>
-                    <button type="button" onclick="addExtraNoteVersion()" style="margin-top:8px;padding:6px 14px;font-size:12px;background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 2px 0 var(--border)">+ 添加另一版本</button>
-                    <div id="extra-note-versions"></div>
                 </div>
-                <div class="form-group">
-                    <label>答案图片（可选）</label>
-                    <div class="upload-buttons">
-                        <button type="button" class="upload-btn camera" onclick="takePhoto('answer')">📷 拍照</button>
-                        <button type="button" class="upload-btn" onclick="pickFromGallery('answer')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
-                        <button type="button" class="upload-btn" style="background:var(--accent);box-shadow:0 3px 0 #5A3DC0" onclick="crossPageShoot('answer')">📸 跨页</button>
-                        <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('answer')">📋 悬浮窗</button>
+                <div id="book-info-section" class="form-group">
+                    <label>📖 书本信息（可选）</label>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <input id="book-name" list="book-name-list" placeholder="书名" style="flex:2;min-width:120px" />
+                        <datalist id="book-name-list"></datalist>
+                        <input id="page-number" placeholder="页码" style="flex:1;min-width:60px" />
+                        <input id="question-number" placeholder="题号" style="flex:1;min-width:60px" />
                     </div>
-                    <div class="preview-wrap" id="answer-preview-wrap" style="display:none">
-                        <span class="preview-delete" onclick="removeImage('answer')">×</span>
-                        <img id="answer-preview" class="preview-image" />
-                    </div>
-                    <div id="answer-preview-label" class="preview-label hidden">✓ 答案图片已选择 <span class="crop-icon" onclick="startCrop('answer')" title="裁剪图片">✂️</span></div>
                 </div>
-                <div class="form-group">
-                    <label>空白版图片（可选，学生用）</label>
-                    <div class="upload-buttons">
-                        <button type="button" class="upload-btn" style="background:var(--warning);box-shadow:0 3px 0 #B07A08" onclick="takePhoto('blank')">📷 拍空白版</button>
-                        <button type="button" class="upload-btn" onclick="pickFromGallery('blank')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
-                        <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('blank')">📋 悬浮窗</button>
+                <div id="batch-section" style="display:none">
+                    <div class="form-group">
+                        <label>📖 书名 *</label>
+                        <input id="batch-book-name" list="book-name-list" placeholder="输入或选择书名" style="width:100%;padding:12px;font-size:14px;border:1.5px solid var(--border);border-radius:var(--radius-md)" />
                     </div>
-                    <div class="preview-wrap" id="blank-preview-wrap" style="display:none">
-                        <span class="preview-delete" onclick="removeImage('blank')">×</span>
-                        <img id="blank-preview" class="preview-image" style="border-color:#f59e0b" />
+                    <div class="form-group">
+                        <label>📋 题目列表（页码 + 题号）</label>
+                        <div id="batch-rows"></div>
+                        <button type="button" onclick="addBatchRow()" style="margin-top:8px;padding:8px 16px;font-size:13px;background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 2px 0 var(--border)">➕ 添加一行</button>
                     </div>
-                    <div id="blank-preview-label" class="preview-label hidden" style="color:var(--warning)">✓ 空白版图片已选择 <span class="crop-icon" onclick="startCrop('blank')" title="裁剪图片">✂️</span></div>
+                </div>
+                <div id="photo-section">
+                    <div class="form-group">
+                        <label id="question-image-label">题目图片（笔记）*</label>
+                        <div class="upload-buttons">
+                            <button type="button" class="upload-btn camera" onclick="takePhoto('question')">📷 拍照</button>
+                            <button type="button" class="upload-btn" onclick="pickFromGallery('question')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
+                            <button type="button" class="upload-btn" style="background:var(--accent);box-shadow:0 3px 0 #5A3DC0" onclick="crossPageShoot('question')">📸 跨页</button>
+                            <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('question')">📋 悬浮窗</button>
+                        </div>
+                        <div class="preview-wrap" id="question-preview-wrap" style="display:none">
+                            <span class="preview-delete" onclick="removeImage('question')">×</span>
+                            <img id="question-preview" class="preview-image" />
+                        </div>
+                        <div id="question-preview-label" class="preview-label hidden">✓ 题目图片已选择 <span class="crop-icon" onclick="startCrop('question')" title="裁剪图片">✂️</span></div>
+                        <button type="button" onclick="addExtraNoteVersion()" style="margin-top:8px;padding:6px 14px;font-size:12px;background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 2px 0 var(--border)">+ 添加另一版本</button>
+                        <div id="extra-note-versions"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>答案图片（可选）</label>
+                        <div class="upload-buttons">
+                            <button type="button" class="upload-btn camera" onclick="takePhoto('answer')">📷 拍照</button>
+                            <button type="button" class="upload-btn" onclick="pickFromGallery('answer')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
+                            <button type="button" class="upload-btn" style="background:var(--accent);box-shadow:0 3px 0 #5A3DC0" onclick="crossPageShoot('answer')">📸 跨页</button>
+                            <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('answer')">📋 悬浮窗</button>
+                        </div>
+                        <div class="preview-wrap" id="answer-preview-wrap" style="display:none">
+                            <span class="preview-delete" onclick="removeImage('answer')">×</span>
+                            <img id="answer-preview" class="preview-image" />
+                        </div>
+                        <div id="answer-preview-label" class="preview-label hidden">✓ 答案图片已选择 <span class="crop-icon" onclick="startCrop('answer')" title="裁剪图片">✂️</span></div>
+                    </div>
+                    <div class="form-group">
+                        <label>空白版图片（可选，学生用）</label>
+                        <div class="upload-buttons">
+                            <button type="button" class="upload-btn" style="background:var(--warning);box-shadow:0 3px 0 #B07A08" onclick="takePhoto('blank')">📷 拍空白版</button>
+                            <button type="button" class="upload-btn" onclick="pickFromGallery('blank')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
+                            <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('blank')">📋 悬浮窗</button>
+                        </div>
+                        <div class="preview-wrap" id="blank-preview-wrap" style="display:none">
+                            <span class="preview-delete" onclick="removeImage('blank')">×</span>
+                            <img id="blank-preview" class="preview-image" style="border-color:#f59e0b" />
+                        </div>
+                        <div id="blank-preview-label" class="preview-label hidden" style="color:var(--warning)">✓ 空白版图片已选择 <span class="crop-icon" onclick="startCrop('blank')" title="裁剪图片">✂️</span></div>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>排版适用性 *</label>
@@ -430,8 +491,25 @@
                 </div>
                 <div class="form-group">
                     <label>选择标签 <span style="cursor:pointer;color:#3b82f6" onclick="showNewTagModal('form')" title="新建标签">＋</span></label>
-                    <select id="tag-select" multiple style="height:90px"></select>
-                    <small style="color:#888;font-size:12px">按住可多选</small>
+                    <div id="form-tag-section" style="border:1.5px solid var(--border);border-radius:var(--radius-md);padding:8px;background:var(--surface)">
+                        <input id="form-tag-search" type="text" placeholder="🔍 搜索标签..." oninput="onFormTagSearch()" onkeydown="onFormTagKeydown(event)" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border-light);border-radius:var(--radius-sm);margin-bottom:6px" />
+                        <div id="form-tag-results" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;max-height:100px;overflow-y:auto"></div>
+                        <div id="form-tag-selected" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px"></div>
+                    </div>
+                    <small style="color:#888;font-size:12px">搜索并点击标签添加，已选标签显示在下方</small>
+                </div>
+                <div class="form-group">
+                    <label>📝 评价生成标签（可选）</label>
+                    <div style="display:flex;gap:6px">
+                        <input id="form-comment" type="text" placeholder="输入评价（如：典型勾股定理题）" style="flex:1;padding:8px 10px;font-size:13px;border:1px solid #FCD34D;border-radius:var(--radius-sm)" />
+                        <button type="button" onclick="generateFormTagsFromComment()" style="background:var(--warning);color:#fff;border:none;border-radius:var(--radius-sm);padding:6px 12px;font-size:12px;cursor:pointer;box-shadow:0 2px 0 #B07A08;font-weight:600;white-space:nowrap">🤖 AI 生成</button>
+                    </div>
+                    <div id="form-generated-tags" style="margin-top:6px;display:none">
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                            <span style="font-size:11px;color:var(--warning);font-weight:500">建议标签：</span>
+                        </div>
+                        <div id="form-generated-tags-list" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+                    </div>
                 </div>
                 <button type="submit" style="width:100%;padding:14px;font-size:15px;border-radius:var(--radius-lg)">✨ 添加题目</button>
             </form>
@@ -445,6 +523,12 @@
                 </div>
             </div>
             <div class="filter-tags" id="filter-tags"></div>
+            <div style="display:flex;gap:8px;margin-bottom:var(--space-md);flex-wrap:wrap">
+                <select id="book-filter" onchange="filterByBook(this.value)" style="flex:1;min-width:120px;padding:8px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface)">
+                    <option value="">📚 全部书本</option>
+                </select>
+                <input id="search-input" type="text" placeholder="🔍 搜索题目..." oninput="filterQuestions()" style="flex:2;min-width:150px;padding:8px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-md)" />
+            </div>
             <div class="question-grid" id="questions-list"></div>
         </div>
     </div>
@@ -1084,6 +1168,18 @@
         <button onclick="doSync()" style="width:100%;margin-bottom:8px">🔄 立即同步</button>
         <button onclick="doSyncDown()" style="width:100%;background:#f59e0b;margin-bottom:8px">📥 从云端下载</button>
         <div id="sync-status" style="font-size:13px;color:#888;margin:8px 0"></div>
+        <details style="margin-top:12px;border-top:1px solid #eee;padding-top:12px">
+            <summary style="font-size:13px;color:#666;cursor:pointer">🛡️ 容灾设置</summary>
+            <div style="margin-top:10px">
+                <div id="recovery-status" style="font-size:13px;color:#888;margin-bottom:8px">检查中...</div>
+                <button onclick="fullSyncToCloud()" style="width:100%;margin-bottom:8px;font-size:13px">☁️ 全量同步到云端</button>
+                <div class="form-group" style="margin-bottom:8px">
+                    <label style="font-size:13px">备用服务器地址</label>
+                    <input type="text" id="backup-server-url" placeholder="例如 http://192.168.1.100:3001" style="font-size:13px" />
+                </div>
+                <button onclick="switchToBackupServer()" style="width:100%;background:#8B5CF6;font-size:13px">🔄 切换到备用服务器</button>
+            </div>
+        </details>
         <div class="btn-group" style="margin-top:14px">
             <button class="secondary" onclick="closeSyncModal()">关闭</button>
             <button class="danger" onclick="doLogout()" style="padding:8px 14px;font-size:13px">退出登录</button>
@@ -1339,36 +1435,14 @@ document.addEventListener("DOMContentLoaded", async () => {
     restartSyncPolling();
     if (currentUser && autoSyncEnabled && syncEnabled) queueAutoSync(true);
     checkAppUpdate();
-
-    // 自动测试云端API（仅模拟器环境）
-    const isEmulator = /emulator|sdk/i.test(navigator.userAgent) ||
-                       /emulator/i.test(navigator.platform);
-    if (isEmulator) {
-        setTimeout(async () => {
-            try {
-                console.log("[AutoTest] 开始自动测试云端API...");
-                const keys = await dbQuestions.keys();
-                if (keys && keys.length > 0) {
-                    currentQuestionId = keys[0];
-                    console.log("[AutoTest] 自动分析题目:", currentQuestionId);
-                    // 模拟点击"分析此题"按钮
-                    const btn = document.querySelector('[onclick="analyzeSingleQuestion()"]');
-                    if (btn) {
-                        // 强制设置为云端模式
-                        const modeSelect = document.getElementById('analyze-mode');
-                        if (modeSelect) modeSelect.value = 'cloud';
-                        // 触发分析
-                        await analyzeSingleQuestion.call(btn);
-                    }
-                }
-            } catch (e) {
-                console.error("[AutoTest] 自动测试失败:", e);
-            }
-        }, 3000);
-    }
 });
 
-async function refreshAll() { await _migrateQuestionNotes(); await Promise.all([loadTags(), loadQuestions(), loadPapers(), loadTopics()]); }
+async function refreshAll() {
+    await _migrateQuestionNotes();
+    await Promise.all([loadTags(), loadQuestions(), loadPapers(), loadTopics(), loadBookFilter()]);
+    const lastBookName = localStorage.getItem('lastBookName');
+    if (lastBookName) document.getElementById('book-name').value = lastBookName;
+}
 
 // ========== 版本管理 ==========
 let editingVersionId = null;
@@ -2445,9 +2519,86 @@ function renderTags() {
     });
 }
 function updateTagSelects() {
-    ["tag-select","paper-tag-select"].forEach(id => {
-        const sel = document.getElementById(id); sel.replaceChildren();
-        allTags.forEach(t => { const o = document.createElement("option"); o.value = t.id; o.textContent = t.name; sel.appendChild(o); });
+    ["paper-tag-select"].forEach(id => {
+        const sel = document.getElementById(id);
+        if (!sel) return;
+        const prev = Array.from(sel.selectedOptions).map(o => o.value);
+        sel.replaceChildren();
+        allTags.forEach(t => { const o = document.createElement("option"); o.value = t.id; o.textContent = t.name; if (prev.includes(t.id)) o.selected = true; sel.appendChild(o); });
+    });
+    onFormTagSearch();
+}
+
+let formSelectedTagIds = [];
+
+function onFormTagSearch() {
+    const input = document.getElementById('form-tag-search');
+    const resultsDiv = document.getElementById('form-tag-results');
+    if (!input || !resultsDiv) return;
+    const query = input.value.trim().toLowerCase();
+    let matches = allTags.filter(t => !formSelectedTagIds.includes(t.id));
+    if (query) matches = matches.filter(t => t.name.toLowerCase().includes(query));
+    matches = matches.slice(0, 15);
+    resultsDiv.innerHTML = '';
+    if (matches.length === 0 && query) {
+        const btn = document.createElement("span");
+        btn.style.cssText = 'display:inline-flex;align-items:center;padding:4px 10px;background:var(--accent-light);border:1px solid var(--accent);border-radius:var(--radius-xl);font-size:12px;cursor:pointer;color:var(--accent)';
+        btn.textContent = '＋ 创建: "' + input.value.trim() + '"';
+        btn.onclick = async () => {
+            const name = input.value.trim();
+            if (!name) return;
+            const tag = await dbCreateTag(name, '#3B82F6');
+            await loadTags();
+            addFormTag(tag.id);
+            input.value = '';
+            onFormTagSearch();
+        };
+        resultsDiv.appendChild(btn);
+    } else {
+        matches.forEach(t => {
+            const btn = document.createElement("span");
+            btn.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--surface-dim);border:1px solid var(--border-light);border-radius:var(--radius-xl);font-size:12px;cursor:pointer;transition:all .15s';
+            btn.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:' + t.color + ';flex-shrink:0"></span> ' + t.name;
+            btn.onclick = () => { addFormTag(t.id); input.value = ''; onFormTagSearch(); };
+            btn.onmouseenter = () => { btn.style.background = 'var(--primary-light)'; btn.style.borderColor = 'var(--primary)'; };
+            btn.onmouseleave = () => { btn.style.background = 'var(--surface-dim)'; btn.style.borderColor = 'var(--border-light)'; };
+            resultsDiv.appendChild(btn);
+        });
+    }
+}
+
+function onFormTagKeydown(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        const resultsDiv = document.getElementById('form-tag-results');
+        const first = resultsDiv ? resultsDiv.querySelector('span') : null;
+        if (first) first.click();
+    }
+}
+
+function addFormTag(tagId) {
+    if (formSelectedTagIds.includes(tagId)) return;
+    formSelectedTagIds.push(tagId);
+    renderFormSelectedTags();
+}
+
+function removeFormTag(tagId) {
+    formSelectedTagIds = formSelectedTagIds.filter(id => id !== tagId);
+    renderFormSelectedTags();
+    onFormTagSearch();
+}
+
+function renderFormSelectedTags() {
+    const div = document.getElementById('form-tag-selected');
+    if (!div) return;
+    div.innerHTML = '';
+    formSelectedTagIds.forEach(tagId => {
+        const tag = allTags.find(t => t.id === tagId);
+        if (!tag) return;
+        const el = document.createElement("span");
+        el.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:' + tag.color + '15;border:1px solid ' + tag.color + '40;border-radius:var(--radius-xl);font-size:12px;font-weight:500;color:var(--text)';
+        el.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:' + tag.color + '"></span> ' + tag.name + ' <span style="cursor:pointer;color:var(--text-tertiary);margin-left:2px" onclick="removeFormTag(\'' + tag.id + '\')">✕</span>';
+        div.appendChild(el);
     });
 }
 function renderFilterTags() {
@@ -2484,8 +2635,7 @@ async function submitNewTag() {
     const tag = await dbCreateTag(name, color); await loadTags(); closeNewTagModal();
     // 自动选中新标签
     if (newTagContext === 'form') {
-        const sel = document.getElementById("tag-select");
-        for (const o of sel.options) { if (o.value === tag.id) o.selected = true; }
+        addFormTag(tag.id);
     } else if (newTagContext === 'paper') {
         const sel = document.getElementById("paper-tag-select");
         for (const o of sel.options) { if (o.value === tag.id) o.selected = true; }
@@ -2494,20 +2644,148 @@ async function submitNewTag() {
 }
 
 // ========== 题目 ==========
+let currentAddMode = 'photo'; // 'photo' or 'text' or 'batch'
+let batchRowCount = 0;
+
+function switchAddMode(mode) {
+    currentAddMode = mode;
+    const photoSection = document.getElementById('photo-section');
+    const batchSection = document.getElementById('batch-section');
+    const bookSection = document.getElementById('book-info-section');
+    const photoBtn = document.getElementById('mode-photo-btn');
+    const textBtn = document.getElementById('mode-text-btn');
+    const batchBtn = document.getElementById('mode-batch-btn');
+    const questionLabel = document.getElementById('question-image-label');
+    
+    // 重置所有按钮样式
+    [photoBtn, textBtn, batchBtn].forEach(btn => {
+        btn.style.background = 'var(--surface-dim)';
+        btn.style.color = 'var(--text-secondary)';
+        btn.style.boxShadow = '0 3px 0 var(--border)';
+    });
+    
+    if (mode === 'photo') {
+        photoSection.style.display = '';
+        batchSection.style.display = 'none';
+        bookSection.style.display = '';
+        photoBtn.style.background = 'var(--primary)';
+        photoBtn.style.color = '#fff';
+        photoBtn.style.boxShadow = '0 3px 0 var(--primary-dark)';
+        questionLabel.textContent = '题目图片（笔记）*';
+    } else if (mode === 'text') {
+        photoSection.style.display = 'none';
+        batchSection.style.display = 'none';
+        bookSection.style.display = '';
+        textBtn.style.background = 'var(--primary)';
+        textBtn.style.color = '#fff';
+        textBtn.style.boxShadow = '0 3px 0 var(--primary-dark)';
+    } else if (mode === 'batch') {
+        photoSection.style.display = 'none';
+        batchSection.style.display = '';
+        bookSection.style.display = 'none';
+        batchBtn.style.background = 'var(--primary)';
+        batchBtn.style.color = '#fff';
+        batchBtn.style.boxShadow = '0 3px 0 var(--primary-dark)';
+        if (document.getElementById('batch-rows').children.length === 0) addBatchRow();
+        const lastBookName = localStorage.getItem('lastBookName');
+        if (lastBookName) document.getElementById('batch-book-name').value = lastBookName;
+    }
+}
+
+function addBatchRow() {
+    batchRowCount++;
+    const rowId = 'batch-row-' + batchRowCount;
+    const container = document.getElementById('batch-rows');
+    const row = document.createElement('div');
+    row.id = rowId;
+    row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
+    row.innerHTML = `
+        <input type="number" placeholder="页码" class="batch-page" style="flex:1;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
+        <input type="text" placeholder="题号" class="batch-number" style="flex:1;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
+        <button type="button" onclick="removeBatchRow('${rowId}')" style="padding:6px 10px;background:var(--danger);box-shadow:0 2px 0 #B02520;font-size:12px;border:none;border-radius:var(--radius-sm);cursor:pointer;color:#fff">✕</button>
+    `;
+    container.appendChild(row);
+}
+
+function removeBatchRow(rowId) {
+    const container = document.getElementById('batch-rows');
+    const row = document.getElementById(rowId);
+    if (row && container.children.length > 1) {
+        row.remove();
+    }
+}
+
+function getBatchEntries() {
+    const entries = [];
+    const rows = document.querySelectorAll('#batch-rows > div');
+    rows.forEach(row => {
+        const page = row.querySelector('.batch-page').value.trim();
+        const number = row.querySelector('.batch-number').value.trim();
+        if (page || number) entries.push({ page, number });
+    });
+    return entries;
+}
+
 document.getElementById("question-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     const qi = croppedImages.question, ai = croppedImages.answer, bi = croppedImages.blank;
-    const tags = Array.from(document.getElementById("tag-select").selectedOptions).map(o => o.value);
+    const tags = [...formSelectedTagIds];
     const versions = getSelectedVersions();
-    if (!qi) { showStatus("请先选择题目图片", "error"); return; }
+    const bookName = document.getElementById("book-name").value.trim();
+    const pageNumber = document.getElementById("page-number").value.trim();
+    const questionNumber = document.getElementById("question-number").value.trim();
+    
+    // 批量模式处理
+    if (currentAddMode === 'batch') {
+        const batchBookName = document.getElementById("batch-book-name").value.trim();
+        const entries = getBatchEntries();
+        const tags = [...formSelectedTagIds];
+        if (!batchBookName) { showStatus("请输入书名", "error"); return; }
+        if (entries.length === 0) { showStatus("请添加至少一道题目", "error"); return; }
+        
+        try {
+            const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = "处理中...";
+            let count = 0;
+            for (const entry of entries) {
+                const bookInfo = { book_name: batchBookName, page_number: entry.page, question_number: entry.number };
+                await dbCreateQuestion(null, null, tags, 0, null, versions, bookInfo);
+                count++;
+            }
+            localStorage.setItem('lastBookName', batchBookName);
+            document.getElementById('batch-rows').innerHTML = '';
+            addBatchRow();
+            formSelectedTagIds = []; renderFormSelectedTags();
+            resetVersionCheckboxes();
+            await loadQuestions(); await loadBookFilter();
+            showStatus(`成功添加 ${count} 道题目`, "success");
+            btn.disabled = false; btn.textContent = "添加题目";
+        } catch (err) { showStatus("批量添加失败: " + err.message, "error"); e.target.querySelector('button[type="submit"]').disabled = false; e.target.querySelector('button[type="submit"]').textContent = "添加题目"; }
+        return;
+    }
+    
+    // 纯文字模式：至少需要书本信息之一
+    if (currentAddMode === 'text' && !bookName && !pageNumber && !questionNumber) {
+        showStatus("纯文字模式下请至少填写一项书本信息", "error"); return;
+    }
+    // 拍照模式：需要图片
+    if (currentAddMode === 'photo' && !qi) { showStatus("请先选择题目图片", "error"); return; }
+    
     const lr = document.querySelector('input[name="layout_type"]:checked');
     const lt = lr ? parseInt(lr.value) : 0;
+    const bookInfo = { book_name: bookName, page_number: pageNumber, question_number: questionNumber };
+    
     try {
         const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = "处理中...";
-        const newQuestion = await dbCreateQuestion(qi, ai, tags, lt, bi, versions);
+        const newQuestion = await dbCreateQuestion(qi, ai, tags, lt, bi, versions, bookInfo);
 
-        // 创建主版本笔记
-        await dbAddQuestionNote(newQuestion.id, qi, "笔记 v1", "");
+        // 创建主版本笔记（仅有图片时）
+        if (qi) await dbAddQuestionNote(newQuestion.id, qi, "笔记 v1", "");
+
+        // 保存评价
+        const comment = document.getElementById("form-comment").value.trim();
+        if (comment) {
+            await dbQuestions.setItem(newQuestion.id, { ...newQuestion, user_comment: comment, updated_at: new Date().toISOString() });
+        }
 
         // 创建额外版本笔记
         let noteIdx = 2;
@@ -2524,22 +2802,75 @@ document.getElementById("question-form").addEventListener("submit", async (e) =>
         document.getElementById("extra-note-versions").innerHTML = "";
 
         removeImage("question"); removeImage("answer"); removeImage("blank");
-        document.getElementById("tag-select").selectedIndex = -1;
+        formSelectedTagIds = []; renderFormSelectedTags();
         document.querySelectorAll('.layout-option').forEach(l => { l.style.borderColor = '#e5e7eb'; l.style.background = '#fff'; });
         resetVersionCheckboxes();
-        await loadQuestions(); showStatus("题目添加成功", "success");
+        if (bookName) localStorage.setItem('lastBookName', bookName);
+        document.getElementById("page-number").value = "";
+        document.getElementById("question-number").value = "";
+        document.getElementById("form-comment").value = "";
+        clearFormGeneratedTags();
+        await loadQuestions(); await loadBookFilter();
+        showStatus("题目添加成功", "success");
         btn.disabled = false; btn.textContent = "添加题目";
     } catch (err) { showStatus("添加失败: " + err.message, "error"); e.target.querySelector('button[type="submit"]').disabled = false; e.target.querySelector('button[type="submit"]').textContent = "添加题目"; }
 });
 async function loadQuestions() { allQuestions = await dbGetAllQuestions(); renderQuestions(); }
+
+let currentBookFilter = '';
+let allBookNames = [];
+
+async function loadBookFilter() {
+    allBookNames = await dbGetAllBookNames();
+    const select = document.getElementById('book-filter');
+    select.innerHTML = '<option value="">📚 全部书本</option>';
+    allBookNames.forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = '📖 ' + name;
+        select.appendChild(opt);
+    });
+    const datalist = document.getElementById('book-name-list');
+    if (datalist) {
+        datalist.innerHTML = '';
+        allBookNames.forEach(name => {
+            const opt = document.createElement('option');
+            opt.value = name;
+            datalist.appendChild(opt);
+        });
+    }
+}
+
+function filterByBook(bookName) {
+    currentBookFilter = bookName;
+    renderQuestions();
+}
+
+function filterQuestions() {
+    renderQuestions();
+}
 function getFilteredQuestions() {
     const currentVersionId = getCurrentVersionId();
+    const searchText = document.getElementById('search-input')?.value?.toLowerCase()?.trim() || '';
     let filtered = allQuestions.filter(q => {
         const versions = q.versions || [];
         return versions.length === 0 || versions.includes(currentVersionId);
     });
     if (activeFilterTags.length) {
         filtered = filtered.filter(q => { const qt = q.question_tags.map(t => t.tags.id); return activeFilterTags.some(f => qt.includes(f)); });
+    }
+    if (currentBookFilter) {
+        filtered = filtered.filter(q => q.book_name === currentBookFilter);
+    }
+    if (searchText) {
+        filtered = filtered.filter(q => {
+            const bookMatch = (q.book_name || '').toLowerCase().includes(searchText);
+            const pageMatch = (q.page_number || '').toLowerCase().includes(searchText);
+            const numMatch = (q.question_number || '').toLowerCase().includes(searchText);
+            const tagMatch = q.question_tags.some(t => t.tags.name.toLowerCase().includes(searchText));
+            const summaryMatch = (q.semantic_summary || '').toLowerCase().includes(searchText);
+            return bookMatch || pageMatch || numMatch || tagMatch || summaryMatch;
+        });
     }
     return filtered;
 }
@@ -2562,11 +2893,32 @@ function renderQuestions() {
         cb.textContent = isChecked ? "✓" : "";
         cb.onclick = (ev) => { ev.stopPropagation(); toggleQuestionSelect(q.id, cb); };
         card.appendChild(cb);
-        // image
-        const img = document.createElement("img"); img.src = q.question_image_url; img.alt = "题目"; img.loading = "lazy";
+        // image or placeholder
+        const img = document.createElement("img");
+        if (q.question_image_url) {
+            img.src = q.question_image_url; img.alt = "题目"; img.loading = "lazy";
+        } else {
+            img.style.background = 'linear-gradient(135deg, var(--primary-light) 0%, var(--surface-dim) 100%)';
+            img.style.display = 'flex';
+            img.style.alignItems = 'center';
+            img.style.justifyContent = 'center';
+            img.style.fontSize = '32px';
+            img.alt = "纯文字题目";
+            img.src = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="160" height="130" viewBox="0 0 160 130"><rect fill="%23E8F5EE" width="160" height="130"/><text x="80" y="60" text-anchor="middle" font-size="28" fill="%231B7A4E">📝</text><text x="80" y="85" text-anchor="middle" font-size="11" fill="%235F6368">纯文字题目</text></svg>');
+        }
         img.onclick = () => showQuestionDetail(q.id); card.appendChild(img);
         // info
         const info = document.createElement("div"); info.className = "info"; info.onclick = () => showQuestionDetail(q.id);
+        
+        // 书本信息
+        if (q.book_name || q.page_number || q.question_number) {
+            const bookWrap = document.createElement("div");
+            bookWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;font-size:10px;color:var(--text-secondary)';
+            if (q.book_name) bookWrap.innerHTML += '<span style="background:var(--primary-light);padding:1px 6px;border-radius:8px">📖 ' + q.book_name + '</span>';
+            if (q.page_number) bookWrap.innerHTML += '<span style="background:var(--surface-dim);padding:1px 6px;border-radius:8px">p.' + q.page_number + '</span>';
+            if (q.question_number) bookWrap.innerHTML += '<span style="background:var(--surface-dim);padding:1px 6px;border-radius:8px">第' + q.question_number + '题</span>';
+            info.appendChild(bookWrap);
+        }
 
         // 版本标签
         const versions = q.versions || [];
@@ -2608,23 +2960,102 @@ function renderQuestions() {
         addBtn.onclick = (ev) => { ev.stopPropagation(); toggleInlineTagAdd(q.id); }; tagsWrap.appendChild(addBtn);
         const inlineAdd = document.createElement("div"); inlineAdd.id = "inline-add-" + q.id; inlineAdd.className = "inline-tag-add hidden";
         inlineAdd.onclick = (ev) => ev.stopPropagation();
-        if (avail.length) {
-            const sel = document.createElement("select"); sel.id = "inline-tag-select-" + q.id;
-            avail.forEach(t => { const o = document.createElement("option"); o.value = t.id; o.textContent = t.name; sel.appendChild(o); });
-            inlineAdd.appendChild(sel);
-            const ab = document.createElement("button"); ab.textContent = "添加"; ab.onclick = (ev) => { ev.stopPropagation(); addTagToQuestion(q.id); }; inlineAdd.appendChild(ab);
-        }
-        const nb = document.createElement("button"); nb.textContent = "新建标签"; nb.onclick = (ev) => { ev.stopPropagation(); showNewTagModal('form'); }; inlineAdd.appendChild(nb);
-        const cb2 = document.createElement("button"); cb2.className = "secondary"; cb2.textContent = "取消"; cb2.onclick = (ev) => { ev.stopPropagation(); toggleInlineTagAdd(q.id); }; inlineAdd.appendChild(cb2);
+        inlineAdd.innerHTML = `<input type="text" id="inline-tag-search-${q.id}" placeholder="🔍 搜索或输入标签名..." oninput="onInlineTagSearch('${q.id}')" onkeydown="onInlineTagKeydown(event,'${q.id}')" />
+            <div id="inline-tag-results-${q.id}" class="inline-tag-results"></div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <button onclick="showNewTagModal('form')" style="padding:4px 10px;font-size:11px;background:var(--accent);box-shadow:0 2px 0 #5A3DC0">＋ 新建标签</button>
+                <button onclick="toggleInlineTagAdd('${q.id}')" class="secondary" style="padding:4px 10px;font-size:11px">关闭</button>
+            </div>
+            <div id="inline-tag-added-${q.id}" class="inline-tag-added" style="display:none"></div>`;
         info.appendChild(tagsWrap); info.appendChild(inlineAdd); card.appendChild(info);
         container.appendChild(card);
     });
 }
-function toggleInlineTagAdd(id) { document.getElementById("inline-add-" + id).classList.toggle("hidden"); }
-async function addTagToQuestion(qId) {
-    const sel = document.getElementById("inline-tag-select-" + qId); if (!sel || !sel.value) return;
-    await dbAddTagToQuestion(qId, sel.value); await loadQuestions();
+function toggleInlineTagAdd(id) {
+    const el = document.getElementById("inline-add-" + id);
+    el.classList.toggle("hidden");
+    if (!el.classList.contains("hidden")) {
+        const input = document.getElementById("inline-tag-search-" + id);
+        if (input) { input.value = ''; input.focus(); }
+        onInlineTagSearch(id);
+    }
 }
+
+function onInlineTagSearch(qId) {
+    const input = document.getElementById("inline-tag-search-" + qId);
+    const resultsDiv = document.getElementById("inline-tag-results-" + qId);
+    if (!input || !resultsDiv) return;
+    const query = input.value.trim().toLowerCase();
+    const question = allQuestions.find(q => q.id === qId);
+    const existingTagIds = question ? question.question_tags.map(qt => qt.tags.id) : [];
+    let matches = allTags.filter(t => !existingTagIds.includes(t.id));
+    if (query) matches = matches.filter(t => t.name.toLowerCase().includes(query));
+    matches = matches.slice(0, 12);
+    resultsDiv.innerHTML = '';
+    if (matches.length === 0 && query) {
+        const createBtn = document.createElement("span");
+        createBtn.className = "inline-tag-result";
+        createBtn.style.cssText = 'background:var(--accent-light);border-color:var(--accent);color:var(--accent)';
+        createBtn.textContent = '＋ 创建: "' + input.value.trim() + '"';
+        createBtn.onclick = async (ev) => {
+            ev.stopPropagation();
+            const name = input.value.trim();
+            if (!name) return;
+            const tag = await dbCreateTag(name, '#3B82F6');
+            await dbAddTagToQuestion(qId, tag.id);
+            input.value = '';
+            allTags.push(tag);
+            showAddedTag(qId, tag);
+            onInlineTagSearch(qId);
+        };
+        resultsDiv.appendChild(createBtn);
+    } else {
+        matches.forEach(t => {
+            const btn = document.createElement("span");
+            btn.className = "inline-tag-result";
+            btn.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:' + t.color + ';flex-shrink:0"></span> ' + t.name;
+            btn.onclick = async (ev) => {
+                ev.stopPropagation();
+                await dbAddTagToQuestion(qId, t.id);
+                showAddedTag(qId, t);
+                onInlineTagSearch(qId);
+            };
+            resultsDiv.appendChild(btn);
+        });
+    }
+}
+
+function onInlineTagKeydown(event, qId) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        const resultsDiv = document.getElementById("inline-tag-results-" + qId);
+        const firstResult = resultsDiv ? resultsDiv.querySelector(".inline-tag-result") : null;
+        if (firstResult) firstResult.click();
+    }
+}
+
+function showAddedTag(qId, tag) {
+    const addedDiv = document.getElementById("inline-tag-added-" + qId);
+    if (!addedDiv) return;
+    addedDiv.style.display = 'flex';
+    const span = document.createElement("span");
+    span.className = "tag";
+    span.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:' + tag.color + '"></span> ' + tag.name + ' ✓';
+    addedDiv.appendChild(span);
+    const question = allQuestions.find(q => q.id === qId);
+    if (question) question.question_tags.push({ tags: tag });
+    const card = document.querySelector('[data-id="' + qId + '"]');
+    if (card) {
+        const tagsWrap = card.querySelector('.tags');
+        if (tagsWrap) {
+            const addBtn = tagsWrap.querySelector('.tag-add-btn');
+            const te = document.createElement("span"); te.className = "tag"; te.style.background = tag.color + "20"; te.textContent = tag.name;
+            if (addBtn) tagsWrap.insertBefore(te, addBtn); else tagsWrap.appendChild(te);
+        }
+    }
+}
+
+
 
 // ========== 批量选择 ==========
 function toggleQuestionSelect(qId, btn) {
@@ -2663,7 +3094,7 @@ async function loadNoteVersionsForDetail(questionId) {
 
     if (currentNoteVersions.length === 0) {
         bar.style.display = "none";
-        imgDiv.innerHTML = '<p style="color:var(--text-tertiary);text-align:center;padding:20px">暂无题目图片</p>';
+        imgDiv.innerHTML = '<div style="text-align:center;padding:20px"><p style="color:var(--text-tertiary);margin-bottom:12px">暂无题目图片</p><button onclick="showAddNoteVersionModal()" style="padding:8px 16px;font-size:13px">📷 添加题目图片</button></div>';
         textDiv.style.display = "none";
         return;
     }
@@ -2929,6 +3360,16 @@ function renderDetailContent(q) {
     });
     versionHtml += '</div><small style="color:#888;font-size:11px">不勾选则所有版本均可见</small>';
     document.getElementById("modal-tags").innerHTML += versionHtml;
+    
+    // 书本信息编辑
+    const bookHtml = `<h3 style="margin-top:12px">📖 书本信息</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+            <input id="detail-book-name" placeholder="书名" value="${q.book_name || ''}" style="flex:2;min-width:100px;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
+            <input id="detail-page-number" placeholder="页码" value="${q.page_number || ''}" style="flex:1;min-width:60px;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
+            <input id="detail-question-number" placeholder="题号" value="${q.question_number || ''}" style="flex:1;min-width:60px;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
+        </div>
+        <button onclick="saveBookInfo('${q.id}')" style="margin-top:8px;padding:6px 14px;font-size:12px">保存书本信息</button>`;
+    document.getElementById("modal-tags").innerHTML += bookHtml;
 
     renderSimilarQuestions(q.id);
     // AI 摘要
@@ -2942,7 +3383,10 @@ function renderDetailContent(q) {
     }
     // 用户评价
     const userComment = q.user_comment || "";
-    document.getElementById("user-comment").value = userComment;
+    const commentInput = document.getElementById("user-comment");
+    if (commentInput && document.activeElement !== commentInput) {
+        commentInput.value = userComment;
+    }
     document.getElementById("detail-nav-info").textContent = (detailIndex + 1) + " / " + filteredList.length;
     document.getElementById("btn-prev").disabled = detailIndex <= 0; document.getElementById("btn-prev").style.opacity = detailIndex <= 0 ? 0.4 : 1;
     document.getElementById("btn-next").disabled = detailIndex >= filteredList.length - 1; document.getElementById("btn-next").style.opacity = detailIndex >= filteredList.length - 1 ? 0.4 : 1;
@@ -2961,6 +3405,20 @@ async function toggleQuestionVersion(questionId, versionId, checked) {
     await dbUpdateQuestionVersions(questionId, versions);
     await loadQuestions();
     showStatus('版本归属已更新', 'success');
+}
+
+async function saveBookInfo(questionId) {
+    const bookName = document.getElementById('detail-book-name').value.trim();
+    const pageNumber = document.getElementById('detail-page-number').value.trim();
+    const questionNumber = document.getElementById('detail-question-number').value.trim();
+    await dbUpdateQuestionBookInfo(questionId, {
+        book_name: bookName,
+        page_number: pageNumber,
+        question_number: questionNumber
+    });
+    await loadQuestions();
+    await loadBookFilter();
+    showStatus('书本信息已保存', 'success');
 }
 
 function updateDetailBasketBtn(qId) {
@@ -4864,6 +5322,63 @@ function clearGeneratedTags() {
     addedGeneratedTags.clear();
 }
 
+// 清除表单生成的标签列表
+function clearFormGeneratedTags() {
+    document.getElementById("form-generated-tags-list").innerHTML = "";
+    document.getElementById("form-generated-tags").style.display = "none";
+}
+
+// 基于评价生成标签（表单版）
+async function generateFormTagsFromComment() {
+    const comment = document.getElementById("form-comment").value.trim();
+    if (!comment) { showStatus("请输入评价", "error"); return; }
+
+    const btn = event.target;
+    btn.disabled = true; btn.textContent = "生成中...";
+
+    try {
+        const prompt = `请基于以下用户评价，为题目生成语义标签（JSON数组格式）。
+标签范围不限，自行判断哪些语义可以作为题目特征。
+只输出JSON数组，不要其他内容。
+
+用户评价：${comment}`;
+
+        const result = await callCloudAI(prompt);
+        let tags = [];
+        try {
+            const jsonMatch = result.match(/\[[\s\S]*?\]/);
+            if (jsonMatch) { tags = JSON.parse(jsonMatch[0]); }
+            else { tags = result.split('\n').map(t => t.trim()).filter(t => t && !t.startsWith('[') && !t.startsWith(']')); }
+        } catch (e) { tags = result.split('\n').map(t => t.trim()).filter(t => t); }
+
+        const container = document.getElementById("form-generated-tags-list");
+        container.innerHTML = "";
+        tags.forEach(tag => {
+            const btn = document.createElement("button");
+            btn.textContent = tag;
+            btn.style.cssText = "padding:4px 10px;font-size:11px;border-radius:12px;cursor:pointer;border:1px solid var(--warning);background:var(--warning-light);color:#92400e;transition:all .15s";
+            btn.onclick = () => {
+                if (btn.style.background === 'rgb(34, 197, 94)') return;
+                addFormTagByName(tag);
+                btn.style.background = "#22c55e"; btn.style.color = "#fff"; btn.style.borderColor = "#22c55e";
+            };
+            btn.onmouseenter = () => { if (btn.style.background !== 'rgb(34, 197, 94)') { btn.style.background = '#FEF3C7'; } };
+            btn.onmouseleave = () => { if (btn.style.background !== 'rgb(34, 197, 94)') { btn.style.background = 'var(--warning-light)'; } };
+            container.appendChild(btn);
+        });
+        document.getElementById("form-generated-tags").style.display = tags.length > 0 ? "block" : "none";
+        showStatus(`生成了 ${tags.length} 个标签`, "success");
+    } catch (e) {
+        showStatus("生成失败: " + e.message, "error");
+    } finally { btn.disabled = false; btn.textContent = "🤖 AI 生成"; }
+}
+
+async function addFormTagByName(tagName) {
+    let tag = allTags.find(t => t.name === tagName);
+    if (!tag) { tag = await dbCreateTag(tagName, '#f59e0b'); await loadTags(); }
+    addFormTag(tag.id);
+}
+
 // 从题目移除标签
 async function removeTagFromQuestion(tagId) {
     if (!currentQuestionId) return;
@@ -5618,9 +6133,11 @@ function showSyncModal() {
     document.getElementById('sync-user-name').textContent = currentUser?.nickname || currentUser?.phone || '';
     document.getElementById('auto-sync-toggle').checked = autoSyncEnabled;
     document.getElementById('sync-toggle').checked = syncEnabled;
+    document.getElementById('backup-server-url').value = serverUrl;
     const lastSync = localStorage.getItem('lastSyncTime');
     document.getElementById('sync-status').textContent = lastSync ? '上次同步: ' + new Date(lastSync).toLocaleString() : '尚未同步';
     document.getElementById('sync-modal').classList.add('active');
+    checkRecoveryStatus();
 }
 function closeSyncModal() { document.getElementById('sync-modal').classList.remove('active'); }
 
@@ -5689,6 +6206,43 @@ function doLogout() {
     stopSyncPolling();
     closeSyncModal(); updateLoginUI();
     showStatus('已退出登录', 'success');
+}
+
+async function checkRecoveryStatus() {
+    const el = document.getElementById('recovery-status');
+    if (!el) return;
+    try {
+        const resp = await apiCall('/api/recovery/status');
+        el.textContent = resp.supabase_enabled ? '✅ Supabase 已连接' : '⚠️ Supabase 未配置';
+        el.style.color = resp.supabase_enabled ? '#16a34a' : '#f59e0b';
+    } catch (e) {
+        el.textContent = '❌ 无法连接服务器';
+        el.style.color = '#ef4444';
+    }
+}
+
+async function fullSyncToCloud() {
+    if (!confirm('将所有数据全量推送到 Supabase，用于容灾备份。\n\n确定继续？')) return;
+    try {
+        showStatus('正在同步到云端...', 'info');
+        const resp = await apiCall('/api/recovery/sync-to-supabase', 'POST');
+        if (resp.error) { showStatus('同步失败: ' + resp.error, 'error'); return; }
+        showStatus('全量同步完成，已推送 ' + resp.users + ' 个用户', 'success');
+    } catch (e) {
+        showStatus('同步失败: ' + e.message, 'error');
+    }
+}
+
+function switchToBackupServer() {
+    const url = document.getElementById('backup-server-url').value.trim().replace(/\/$/, '');
+    if (!url) { showStatus('请输入备用服务器地址', 'error'); return; }
+    if (!confirm('即将切换到备用服务器：' + url + '\n\n切换后将从备用服务器同步数据。\n确定继续？')) return;
+    serverUrl = url;
+    localStorage.setItem('serverUrl', url);
+    initRemoteSync(serverUrl, apiToken, syncEnabled);
+    restartSyncPolling();
+    showStatus('已切换到备用服务器', 'success');
+    document.getElementById('server-url').value = url;
 }
 
 function stopSyncPolling() {

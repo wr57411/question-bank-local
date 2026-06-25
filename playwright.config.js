@@ -38,6 +38,7 @@ function resolveChromeConfig() {
 
 module.exports = defineConfig({
   testDir: path.join(__dirname, "tests"),
+  testMatch: /(?<!unit\/).*\.spec\.js$/,
   timeout: 60_000,
   expect: {
     timeout: 10_000,

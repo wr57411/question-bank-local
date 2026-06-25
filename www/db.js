@@ -181,6 +181,10 @@ function _normalizeQuestionRecord(question, key) {
   if (!next.user_comment) next.user_comment = "";
   // 版本归属字段
   if (!next.versions) next.versions = [];
+  // 书本信息字段
+  if (!next.book_name) next.book_name = "";
+  if (!next.page_number) next.page_number = "";
+  if (!next.question_number) next.question_number = "";
 
   return next;
 }
@@ -374,9 +378,11 @@ async function dbGetTrashedQuestions() {
   return questions.sort((a, b) => new Date(b.deleted_at) - new Date(a.deleted_at));
 }
 
-async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layoutType, blankFile, versions) {
+async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layoutType, blankFile, versions, bookInfo) {
   const id = generateId();
-  const qImg = await compressImage(questionFile);
+  
+  let qImg = null;
+  if (questionFile) qImg = await compressImage(questionFile);
   let aImg = null;
   if (answerFile) aImg = await compressImage(answerFile);
   let bImg = null;
@@ -385,7 +391,7 @@ async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layout
   // 远程同步：上传图片到服务器
   let qImgUrl = qImg, aImgUrl = aImg, bImgUrl = bImg;
   if (_syncEnabled) {
-    qImgUrl = await _uploadImage(qImg);
+    if (qImg) qImgUrl = await _uploadImage(qImg);
     if (aImg) aImgUrl = await _uploadImage(aImg);
     if (bImg) bImgUrl = await _uploadImage(bImg);
   }
@@ -393,21 +399,21 @@ async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layout
   const now = _nowIso();
   const question = {
     id,
-    question_image_url: _normalizeServerAssetUrl(qImgUrl),
-    answer_image_url: _normalizeServerAssetUrl(aImgUrl),
-    question_image_blank_url: _normalizeServerAssetUrl(bImgUrl),
+    question_image_url: qImgUrl ? _normalizeServerAssetUrl(qImgUrl) : null,
+    answer_image_url: aImgUrl ? _normalizeServerAssetUrl(aImgUrl) : null,
+    question_image_blank_url: bImgUrl ? _normalizeServerAssetUrl(bImgUrl) : null,
     layout_type: layoutType || 0,
     versions: versions || [],
     created_at: now,
     updated_at: now,
     deleted_at: null,
-    semantic_summary: "AI 正在分析中...",
-    ai_metadata: {}
+    semantic_summary: qImg ? "AI 正在分析中..." : "",
+    ai_metadata: {},
+    book_name: (bookInfo && bookInfo.book_name) || "",
+    page_number: (bookInfo && bookInfo.page_number) || "",
+    question_number: (bookInfo && bookInfo.question_number) || ""
   };
   await dbQuestions.setItem(id, question);
-
-  // 异步触发 Gemma 4 分析 (不阻塞主 UI 入库)
-  _triggerAIAnalysis(id, qImg);
 
   for (const tagId of selectedTagIds) {
     await dbQuestionTags.setItem(`${id}_${tagId}`, { question_id: id, tag_id: tagId });
@@ -524,6 +530,30 @@ async function dbUpdateQuestionVersions(questionId, versions) {
     updated_at: now
   });
   return question;
+}
+
+// 更新题目的书本信息
+async function dbUpdateQuestionBookInfo(questionId, bookInfo) {
+  const question = await dbQuestions.getItem(questionId);
+  if (!question) throw new Error('题目不存在');
+  const now = _nowIso();
+  await dbQuestions.setItem(questionId, {
+    ...question,
+    book_name: (bookInfo && bookInfo.book_name) || "",
+    page_number: (bookInfo && bookInfo.page_number) || "",
+    question_number: (bookInfo && bookInfo.question_number) || "",
+    updated_at: now
+  });
+  return question;
+}
+
+// 获取所有不重复的书名（用于筛选）
+async function dbGetAllBookNames() {
+  const bookNames = new Set();
+  await dbQuestions.iterate((q) => {
+    if (q && !q.deleted_at && q.book_name) bookNames.add(q.book_name);
+  });
+  return Array.from(bookNames).sort();
 }
 
 // 从所有题目中移除某个版本 ID
@@ -1069,6 +1099,9 @@ async function dbBuildSyncPayload() {
       user_comment: question.user_comment || '',
       semantic_summary: question.semantic_summary || '',
       ai_metadata: question.ai_metadata || {},
+      book_name: question.book_name || '',
+      page_number: question.page_number || '',
+      question_number: question.question_number || '',
       tag_ids: await _collectQuestionTagIds(question.id)
     });
   }
@@ -1227,7 +1260,10 @@ async function dbApplyRemoteSnapshot(snapshot) {
       purged_at: question.purged_at || null,
       user_comment: question.user_comment || '',
       semantic_summary: question.semantic_summary || '',
-      ai_metadata: question.ai_metadata || {}
+      ai_metadata: question.ai_metadata || {},
+      book_name: question.book_name !== undefined ? question.book_name : (localQuestion ? localQuestion.book_name || '' : ''),
+      page_number: question.page_number !== undefined ? question.page_number : (localQuestion ? localQuestion.page_number || '' : ''),
+      question_number: question.question_number !== undefined ? question.question_number : (localQuestion ? localQuestion.question_number || '' : '')
     };
     if (_isRemoteNewer(nextQuestion, localQuestion)) {
       if (nextQuestion.purged_at) {
@@ -1242,7 +1278,7 @@ async function dbApplyRemoteSnapshot(snapshot) {
         continue;
       }
       await dbQuestions.setItem(question.id, nextQuestion);
-      await _replaceQuestionTags(question.id, question.tag_ids || []);
+      if (question.tag_ids !== undefined) await _replaceQuestionTags(question.id, question.tag_ids);
     }
   }
 

@@ -5,9 +5,13 @@
   "scripts": {
     "dev": "npx serve www",
     "build": "echo 'Static app, no build needed'",
+    "test": "vitest run",
+    "test:unit": "vitest run unit-tests",
+    "test:e2e": "playwright test",
     "test:e2e:pw": "playwright test",
     "test:e2e:pw:debug": "playwright test --debug",
     "test:e2e:pw:ui": "playwright test --ui",
+    "test:all": "vitest run && playwright test",
     "validate:e2e": "node scripts/validate-e2e.js",
     "cap:init": "npx cap init question-bank-local com.questionbank.local --web-dir www",
     "cap:add:android": "npx cap add android",
@@ -32,7 +36,9 @@
   "devDependencies": {
     "@capacitor/cli": "^6.0.0",
     "@playwright/test": "^1.58.2",
+    "jsdom": "^29.1.1",
     "serve": "^14.2.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.8"
   }
 }
