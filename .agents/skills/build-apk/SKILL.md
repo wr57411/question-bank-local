@@ -41,18 +41,16 @@ export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 cd android && ./gradlew assembleDebug
 ```
 
-### 5. 复制 APK 到主项目目录
-
-无论在哪个目录构建，APK 一律复制到主项目目录 `/Users/john/question-bank-local/`，方便统一管理和安装：
+### 5. 复制 APK 到项目根目录
 
 ```bash
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-cp android/app/build/outputs/apk/debug/app-debug.apk "/Users/john/question-bank-local/question-bank-local_${TIMESTAMP}.apk"
+cp android/app/build/outputs/apk/debug/app-debug.apk "question-bank-local_${TIMESTAMP}.apk"
 ```
 
 ## 输出
 
-- APK 路径：`/Users/john/question-bank-local/question-bank-local_YYYYMMDD_HHMMSS.apk`
+- APK 路径：`<项目根目录>/question-bank-local_YYYYMMDD_HHMMSS.apk`
 - 大小：约 18MB（debug 版本）
 
 ## 注意事项

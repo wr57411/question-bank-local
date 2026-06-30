@@ -407,7 +407,7 @@ async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layout
     created_at: now,
     updated_at: now,
     deleted_at: null,
-    semantic_summary: qImg ? "AI 正在分析中..." : "",
+    semantic_summary: "",
     ai_metadata: {},
     book_name: (bookInfo && bookInfo.book_name) || "",
     page_number: (bookInfo && bookInfo.page_number) || "",
@@ -911,13 +911,18 @@ function dbSetLastViewedNote(questionId, noteId) {
 }
 
 async function _migrateQuestionNotes() {
-  await dbQuestions.iterate(async (q, key) => {
-    if (!q || q.deleted_at) return;
-    const notes = await dbGetQuestionNotes(q.id);
-    if (notes.length === 0 && q.question_image_url) {
-      await dbAddQuestionNote(q.id, q.question_image_url, '笔记 v1', '');
-    }
-  });
+  try {
+    await dbQuestions.iterate(async (q, key) => {
+      if (!q || q.deleted_at) return;
+      if (q.semantic_summary === "AI 正在分析中...") {
+        await dbQuestions.setItem(q.id, { ...q, semantic_summary: "" });
+      }
+      const notes = await dbGetQuestionNotes(q.id);
+      if (notes.length === 0 && q.question_image_url) {
+        await dbAddQuestionNote(q.id, q.question_image_url, '笔记 v1', '');
+      }
+    });
+  } catch (e) { console.error("迁移失败:", e); }
 }
 
 async function _removeQuestionNotesForQuestion(questionId) {

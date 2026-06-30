@@ -456,6 +456,7 @@
                             <button type="button" class="upload-btn" onclick="pickFromGallery('answer')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
                             <button type="button" class="upload-btn" style="background:var(--accent);box-shadow:0 3px 0 #5A3DC0" onclick="crossPageShoot('answer')">📸 跨页</button>
                             <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('answer')">📋 悬浮窗</button>
+                            <button type="button" id="copy-q-to-a-btn" class="upload-btn" onclick="copyQuestionToAnswer()" style="background:#10b981;box-shadow:0 3px 0 #059669;display:none">📋 复制题目</button>
                         </div>
                         <div class="preview-wrap" id="answer-preview-wrap" style="display:none">
                             <span class="preview-delete" onclick="removeImage('answer')">×</span>
@@ -492,7 +493,10 @@
                 <div class="form-group">
                     <label>选择标签 <span style="cursor:pointer;color:#3b82f6" onclick="showNewTagModal('form')" title="新建标签">＋</span></label>
                     <div id="form-tag-section" style="border:1.5px solid var(--border);border-radius:var(--radius-md);padding:8px;background:var(--surface)">
-                        <input id="form-tag-search" type="text" placeholder="🔍 搜索标签..." oninput="onFormTagSearch()" onkeydown="onFormTagKeydown(event)" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border-light);border-radius:var(--radius-sm);margin-bottom:6px" />
+                        <div style="display:flex;gap:6px;margin-bottom:6px">
+                            <input id="form-tag-search" type="text" placeholder="🔍 搜索标签..." oninput="onFormTagSearch()" onkeydown="onFormTagKeydown(event)" onfocus="_startFormTagPoll()" onblur="_stopFormTagPoll()" style="flex:1;padding:6px 8px;font-size:13px;border:1px solid var(--border-light);border-radius:var(--radius-sm)" />
+                            <button type="button" id="form-tag-create-btn" onclick="createTagFromSearch()" style="padding:6px 10px;font-size:12px;border:1px solid var(--accent);background:var(--accent-light);color:var(--accent);border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap;font-weight:600">＋ 创建</button>
+                        </div>
                         <div id="form-tag-results" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;max-height:100px;overflow-y:auto"></div>
                         <div id="form-tag-selected" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px"></div>
                     </div>
@@ -1240,6 +1244,7 @@ let cropInteractionFrame = 0;
 let croppedImages = { question: null, answer: null };
 let originalImages = { question: null, answer: null };
 let suggestedCropRects = { question: null, answer: null };
+let floatingPollTimer = null;
 let selectedQuestions = new Set();
 let questionBasket = new Set();
 let detailIndex = -1, filteredList = [];
@@ -1439,9 +1444,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
 async function refreshAll() {
     await _migrateQuestionNotes();
-    await Promise.all([loadTags(), loadQuestions(), loadPapers(), loadTopics(), loadBookFilter()]);
-    const lastBookName = localStorage.getItem('lastBookName');
-    if (lastBookName) document.getElementById('book-name').value = lastBookName;
+    await Promise.all([loadTags(), isFormDirty ? Promise.resolve() : loadQuestions(), loadPapers(), loadTopics(), loadBookFilter()]);
+    if (!isFormDirty) {
+        const lastBookName = localStorage.getItem('lastBookName');
+        if (lastBookName) document.getElementById('book-name').value = lastBookName;
+    }
 }
 
 // ========== 版本管理 ==========
@@ -1679,6 +1686,11 @@ function handleCameraResult(target, dataUrl) {
     document.getElementById(target + "-preview-wrap").style.display = "inline-block";
     document.getElementById(target + "-preview-label").classList.remove("hidden");
     originalImages[target] = dataUrl; croppedImages[target] = dataUrl;
+    if (target === 'question') {
+        isFormDirty = true;
+        const copyBtn = document.getElementById("copy-q-to-a-btn");
+        if (copyBtn) copyBtn.style.display = "";
+    }
 }
 function handleFileSelect(e, target) {
     if (e.target.files && e.target.files[0]) {
@@ -1687,11 +1699,21 @@ function handleFileSelect(e, target) {
         reader.readAsDataURL(e.target.files[0]);
     }
 }
+function copyQuestionToAnswer() {
+    if (!croppedImages.question) { showStatus("请先选择题目图片", "error"); return; }
+    handleCameraResult('answer', croppedImages.question);
+    showStatus("已复制题目图片到答案", "success");
+}
 function removeImage(target) {
     croppedImages[target] = null; originalImages[target] = null;
     suggestedCropRects[target] = null;
     document.getElementById(target + "-preview-wrap").style.display = "none";
     document.getElementById(target + "-preview-label").classList.add("hidden");
+    if (target === 'question') {
+        const copyBtn = document.getElementById("copy-q-to-a-btn");
+        if (copyBtn) copyBtn.style.display = "none";
+    }
+    if (target === 'question') isFormDirty = false;
 }
 
 // ========== 悬浮窗截图 ==========
@@ -1870,7 +1892,7 @@ async function pollFloatingEvents() {
         }
     } catch (e) { console.error("[Floating] pollFloatingEvents error:", e); }
 }
-setInterval(pollFloatingEvents, 500);
+floatingPollTimer = setInterval(pollFloatingEvents, 500);
 
 async function confirmFloatingSave(type) {
     const qnum = parseInt(document.getElementById('floating-save-qnum').value) || 1;
@@ -2485,6 +2507,10 @@ function confirmCrop() {
     document.getElementById(currentCropTarget + "-preview-label").classList.remove("hidden");
     croppedImages[currentCropTarget] = dataUrl; originalImages[currentCropTarget] = dataUrl;
     if (suggestedCropRects[currentCropTarget] !== undefined) suggestedCropRects[currentCropTarget] = null;
+    if (currentCropTarget === 'question') {
+        const copyBtn = document.getElementById("copy-q-to-a-btn");
+        if (copyBtn) copyBtn.style.display = "";
+    }
 }
 function cancelCrop() {
     document.getElementById("crop-modal").classList.remove("active");
@@ -2530,6 +2556,12 @@ function updateTagSelects() {
 }
 
 let formSelectedTagIds = [];
+let _formTagManageMode = false;
+let _formTagLongPressTimer = null;
+let _formTagPollTimer = null;
+let _formTagLastVal = '';
+function _startFormTagPoll() { _formTagLastVal = ''; _formTagPollTimer = setInterval(() => { const inp = document.getElementById('form-tag-search'); if (inp && inp.value !== _formTagLastVal) { _formTagLastVal = inp.value; onFormTagSearch(); } }, 150); }
+function _stopFormTagPoll() { clearInterval(_formTagPollTimer); _formTagPollTimer = null; }
 
 function onFormTagSearch() {
     const input = document.getElementById('form-tag-search');
@@ -2558,9 +2590,36 @@ function onFormTagSearch() {
         matches.forEach(t => {
             const btn = document.createElement("span");
             btn.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:var(--surface-dim);border:1px solid var(--border-light);border-radius:var(--radius-xl);font-size:12px;cursor:pointer;transition:all .15s';
-            btn.innerHTML = '<span style="width:8px;height:8px;border-radius:50%;background:' + t.color + ';flex-shrink:0"></span> ' + t.name;
-            btn.onclick = () => { addFormTag(t.id); input.value = ''; onFormTagSearch(); };
-            btn.onmouseenter = () => { btn.style.background = 'var(--primary-light)'; btn.style.borderColor = 'var(--primary)'; };
+            const dot = document.createElement("span");
+            dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:' + t.color + ';flex-shrink:0';
+            const nameSpan = document.createElement("span");
+            nameSpan.textContent = t.name;
+            btn.appendChild(dot);
+            btn.appendChild(nameSpan);
+            // 长按进入管理模式
+            const startLP = () => { _formTagLongPressTimer = setTimeout(() => { _formTagManageMode = !_formTagManageMode; onFormTagSearch(); }, 500); };
+            const cancelLP = () => clearTimeout(_formTagLongPressTimer);
+            btn.onmousedown = startLP; btn.onmouseup = cancelLP; btn.onmouseleave = cancelLP;
+            btn.ontouchstart = startLP; btn.ontouchend = cancelLP; btn.ontouchcancel = cancelLP;
+            // 管理模式下加 × 按钮
+            if (_formTagManageMode) {
+                const rm = document.createElement("span");
+                rm.textContent = "×";
+                rm.style.cssText = "font-size:10px;padding:1px 5px;margin-left:2px;border-radius:50%;background:rgba(0,0,0,.08);cursor:pointer;line-height:1";
+                rm.onclick = async (ev) => {
+                    ev.stopPropagation();
+                    const used = allQuestions.some(q => q.question_tags && q.question_tags.some(qt => qt.tags && qt.tags.id === t.id));
+                    if (used) { showStatus("该标签已被题目使用，请到标签管理中删除", "error"); return; }
+                    if (!confirm("确定删除标签「" + t.name + "」吗？")) return;
+                    await dbDeleteTag(t.id); allTags = allTags.filter(x => x.id !== t.id);
+                    onFormTagSearch(); showStatus("已删除: " + t.name, "success");
+                };
+                btn.appendChild(rm);
+                btn.onclick = null; // 管理模式下不触发选中
+            } else {
+                btn.onclick = () => { addFormTag(t.id); input.value = ''; onFormTagSearch(); };
+            }
+            btn.onmouseenter = () => { if (!_formTagManageMode) { btn.style.background = 'var(--primary-light)'; btn.style.borderColor = 'var(--primary)'; } };
             btn.onmouseleave = () => { btn.style.background = 'var(--surface-dim)'; btn.style.borderColor = 'var(--border-light)'; };
             resultsDiv.appendChild(btn);
         });
@@ -2586,6 +2645,17 @@ function removeFormTag(tagId) {
     formSelectedTagIds = formSelectedTagIds.filter(id => id !== tagId);
     renderFormSelectedTags();
     onFormTagSearch();
+}
+
+async function createTagFromSearch() {
+    const input = document.getElementById('form-tag-search');
+    const name = (input?.value || '').trim();
+    if (!name) { showStatus("请输入标签名", "error"); return; }
+    let tag = allTags.find(t => t.name === name);
+    if (!tag) { tag = await dbCreateTag(name, '#3B82F6'); allTags.push(t); }
+    if (!formSelectedTagIds.includes(tag.id)) { formSelectedTagIds.push(tag.id); renderFormSelectedTags(); }
+    input.value = ''; onFormTagSearch();
+    showStatus("已添加标签: " + name, "success");
 }
 
 function renderFormSelectedTags() {
@@ -2646,6 +2716,9 @@ async function submitNewTag() {
 // ========== 题目 ==========
 let currentAddMode = 'photo'; // 'photo' or 'text' or 'batch'
 let batchRowCount = 0;
+let openInlineTagAddId = null;
+let openInlineTagSearchValue = '';
+let isFormDirty = false;
 
 function switchAddMode(mode) {
     currentAddMode = mode;
@@ -2772,7 +2845,7 @@ document.getElementById("question-form").addEventListener("submit", async (e) =>
     
     const lr = document.querySelector('input[name="layout_type"]:checked');
     const lt = lr ? parseInt(lr.value) : 0;
-    const bookInfo = { book_name: bookName, page_number: pageNumber, question_number: questionNumber };
+    const bookInfo = (pageNumber || questionNumber) ? { book_name: bookName, page_number: pageNumber, question_number: questionNumber } : null;
     
     try {
         const btn = e.target.querySelector('button[type="submit"]'); btn.disabled = true; btn.textContent = "处理中...";
@@ -2943,14 +3016,10 @@ function renderQuestions() {
         }
 
         // AI 摘要展示
-        if (q.semantic_summary) {
+        if (q.semantic_summary && q.semantic_summary !== "AI 正在分析中...") {
             const summaryWrap = document.createElement("div");
             summaryWrap.className = "ai-summary-wrap";
-            if (q.semantic_summary === "AI 正在分析中...") {
-                summaryWrap.innerHTML = '<span class="ai-badge">AI</span> <span class="loading-dots">正在分析题目核心逻辑</span>';
-            } else {
-                summaryWrap.innerHTML = '<span class="ai-badge">AI</span> <span class="summary-text">' + q.semantic_summary + '</span>';
-            }
+            summaryWrap.innerHTML = '<span class="ai-badge">AI</span> <span class="summary-text">' + q.semantic_summary + '</span>';
             info.appendChild(summaryWrap);
         }
 
@@ -2960,7 +3029,7 @@ function renderQuestions() {
         addBtn.onclick = (ev) => { ev.stopPropagation(); toggleInlineTagAdd(q.id); }; tagsWrap.appendChild(addBtn);
         const inlineAdd = document.createElement("div"); inlineAdd.id = "inline-add-" + q.id; inlineAdd.className = "inline-tag-add hidden";
         inlineAdd.onclick = (ev) => ev.stopPropagation();
-        inlineAdd.innerHTML = `<input type="text" id="inline-tag-search-${q.id}" placeholder="🔍 搜索或输入标签名..." oninput="onInlineTagSearch('${q.id}')" onkeydown="onInlineTagKeydown(event,'${q.id}')" />
+        inlineAdd.innerHTML = `<input type="text" id="inline-tag-search-${q.id}" placeholder="🔍 搜索或输入标签名..." oninput="onInlineTagSearch('${q.id}')" onfocus="startInlinePoll('${q.id}')" onblur="stopInlinePoll('${q.id}')" onkeydown="onInlineTagKeydown(event,'${q.id}')" />
             <div id="inline-tag-results-${q.id}" class="inline-tag-results"></div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
                 <button onclick="showNewTagModal('form')" style="padding:4px 10px;font-size:11px;background:var(--accent);box-shadow:0 2px 0 #5A3DC0">＋ 新建标签</button>
@@ -2970,22 +3039,45 @@ function renderQuestions() {
         info.appendChild(tagsWrap); info.appendChild(inlineAdd); card.appendChild(info);
         container.appendChild(card);
     });
+    restoreInlineTagAdd();
+}
+function restoreInlineTagAdd() {
+    try {
+        if (!openInlineTagAddId) return;
+        const el = document.getElementById("inline-add-" + openInlineTagAddId);
+        if (el) {
+            el.classList.remove("hidden");
+            const input = document.getElementById("inline-tag-search-" + openInlineTagAddId);
+            if (input) { input.value = openInlineTagSearchValue; input.focus(); }
+            onInlineTagSearch(openInlineTagAddId);
+        }
+    } catch (e) { console.error("恢复标签弹窗失败:", e); }
 }
 function toggleInlineTagAdd(id) {
     const el = document.getElementById("inline-add-" + id);
     el.classList.toggle("hidden");
     if (!el.classList.contains("hidden")) {
+        openInlineTagAddId = id;
+        openInlineTagSearchValue = '';
         const input = document.getElementById("inline-tag-search-" + id);
         if (input) { input.value = ''; input.focus(); }
         onInlineTagSearch(id);
+    } else {
+        openInlineTagAddId = null;
+        openInlineTagSearchValue = '';
     }
 }
+
+let _inlinePollTimers = {};
+function startInlinePoll(qId) { _inlinePollTimers[qId] = setInterval(() => { const inp = document.getElementById('inline-tag-search-' + qId); if (inp && inp.value !== (inp._lastVal||'')) { inp._lastVal = inp.value; onInlineTagSearch(qId); } }, 150); }
+function stopInlinePoll(qId) { clearInterval(_inlinePollTimers[qId]); delete _inlinePollTimers[qId]; }
 
 function onInlineTagSearch(qId) {
     const input = document.getElementById("inline-tag-search-" + qId);
     const resultsDiv = document.getElementById("inline-tag-results-" + qId);
     if (!input || !resultsDiv) return;
     const query = input.value.trim().toLowerCase();
+    if (openInlineTagAddId === qId) openInlineTagSearchValue = query;
     const question = allQuestions.find(q => q.id === qId);
     const existingTagIds = question ? question.question_tags.map(qt => qt.tags.id) : [];
     let matches = allTags.filter(t => !existingTagIds.includes(t.id));
@@ -5214,6 +5306,7 @@ async function generateTagsFromComment() {
     const btn = event.target;
     btn.disabled = true;
     btn.textContent = "生成中...";
+    stopAllPolling();
 
     try {
         const prompt = `请基于以下用户评价，为题目生成语义标签（JSON数组格式）。
@@ -5247,10 +5340,10 @@ async function generateTagsFromComment() {
         container.innerHTML = "";
 
         tags.forEach(tag => {
-            const tagBtn = document.createElement("button");
-            tagBtn.textContent = tag;
-            tagBtn.style.cssText = "padding:4px 10px;font-size:11px;border-radius:12px;cursor:pointer;border:1px solid #f59e0b;background:#fff;color:#92400e";
-            tagBtn.onclick = () => addGeneratedTag(tag);
+            const tagBtn = createGeneratedTagButton(tag, {
+                onClickNew: (name) => addGeneratedTag(name),
+                onClickExisting: (t) => addGeneratedTag(t.name),
+            });
             container.appendChild(tagBtn);
         });
 
@@ -5262,6 +5355,7 @@ async function generateTagsFromComment() {
     } finally {
         btn.disabled = false;
         btn.textContent = "生成";
+        restartAllPolling();
     }
 }
 
@@ -5287,15 +5381,8 @@ async function addGeneratedTag(tagName) {
 
         // 高亮已添加的标签按钮
         addedGeneratedTags.add(tagName);
-        const btns = document.getElementById("generated-tags-list").querySelectorAll("button");
-        btns.forEach(btn => {
-            if (btn.textContent === tagName) {
-                btn.style.background = "#22c55e";
-                btn.style.color = "#fff";
-                btn.style.borderColor = "#22c55e";
-                btn.style.cursor = "default";
-            }
-        });
+        const wrapper = document.querySelector(`#generated-tags-list [data-tag="${tagName}"]`);
+        if (wrapper) markWrapperDone(wrapper);
 
         // 更新题目详情中的标签显示（不调用 showQuestionDetail 避免重绘）
         const q = filteredList[detailIndex];
@@ -5328,6 +5415,96 @@ function clearFormGeneratedTags() {
     document.getElementById("form-generated-tags").style.display = "none";
 }
 
+// ========== 标签相似度匹配（中文优化） ==========
+
+// 计算两个中文标签的相似度（不含 Token 消耗）
+// 策略：字包含 > 字符重叠比例（以短串为基准）
+function tagSimilarity(a, b) {
+    if (a === b) return 1;
+    const la = a.toLowerCase(), lb = b.toLowerCase();
+    // 1. 包含关系：一个串完全包含另一个 → 高相似
+    if (la.includes(lb) || lb.includes(la)) return 0.9;
+    // 2. 字符重叠：以较短串为基准，重叠字数 / 短串长度
+    const setA = new Set(la), setB = new Set(lb);
+    let overlap = 0;
+    for (const c of setA) { if (setB.has(c)) overlap++; }
+    const shorter = Math.min(la.length, lb.length);
+    return shorter === 0 ? 0 : overlap / shorter;
+}
+
+// 找到 allTags 中所有相似的标签，按相似度降序返回数组 [{ tag, similarity }]
+function findSimilarTags(name, maxResults = 3) {
+    const results = [];
+    for (const t of allTags) {
+        const s = tagSimilarity(name, t.name);
+        if (s >= 0.7) results.push({ tag: t, similarity: s });
+    }
+    results.sort((a, b) => b.similarity - a.similarity);
+    return results.slice(0, maxResults);
+}
+
+// 标记标签按钮组为已选中（变绿）
+function markWrapperDone(wrapper) {
+    const mainBtn = wrapper.querySelector("button");
+    if (mainBtn) { mainBtn.style.background = "#22c55e"; mainBtn.style.color = "#fff"; mainBtn.style.borderColor = "#22c55e"; }
+    wrapper.querySelectorAll("button").forEach(b => { b.style.pointerEvents = "none"; });
+}
+
+// 创建带相似度提示的标签按钮（共用函数）
+// opts.onClickNew(tagName) — 点击新标签时回调
+// opts.onClickExisting(tag) — 点击已有标签时回调
+function createGeneratedTagButton(tagName, opts) {
+    const exact = allTags.find(t => t.name === tagName);
+    const similarList = !exact ? findSimilarTags(tagName) : [];
+
+    // 外层 wrapper，包裹主按钮 + 相似标签按钮
+    const wrapper = document.createElement("span");
+    wrapper.style.cssText = "display:inline-flex;align-items:center;gap:2px;flex-wrap:wrap;";
+    wrapper.dataset.tag = tagName;
+
+    // 主标签按钮（必须 type=button 防止触发表单提交）
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.style.cssText = "padding:4px 10px;font-size:11px;border-radius:12px;cursor:pointer;transition:all .15s;display:inline-flex;align-items:center;gap:4px;";
+
+    if (exact) {
+        btn.style.border = "1px solid #22c55e";
+        btn.style.background = "#f0fdf4";
+        btn.style.color = "#166534";
+        btn.innerHTML = `<span>${tagName}</span><span style="font-size:9px;background:#22c55e;color:#fff;border-radius:6px;padding:1px 4px">存</span>`;
+        btn.onclick = () => opts.onClickExisting(exact);
+        wrapper.appendChild(btn);
+    } else {
+        btn.style.border = "1px solid var(--warning)";
+        btn.style.background = "var(--warning-light)";
+        btn.style.color = "#92400e";
+        btn.textContent = tagName;
+        btn.onclick = () => opts.onClickNew(tagName);
+        wrapper.appendChild(btn);
+
+        // 相似标签各自独立按钮（必须 type=button）
+        similarList.forEach(s => {
+            const hint = document.createElement("button");
+            hint.type = "button";
+            hint.textContent = "≈" + s.tag.name;
+            hint.style.cssText = "padding:3px 8px;font-size:9px;border-radius:10px;cursor:pointer;border:1px dashed #d97706;background:#fffbeb;color:#92400e;opacity:.7;transition:all .15s;";
+            hint.onmouseenter = () => { hint.style.opacity = "1"; hint.style.background = "#FEF3C7"; };
+            hint.onmouseleave = () => { hint.style.opacity = "0.7"; hint.style.background = "#fffbeb"; };
+            hint.onclick = (ev) => { ev.stopPropagation(); opts.onClickExisting(s.tag); };
+            wrapper.appendChild(hint);
+        });
+    }
+
+    // hover 效果（主按钮）
+    btn.onmouseenter = () => { if (btn.style.background !== 'rgb(34, 197, 94)') btn.style.background = '#FEF3C7'; };
+    btn.onmouseleave = () => {
+        if (btn.style.background === 'rgb(34, 197, 94)') return;
+        btn.style.background = exact ? '#f0fdf4' : 'var(--warning-light)';
+    };
+
+    return wrapper;
+}
+
 // 基于评价生成标签（表单版）
 async function generateFormTagsFromComment() {
     const comment = document.getElementById("form-comment").value.trim();
@@ -5335,6 +5512,7 @@ async function generateFormTagsFromComment() {
 
     const btn = event.target;
     btn.disabled = true; btn.textContent = "生成中...";
+    stopAllPolling();
 
     try {
         const prompt = `请基于以下用户评价，为题目生成语义标签（JSON数组格式）。
@@ -5354,23 +5532,25 @@ async function generateFormTagsFromComment() {
         const container = document.getElementById("form-generated-tags-list");
         container.innerHTML = "";
         tags.forEach(tag => {
-            const btn = document.createElement("button");
-            btn.textContent = tag;
-            btn.style.cssText = "padding:4px 10px;font-size:11px;border-radius:12px;cursor:pointer;border:1px solid var(--warning);background:var(--warning-light);color:#92400e;transition:all .15s";
-            btn.onclick = () => {
-                if (btn.style.background === 'rgb(34, 197, 94)') return;
-                addFormTagByName(tag);
-                btn.style.background = "#22c55e"; btn.style.color = "#fff"; btn.style.borderColor = "#22c55e";
-            };
-            btn.onmouseenter = () => { if (btn.style.background !== 'rgb(34, 197, 94)') { btn.style.background = '#FEF3C7'; } };
-            btn.onmouseleave = () => { if (btn.style.background !== 'rgb(34, 197, 94)') { btn.style.background = 'var(--warning-light)'; } };
-            container.appendChild(btn);
+            const wrapper = createGeneratedTagButton(tag, {
+                onClickNew: async (name) => {
+                    let t = allTags.find(x => x.name === name);
+                    if (!t) { t = await dbCreateTag(name, '#f59e0b'); allTags.push(t); onFormTagSearch(); }
+                    if (!formSelectedTagIds.includes(t.id)) { formSelectedTagIds.push(t.id); renderFormSelectedTags(); }
+                    markWrapperDone(wrapper);
+                },
+                onClickExisting: (t) => {
+                    if (!formSelectedTagIds.includes(t.id)) { formSelectedTagIds.push(t.id); renderFormSelectedTags(); }
+                    markWrapperDone(wrapper);
+                },
+            });
+            container.appendChild(wrapper);
         });
         document.getElementById("form-generated-tags").style.display = tags.length > 0 ? "block" : "none";
         showStatus(`生成了 ${tags.length} 个标签`, "success");
     } catch (e) {
         showStatus("生成失败: " + e.message, "error");
-    } finally { btn.disabled = false; btn.textContent = "🤖 AI 生成"; }
+    } finally { btn.disabled = false; btn.textContent = "🤖 AI 生成"; restartAllPolling(); }
 }
 
 async function addFormTagByName(tagName) {
@@ -6260,6 +6440,28 @@ function restartSyncPolling() {
     stopSyncPolling();
     if (!autoSyncEnabled || !canSync()) return;
     syncPollTimer = setInterval(() => { runSync({ silent: true }); }, SYNC_POLL_MS);
+}
+
+function stopFloatingPolling() {
+    if (floatingPollTimer) {
+        clearInterval(floatingPollTimer);
+        floatingPollTimer = null;
+    }
+}
+
+function restartFloatingPolling() {
+    stopFloatingPolling();
+    floatingPollTimer = setInterval(pollFloatingEvents, 500);
+}
+
+function stopAllPolling() {
+    stopSyncPolling();
+    stopFloatingPolling();
+}
+
+function restartAllPolling() {
+    restartSyncPolling();
+    restartFloatingPolling();
 }
 
 function queueAutoSync(immediate = false) {
