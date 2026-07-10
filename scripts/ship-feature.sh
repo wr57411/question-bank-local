@@ -23,6 +23,13 @@ cd "$PROJECT_DIR"
 echo ">>> 构建来源: $PROJECT_DIR"
 echo ">>> 输出目录: $OUTPUT_DIR"
 
+# 0. TypeScript 类型检查
+echo ">>> TypeScript 类型检查..."
+npx tsc --noEmit || {
+  echo "❌ TypeScript 类型检查失败，请修复后重试"
+  exit 1
+}
+
 # 1. 同步 Capacitor
 echo ">>> 同步 Capacitor 资源..."
 npx cap sync android

@@ -15,6 +15,17 @@ const dbQuestionNotes = localforage.createInstance({ name: 'questionBank', store
 const dbPendingPhotos = localforage.createInstance({ name: 'questionBank', storeName: 'pending_photos' });
 
 function generateId() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const arr = new Uint8Array(16);
+    crypto.getRandomValues(arr);
+    arr[6] = (arr[6] & 0x0f) | 0x40;
+    arr[8] = (arr[8] & 0x3f) | 0x80;
+    const hex = Array.from(arr, b => b.toString(16).padStart(2, '0')).join('');
+    return hex.slice(0,8)+'-'+hex.slice(8,12)+'-'+hex.slice(12,16)+'-'+hex.slice(16,20)+'-'+hex.slice(20);
+  }
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -51,8 +62,19 @@ function compressImage(input, maxWidth = 800, quality = 0.7) {
 let _tagIndexCache = null;
 let _tagIndexDirty = true;
 
+let _questionsCache = null;
+let _questionsDirty = true;
+
+let _tagsCache = null;
+let _tagsDirty = true;
+
 function _invalidateTagIndex() {
   _tagIndexDirty = true;
+  _tagsDirty = true;
+}
+
+function _invalidateQuestionsCache() {
+  _questionsDirty = true;
 }
 
 async function _buildTagIndex() {
@@ -267,8 +289,13 @@ async function _remoteCall(path, method = 'GET', body = null) {
     const opts = { method, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _apiToken } };
     if (body) opts.body = JSON.stringify(body);
     const resp = await fetch(_serverUrl + path, opts);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + resp.statusText);
     return await resp.json();
-  } catch (e) { console.warn('远程同步失败:', e.message); return null; }
+  } catch (e) {
+    console.warn('远程同步失败:', e.message);
+    if (typeof window.showSyncStatus === 'function') window.showSyncStatus('同步失败: ' + e.message);
+    return null;
+  }
 }
 
 // 上传图片到服务器
@@ -297,7 +324,10 @@ async function _uploadImage(source) {
 
 // Base64转Blob
 function dataURLtoBlob(dataurl) {
-  const arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1];
+  const arr = dataurl.split(',');
+  const match = arr[0].match(/:(.*?);/);
+  if (!match || !arr[1]) throw new Error('Invalid data URL');
+  const mime = match[1];
   const bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
   while (n--) u8arr[n] = bstr.charCodeAt(n);
   return new Blob([u8arr], { type: mime });
@@ -306,6 +336,7 @@ function dataURLtoBlob(dataurl) {
 // ========== 标签 CRUD ==========
 
 async function dbGetAllTags() {
+  if (_tagsCache && !_tagsDirty) return _tagsCache.map(t => ({ ...t }));
   const tags = [];
   const updates = [];
   await dbTags.iterate((v, key) => {
@@ -315,7 +346,9 @@ async function dbGetAllTags() {
     if (!tag.deleted_at) tags.push(tag);
   });
   for (const tag of updates) await dbTags.setItem(tag.id, tag);
-  return tags.sort((a, b) => a.name.localeCompare(b.name));
+  _tagsCache = tags.sort((a, b) => a.name.localeCompare(b.name));
+  _tagsDirty = false;
+  return _tagsCache.map(t => ({ ...t }));
 }
 
 async function dbCreateTag(name, color) {
@@ -349,6 +382,10 @@ async function dbDeleteTag(tagId) {
 // ========== 题目 CRUD ==========
 
 async function dbGetAllQuestions() {
+  if (_questionsCache && !_questionsDirty) {
+    const qtMap = await _buildTagIndex();
+    return _questionsCache.map(q => { const c = { ...q }; c.question_tags = qtMap.get(c.id) || []; return c; });
+  }
   const questions = [];
   const updates = [];
   await dbQuestions.iterate((v, key) => {
@@ -358,9 +395,11 @@ async function dbGetAllQuestions() {
     if (!question.deleted_at) questions.push({ ...question });
   });
   for (const question of updates) await dbQuestions.setItem(question.id, question);
+  _questionsCache = questions.sort((a, b) => _toMillis(b.created_at) - _toMillis(a.created_at));
+  _questionsDirty = false;
   const qtMap = await _buildTagIndex();
-  for (const q of questions) q.question_tags = qtMap.get(q.id) || [];
-  return questions.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  for (const q of _questionsCache) q.question_tags = qtMap.get(q.id) || [];
+  return _questionsCache.map(q => ({ ...q }));
 }
 
 async function dbGetTrashedQuestions() {
@@ -375,7 +414,7 @@ async function dbGetTrashedQuestions() {
   for (const question of updates) await dbQuestions.setItem(question.id, question);
   const qtMap = await _buildTagIndex();
   for (const q of questions) q.question_tags = qtMap.get(q.id) || [];
-  return questions.sort((a, b) => new Date(b.deleted_at) - new Date(a.deleted_at));
+  return questions.sort((a, b) => _toMillis(b.deleted_at) - _toMillis(a.deleted_at));
 }
 
 async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layoutType, blankFile, versions, bookInfo) {
@@ -414,6 +453,7 @@ async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layout
     question_number: (bookInfo && bookInfo.question_number) || ""
   };
   await dbQuestions.setItem(id, question);
+  _invalidateQuestionsCache();
 
   for (const tagId of selectedTagIds) {
     await dbQuestionTags.setItem(`${id}_${tagId}`, { question_id: id, tag_id: tagId });
@@ -422,39 +462,7 @@ async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layout
   return question;
 }
 
-/**
- * 内部方法：调用 Gemma 4 插件进行分析
- */
-async function _triggerAIAnalysis(questionId, imageBase64) {
-  try {
-    const Gemma4 = window.Capacitor?.Plugins?.Gemma4;
-    if (!Gemma4) return;
 
-    // 先发现或检查状态
-    const status = await Gemma4.checkModelStatus();
-    if (!status.ready) {
-      const discovery = await Gemma4.discoverModel();
-      if (!discovery.found) return;
-    }
-
-    const analysis = await Gemma4.analyzeQuestion({ imageBase64 });
-    const question = await dbQuestions.getItem(questionId);
-    if (question) {
-      question.semantic_summary = analysis.summary;
-      question.ai_metadata = {
-        difficulty: analysis.difficulty,
-        tags_suggested: analysis.tags,
-        analyzed_at: new Date().toISOString()
-      };
-      await dbQuestions.setItem(questionId, question);
-      
-      // 发送自定义事件通知 UI 刷新
-      window.dispatchEvent(new CustomEvent('question-ai-ready', { detail: { questionId } }));
-    }
-  } catch (e) {
-    console.error("Gemma 4 分析失败:", e);
-  }
-}
 
 async function dbSoftDeleteQuestion(questionId) {
   const q = await dbQuestions.getItem(questionId);
@@ -462,6 +470,7 @@ async function dbSoftDeleteQuestion(questionId) {
   const now = _nowIso();
   await dbQuestions.setItem(questionId, { ...q, deleted_at: now, updated_at: now });
   _invalidateTagIndex();
+  _invalidateQuestionsCache();
 }
 
 async function dbRestoreQuestion(questionId) {
@@ -473,6 +482,7 @@ async function dbRestoreQuestion(questionId) {
     purged_at: null,
     updated_at: _nowIso()
   });
+  _invalidateQuestionsCache();
 }
 
 async function dbPermanentDeleteQuestion(questionId) {
@@ -485,6 +495,7 @@ async function dbPermanentDeleteQuestion(questionId) {
     purged_at: now,
     updated_at: now
   });
+  _invalidateQuestionsCache();
   await _markSimilarLinksForQuestionDeleted(questionId, now);
 }
 
@@ -493,6 +504,7 @@ async function dbAddTagToQuestion(questionId, tagId) {
   const question = await dbQuestions.getItem(questionId);
   if (question) {
     await dbQuestions.setItem(questionId, { ...question, updated_at: _nowIso() });
+    _invalidateQuestionsCache();
   }
   _invalidateTagIndex();
 }
@@ -502,6 +514,7 @@ async function dbRemoveTagFromQuestion(questionId, tagId) {
   const question = await dbQuestions.getItem(questionId);
   if (question) {
     await dbQuestions.setItem(questionId, { ...question, updated_at: _nowIso() });
+    _invalidateQuestionsCache();
   }
   _invalidateTagIndex();
 }
@@ -516,6 +529,7 @@ async function dbUpdateQuestionBlankImage(questionId, blankImageUrl) {
     question_image_blank_url: blankImageUrl,
     updated_at: now
   });
+  _invalidateQuestionsCache();
   return question;
 }
 
@@ -529,6 +543,7 @@ async function dbUpdateQuestionVersions(questionId, versions) {
     versions: versions || [],
     updated_at: now
   });
+  _invalidateQuestionsCache();
   return question;
 }
 
@@ -544,6 +559,7 @@ async function dbUpdateQuestionBookInfo(questionId, bookInfo) {
     question_number: (bookInfo && bookInfo.question_number) || "",
     updated_at: now
   });
+  _invalidateQuestionsCache();
   return question;
 }
 
@@ -572,6 +588,7 @@ async function dbRemoveVersionFromAllQuestions(versionId) {
       updated_at: now
     });
   }
+  _invalidateQuestionsCache();
 }
 
 async function _markSimilarLinksForQuestionDeleted(questionId, now = _nowIso()) {
@@ -633,6 +650,7 @@ async function dbAddSimilarQuestionLinks(questionId, targetIds) {
   }
   const question = await dbQuestions.getItem(questionId);
   if (question) await dbQuestions.setItem(questionId, { ...question, updated_at: now });
+  _invalidateQuestionsCache();
 }
 
 async function dbRemoveSimilarQuestionLink(questionId, targetId) {
@@ -644,6 +662,7 @@ async function dbRemoveSimilarQuestionLink(questionId, targetId) {
   await dbSimilarQuestionLinks.setItem(key, { ...link, deleted_at: now, updated_at: now });
   const question = await dbQuestions.getItem(questionId);
   if (question) await dbQuestions.setItem(questionId, { ...question, updated_at: now });
+  _invalidateQuestionsCache();
 }
 
 // ========== 试卷 CRUD ==========
@@ -1232,6 +1251,9 @@ async function _cacheImageIfRemote(imageUrl) {
 }
 
 async function dbApplyRemoteSnapshot(snapshot) {
+  _invalidateQuestionsCache();
+  _invalidateTagIndex();
+  try {
   for (const tag of snapshot.tags || []) {
     const localTag = await dbTags.getItem(tag.id);
     const nextTag = {
@@ -1358,6 +1380,10 @@ async function dbApplyRemoteSnapshot(snapshot) {
   if (Array.isArray(snapshot.pending_link_list)) {
     localStorage.setItem('pendingLinkList', JSON.stringify(snapshot.pending_link_list));
   }
+  } finally {
+    _invalidateQuestionsCache();
+    _invalidateTagIndex();
+  }
 }
 
 async function dbFinalizeSuccessfulSync(applied) {
@@ -1370,6 +1396,10 @@ async function dbFinalizeSuccessfulSync(applied) {
       if (value.question_id === questionId) pqKeys.push(key);
     });
     for (const key of pqKeys) await dbPaperQuestions.removeItem(key);
+  }
+  if (applied?.purged_question_ids?.length) {
+    _invalidateQuestionsCache();
+    _invalidateTagIndex();
   }
 }
 
@@ -1393,6 +1423,8 @@ async function dbClearAllData() {
   await dbTopicQuestions.clear();
   await dbQuestionNotes.clear();
   await dbPendingPhotos.clear();
+  _invalidateQuestionsCache();
+  _invalidateTagIndex();
 }
 
 async function dbReplaceWithRemoteSnapshot(snapshot) {
@@ -1402,176 +1434,204 @@ async function dbReplaceWithRemoteSnapshot(snapshot) {
 
 // ========== PDF 生成 ==========
 
+let _pdfFontLoaded = false;
+
 async function generatePDF(questions, options = {}) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210, H = 297, M = 15, maxW = W - M * 2;
-  const { mode = 'merged', spacing = 'none', spacingCm = 5, title = '' } = options;
+  const { mode = 'single', spacing = 'none', spacingCm = 5, title = '', noSave = false } = options;
   const spcMm = spacing !== 'none' ? spacingCm * 10 : 0;
 
-  function addImg(dataUrl, y, maxH, fullWidth) {
+  // 加载中文字体
+  if (!_pdfFontLoaded) {
+    try {
+      const resp = await fetch('fonts/NotoSansSC-Regular.ttf');
+      const buf = await resp.arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+      const base64 = btoa(binary);
+      doc.addFileToVFS('NotoSansSC-Regular.ttf', base64);
+      doc.addFont('NotoSansSC-Regular.ttf', 'NotoSC', 'normal');
+      _pdfFontLoaded = true;
+    } catch (e) { console.warn('中文字体加载失败:', e); }
+  }
+  const CN = _pdfFontLoaded ? 'NotoSC' : 'helvetica';
+
+  function loadImg(dataUrl) {
     return new Promise((resolve) => {
-      if (!dataUrl || dataUrl.length < 50) { resolve(y + 5); return; }
+      if (!dataUrl || dataUrl.length < 50) { resolve(null); return; }
       const img = new Image();
-      img.onload = () => {
-        const availW = fullWidth ? maxW : maxW;
-        const aH = maxH || (H - M - y);
-        const r = Math.min(availW / img.width, aH / img.height, 1);
-        const w = img.width * r, h = img.height * r;
-        if (y + h > H - M) { doc.addPage(); y = M; }
-        doc.addImage(dataUrl, 'JPEG', M, y, w, h);
-        resolve(y + h + 2);
-      };
-      img.onerror = () => resolve(y + 5);
-      setTimeout(() => resolve(y + 5), 5000);
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      setTimeout(() => resolve(null), 5000);
       img.src = dataUrl;
     });
   }
 
-  function addImgAt(dataUrl, x, y, availW, maxH) {
+  function drawLabel(text, x, y, size) {
+    doc.setFontSize(size || 10);
+    doc.setFont(CN, 'normal');
+    doc.text(text, x, y);
+  }
+
+  function drawCentered(text, y, size) {
+    doc.setFontSize(size || 16);
+    doc.setFont(CN, 'normal');
+    doc.text(text, W / 2, y, { align: 'center' });
+  }
+
+  function placeImg(dataUrl, x, y, availW, maxH) {
     return new Promise((resolve) => {
-      if (!dataUrl || dataUrl.length < 50) { resolve(y); return; }
-      const img = new Image();
-      img.onload = () => {
+      loadImg(dataUrl).then(img => {
+        if (!img) { resolve(0); return; }
         const aH = maxH || (H - M - y);
         const r = Math.min(availW / img.width, aH / img.height, 1);
         const w = img.width * r, h = img.height * r;
         doc.addImage(dataUrl, 'JPEG', x, y, w, h);
         resolve(h);
-      };
-      img.onerror = () => resolve(0);
-      setTimeout(() => resolve(0), 5000);
-      img.src = dataUrl;
+      });
     });
   }
 
-  function estimateImgH(dataUrl, availW) {
+  function estH(dataUrl, availW) {
     return new Promise((resolve) => {
-      if (!dataUrl || dataUrl.length < 50) { resolve(0); return; }
-      const img = new Image();
-      img.onload = () => {
-        const r = Math.min(availW / img.width, 1);
-        resolve(img.height * r);
-      };
-      img.onerror = () => resolve(0);
-      setTimeout(() => resolve(0), 5000);
-      img.src = dataUrl;
+      loadImg(dataUrl).then(img => {
+        if (!img) { resolve(0); return; }
+        resolve(img.height * Math.min(availW / img.width, 1));
+      });
     });
   }
 
-  if (title) {
-    doc.setFontSize(18); doc.setFont('helvetica', 'bold');
-    doc.text(title, W / 2, M + 5, { align: 'center' });
-    doc.setFontSize(11); doc.setFont('helvetica', 'normal');
-    doc.text(`共 ${questions.length} 题`, W / 2, M + 13, { align: 'center' });
+  function addSpacing() {
+    if (spcMm > 0) {
+      doc.setDrawColor(200); doc.setLineDash([3, 3]);
+      doc.line(M, y, W - M, y); doc.setLineDash([]);
+      y += spcMm;
+    }
   }
 
+  // 标题
+  if (title) {
+    drawCentered(title, M + 5, 18);
+    drawCentered(`共 ${questions.length} 题`, M + 13, 11);
+  }
   let y = title ? M + 20 : M;
 
-  if (mode === 'merged') {
+  // ===== 单栏模式 =====
+  if (mode === 'single') {
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (y > H - M - 30) { doc.addPage(); y = M; }
+      drawLabel(`第 ${i + 1} 题`, M, y, 11);
+      y += 5;
+      y += await placeImg(q.question_image_url, M, y, maxW) + 2;
+      if (q.answer_image_url) {
+        if (y + 20 > H - M) { doc.addPage(); y = M; }
+        drawLabel('答案:', M, y, 9);
+        y += 4;
+        const aw = maxW * 0.8;
+        y += await placeImg(q.answer_image_url, M + (maxW - aw) / 2, y, aw) + 2;
+      }
+      addSpacing();
+    }
+  }
+
+  // ===== 双栏模式 =====
+  else if (mode === 'double') {
     const halfW = (maxW - 4) / 2;
     let i = 0;
     while (i < questions.length) {
       const q = questions[i];
-      if (y > H - M - 20) { doc.addPage(); y = M; }
-
       const nextQ = questions[i + 1];
+      if (y > H - M - 30) { doc.addPage(); y = M; }
+
       if (nextQ) {
-        const h1 = await estimateImgH(q.question_image_url, halfW);
-        const h2 = await estimateImgH(nextQ.question_image_url, halfW);
+        const h1 = await estH(q.question_image_url, halfW);
+        const h2 = await estH(nextQ.question_image_url, halfW);
         const labelH = 6;
-        const needH = Math.max(h1, h2) + labelH + 2;
-        if (needH > 0 && y + needH <= H - M && h1 > 0 && h2 > 0) {
-          doc.setFontSize(10); doc.setFont('helvetica', 'bold');
-          doc.text(`第 ${i + 1} 题`, M, y);
-          doc.text(`第 ${i + 2} 题`, M + halfW + 4, y);
+        if (h1 > 0 && h2 > 0 && y + Math.max(h1, h2) + labelH + 2 <= H - M) {
+          drawLabel(`第 ${i + 1} 题`, M, y, 10);
+          drawLabel(`第 ${i + 2} 题`, M + halfW + 4, y, 10);
           y += labelH;
           const usedH = Math.max(
-            await addImgAt(q.question_image_url, M, y, halfW, H - M - y),
-            await addImgAt(nextQ.question_image_url, M + halfW + 4, y, halfW, H - M - y)
+            await placeImg(q.question_image_url, M, y, halfW, H - M - y),
+            await placeImg(nextQ.question_image_url, M + halfW + 4, y, halfW, H - M - y)
           );
           y += usedH + 2;
-
-          const a1 = q.answer_image_url;
-          const a2 = nextQ.answer_image_url;
+          // 答案
+          const a1 = q.answer_image_url, a2 = nextQ.answer_image_url;
           if (a1 || a2) {
-            const ah1 = a1 ? await estimateImgH(a1, halfW) : 0;
-            const ah2 = a2 ? await estimateImgH(a2, halfW) : 0;
+            const ah1 = a1 ? await estH(a1, halfW) : 0;
+            const ah2 = a2 ? await estH(a2, halfW) : 0;
             const ansNeedH = Math.max(ah1, ah2) + 8;
             if (y + ansNeedH <= H - M && ah1 > 0 && ah2 > 0) {
-              doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-              doc.text('答案:', M, y);
-              if (a2) doc.text('答案:', M + halfW + 4, y);
+              drawLabel('答案:', M, y, 9);
+              if (a2) drawLabel('答案:', M + halfW + 4, y, 9);
               y += 5;
-              const uah = Math.max(
-                a1 ? await addImgAt(a1, M, y, halfW, H - M - y) : 0,
-                a2 ? await addImgAt(a2, M + halfW + 4, y, halfW, H - M - y) : 0
-              );
-              y += uah + 2;
+              y += Math.max(
+                a1 ? await placeImg(a1, M, y, halfW, H - M - y) : 0,
+                a2 ? await placeImg(a2, M + halfW + 4, y, halfW, H - M - y) : 0
+              ) + 2;
             } else {
-              if (a1) {
-                if (y + ah1 + 7 > H - M) { doc.addPage(); y = M; }
-                doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-                doc.text('答案:', M, y); y += 5;
-                y += await addImgAt(a1, M, y, halfW, H - M - y) + 2;
-              }
-              if (a2) {
-                if (y + ah2 + 7 > H - M) { doc.addPage(); y = M; }
-                doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-                doc.text('答案:', M, y); y += 5;
-                y += await addImgAt(a2, M, y, halfW, H - M - y) + 2;
-              }
+              if (a1) { if (y + ah1 + 7 > H - M) { doc.addPage(); y = M; } drawLabel('答案:', M, y, 9); y += 5; y += await placeImg(a1, M, y, halfW, H - M - y) + 2; }
+              if (a2) { if (y + ah2 + 7 > H - M) { doc.addPage(); y = M; } drawLabel('答案:', M, y, 9); y += 5; y += await placeImg(a2, M, y, halfW, H - M - y) + 2; }
             }
           }
-          i += 2;
-          if (spcMm > 0) {
-            doc.setDrawColor(200); doc.setLineDash([3, 3]);
-            doc.line(M, y, W - M, y); doc.setLineDash([]);
-            y += spcMm;
-          }
-          continue;
+          i += 2; addSpacing(); continue;
         }
       }
-
-      doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-      doc.text(`第 ${i + 1} 题`, M, y); y += 5;
-      y = await addImg(q.question_image_url, y);
+      // 单题 fallback
+      drawLabel(`第 ${i + 1} 题`, M, y, 11);
+      y += 5;
+      y += await placeImg(q.question_image_url, M, y, maxW) + 2;
       if (q.answer_image_url) {
-        if (y + 10 > H - M) { doc.addPage(); y = M; }
-        doc.setFontSize(9); doc.setFont('helvetica', 'normal');
-        doc.text('答案:', M, y); y += 4;
-        y = await addImg(q.answer_image_url, y);
+        if (y + 15 > H - M) { doc.addPage(); y = M; }
+        drawLabel('答案:', M, y, 9); y += 4;
+        y += await placeImg(q.answer_image_url, M, y, maxW * 0.8) + 2;
       }
-      if (spcMm > 0) {
-        doc.setDrawColor(200); doc.setLineDash([3, 3]);
-        doc.line(M, y, W - M, y); doc.setLineDash([]);
-        y += spcMm;
-      }
-      i++;
-    }
-  } else {
-    for (let i = 0; i < questions.length; i++) {
-      const q = questions[i];
-      if (y > H - M - 20) { doc.addPage(); y = M; }
-      doc.setFontSize(11); doc.setFont('helvetica', 'bold');
-      doc.text(`第 ${i + 1} 题`, M, y); y += 5;
-      y = await addImg(q.question_image_url, y);
-      if (spcMm > 0) { y += spcMm; }
-    }
-    doc.addPage(); y = M;
-    doc.setFontSize(16); doc.setFont('helvetica', 'bold');
-    doc.text('参考答案', W / 2, y, { align: 'center' }); y += 10;
-    for (let i = 0; i < questions.length; i++) {
-      const q = questions[i];
-      if (!q.answer_image_url) continue;
-      if (y + 10 > H - M) { doc.addPage(); y = M; }
-      doc.setFontSize(10); doc.setFont('helvetica', 'bold');
-      doc.text(`第 ${i + 1} 题`, M, y); y += 5;
-      y = await addImg(q.answer_image_url, y);
+      addSpacing(); i++;
     }
   }
 
-  doc.save(`${title || '题库导出'}.pdf`);
+  // ===== 分开模式 =====
+  else if (mode === 'separate') {
+    for (let i = 0; i < questions.length; i++) {
+      if (y > H - M - 20) { doc.addPage(); y = M; }
+      drawLabel(`第 ${i + 1} 题`, M, y, 11);
+      y += 5;
+      y += await placeImg(questions[i].question_image_url, M, y, maxW) + 2;
+      if (spcMm > 0) y += spcMm;
+    }
+    doc.addPage(); y = M;
+    drawCentered('参考答案', y, 16); y += 10;
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      if (!q.answer_image_url) continue;
+      if (y + 15 > H - M) { doc.addPage(); y = M; }
+      drawLabel(`第 ${i + 1} 题`, M, y, 10);
+      y += 5;
+      y += await placeImg(q.answer_image_url, M, y, maxW * 0.8) + 3;
+    }
+  }
+
+  if (noSave) return doc;
+
+  // 保存
+  const fileName = `${title || '题库导出'}.pdf`;
+  const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  if (isNative && window.Capacitor?.Plugins?.Filesystem) {
+    const pdfBase64 = doc.output('dataurlstring').split(',')[1];
+    const folder = (typeof window.getExportFolder === 'function') ? window.getExportFolder() : '';
+    const filePath = folder ? `${folder}/${fileName}` : fileName;
+    try {
+      await window.Capacitor.Plugins.Filesystem.writeFile({ path: filePath, data: pdfBase64, directory: 'DOCUMENTS' });
+      alert('PDF 已保存: DOCUMENTS/' + filePath);
+    } catch (e) { alert('保存失败: ' + e.message); }
+  } else {
+    doc.save(fileName);
+  }
 }
 
 async function generatePaperPDF(paperId) {
@@ -1595,11 +1655,22 @@ async function exportAllData() {
   await dbQuestionNotes.iterate((v) => data.question_notes.push(v));
   await dbPendingPhotos.iterate((v) => data.pending_photos.push(v));
   data.pending_link_list = JSON.parse(localStorage.getItem('pendingLinkList') || '[]');
-  const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = `question-bank-backup-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click(); URL.revokeObjectURL(url);
+  const jsonStr = JSON.stringify(data);
+  const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  if (isNative && window.Capacitor?.Plugins?.Filesystem) {
+    const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
+    const fileName = `question-bank-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    try {
+      await window.Capacitor.Plugins.Filesystem.writeFile({ path: fileName, data: base64, directory: 'DOCUMENTS' });
+      alert('备份已保存: DOCUMENTS/' + fileName);
+    } catch (e) { alert('保存失败: ' + e.message); }
+  } else {
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `question-bank-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click(); URL.revokeObjectURL(url);
+  }
 }
 
 async function importAllData(file) {
@@ -1623,5 +1694,7 @@ async function importAllData(file) {
     }));
   }
   if (data.pending_link_list) localStorage.setItem('pendingLinkList', JSON.stringify(data.pending_link_list));
+  _invalidateQuestionsCache();
+  _invalidateTagIndex();
   return { questions: data.questions?.length || 0, tags: data.tags?.length || 0, papers: data.papers?.length || 0, topics: data.topics?.length || 0, question_notes: data.question_notes?.length || 0, pending_photos: data.pending_photos?.length || 0 };
 }

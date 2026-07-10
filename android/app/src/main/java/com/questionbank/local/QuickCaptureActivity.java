@@ -63,6 +63,13 @@ public class QuickCaptureActivity extends AppCompatActivity {
         pendingDir = new File(getFilesDir(), "pending_photos");
         if (!pendingDir.exists()) pendingDir.mkdirs();
 
+        File[] existingFiles = pendingDir.listFiles();
+        if (existingFiles != null) {
+            for (File f : existingFiles) {
+                if (f.getName().startsWith("photo_")) f.delete();
+            }
+        }
+
         closeButton.setOnClickListener(v -> cancelCapture());
         shootButton.setOnClickListener(v -> capturePhoto());
         doneButton.setOnClickListener(v -> finishCapture());
@@ -205,6 +212,7 @@ public class QuickCaptureActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (cameraProvider != null) cameraProvider.unbindAll();
         if (cameraExecutor != null) cameraExecutor.shutdown();
         super.onDestroy();
     }

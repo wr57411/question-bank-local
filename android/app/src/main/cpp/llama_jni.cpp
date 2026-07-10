@@ -71,6 +71,7 @@ Java_com_questionbank_local_LlamaBridge_loadModel(JNIEnv *env, jclass clazz, jst
 
 JNIEXPORT void JNICALL
 Java_com_questionbank_local_LlamaBridge_setProgressCallback(JNIEnv *env, jclass clazz, jobject callback) {
+    std::lock_guard<std::mutex> lock(g_mutex);
     if (g_callback) { env->DeleteGlobalRef(g_callback); g_callback = nullptr; }
     if (callback) { g_callback = env->NewGlobalRef(callback); }
 }
@@ -99,7 +100,15 @@ Java_com_questionbank_local_LlamaBridge_generate(JNIEnv *env, jclass clazz, jstr
 
     // Tokenize
     std::vector<llama_token> tokens(prompt.size() + 32);
-    int n_tokens = llama_tokenize(vocab, prompt.c_str(), prompt.size(), tokens.data(), tokens.size(), true, false);
+    int n_tokens = llama_tokenize(vocab, prompt.c_str(), prompt.size(), tokens.data(), tokens.size(), true, true);
+    if (n_tokens < 0) {
+        tokens.resize(-n_tokens);
+        n_tokens = llama_tokenize(vocab, prompt.c_str(), prompt.size(), tokens.data(), tokens.size(), true, true);
+    }
+    if (n_tokens < 0) {
+        llama_free(ctx);
+        return env->NewStringUTF("ERROR: tokenize failed");
+    }
     tokens.resize(n_tokens);
 
     // Prepare batch
@@ -169,6 +178,7 @@ JNIEXPORT void JNICALL
 Java_com_questionbank_local_LlamaBridge_unloadModel(JNIEnv *env, jclass clazz) {
     std::lock_guard<std::mutex> lock(g_mutex);
     if (g_model) { llama_model_free(g_model); g_model = nullptr; }
+    if (g_callback) { env->DeleteGlobalRef(g_callback); g_callback = nullptr; }
     LOGI("模型已卸载");
 }
 

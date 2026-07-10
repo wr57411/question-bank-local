@@ -17,13 +17,23 @@
 
 选择后切换到对应目录再执行后续步骤。
 
-### 2. 同步 Capacitor 资源
+### 2. 语法检查（必须先执行）
+
+构建前必须检查 JS 语法，防止语法错误导致整个应用崩溃：
+
+```bash
+node -e "const c=require('fs').readFileSync('www/index.html','utf8'); const m=c.match(/<script[^>]*>([\\s\\S]*?)<\\/script>/gi); if(m){m.forEach((s,i)=>{const code=s.replace(/<\\/?script[^>]*>/gi,''); try{new Function(code)}catch(e){console.error('❌ JS语法错误: '+e.message); process.exit(2)}}); console.log('✅ 语法检查通过')} else { console.log('✅ 无script块') }"
+```
+
+如果检查失败，**立即修复错误，不要继续构建**。
+
+### 3. 同步 Capacitor 资源
 
 ```bash
 npx cap sync android
 ```
 
-### 3. 修复 proguard 兼容性（AGP 9.x）
+### 4. 修复 proguard 兼容性（AGP 9.x）
 
 只在主项目构建时执行（worktree 的 node_modules 可能不同路径）：
 
@@ -34,14 +44,14 @@ find node_modules/@capacitor node_modules/@hotend -name "build.gradle" \
 done
 ```
 
-### 4. 构建 debug APK
+### 5. 构建 debug APK
 
 ```bash
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 cd android && ./gradlew assembleDebug
 ```
 
-### 5. 复制 APK 到主项目目录
+### 6. 复制 APK 到主项目目录
 
 无论在哪个目录构建，APK 一律复制到主项目目录 `/Users/john/question-bank-local/`，方便统一管理和安装：
 

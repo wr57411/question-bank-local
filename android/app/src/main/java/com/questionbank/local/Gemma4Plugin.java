@@ -8,17 +8,21 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.io.File;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 @CapacitorPlugin(name = "Gemma4")
 public class Gemma4Plugin extends Plugin {
 
     private static final String TAG = "Gemma4";
     private static final String MODEL_FILENAME = "gemma-4-E2B-it-Q3_K_S.gguf";
+    private ExecutorService executor;
 
     @Override
     public void load() {
         super.load();
-        new Thread(() -> {
+        executor = Executors.newSingleThreadExecutor();
+        executor.submit(() -> {
             try {
                 Thread.sleep(3000);
                 File modelFile = scanForModel();
@@ -30,7 +34,7 @@ public class Gemma4Plugin extends Plugin {
             } catch (Exception e) {
                 System.out.println("[Gemma4] 自动加载异常: " + e.getMessage());
             }
-        }).start();
+        });
     }
 
     private File scanForModel() {
@@ -113,20 +117,26 @@ public class Gemma4Plugin extends Plugin {
             notifyListeners("analyzeProgress", event);
         });
 
-        new Thread(() -> {
+        executor.submit(() -> {
             try {
                 String formatted = "<start_of_turn>user\n" + prompt + "<end_of_turn>\n<start_of_turn>model\n";
                 String result = LlamaBridge.generate(formatted, 256);
 
+                if (result.startsWith("ERROR:")) {
+                    call.reject(result);
+                    return;
+                }
+
                 JSObject ret = new JSObject();
                 ret.put("summary", result);
                 ret.put("difficulty", 3);
+                ret.put("tags", new org.json.JSONArray());
                 call.resolve(ret);
             } catch (Exception e) {
                 Log.e(TAG, "推理失败", e);
                 call.reject("推理失败: " + e.getMessage());
             }
-        }).start();
+        });
     }
 
     @PluginMethod
@@ -137,10 +147,16 @@ public class Gemma4Plugin extends Plugin {
         }
         String requirement = call.getString("requirement", "");
 
-        new Thread(() -> {
+        executor.submit(() -> {
             try {
                 String formatted = "<start_of_turn>user\n推荐题目: " + requirement + "<end_of_turn>\n<start_of_turn>model\n";
                 String result = LlamaBridge.generate(formatted, 256);
+
+                if (result.startsWith("ERROR:")) {
+                    call.reject(result);
+                    return;
+                }
+
                 JSObject ret = new JSObject();
                 ret.put("reason", result);
                 call.resolve(ret);
@@ -148,7 +164,7 @@ public class Gemma4Plugin extends Plugin {
                 Log.e(TAG, "推理失败", e);
                 call.reject("推理失败: " + e.getMessage());
             }
-        }).start();
+        });
     }
 
     @PluginMethod
@@ -156,5 +172,14 @@ public class Gemma4Plugin extends Plugin {
         LlamaBridge.unloadModel();
         Log.i(TAG, "模型已卸载");
         call.resolve();
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        super.handleOnDestroy();
+        if (executor != null && !executor.isShutdown()) {
+            executor.shutdown();
+        }
+        try { LlamaBridge.unloadModel(); } catch (Throwable ignored) {}
     }
 }

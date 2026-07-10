@@ -515,6 +515,10 @@
                         <div id="form-generated-tags-list" style="display:flex;flex-wrap:wrap;gap:4px"></div>
                     </div>
                 </div>
+                <div class="form-group">
+                    <label>📝 文字笔记（可选）</label>
+                    <textarea id="form-text-note" rows="2" placeholder="输入文字笔记..." style="width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);resize:vertical;font-family:inherit"></textarea>
+                </div>
                 <button type="submit" style="width:100%;padding:14px;font-size:15px;border-radius:var(--radius-lg)">✨ 添加题目</button>
             </form>
         </div>
@@ -753,12 +757,15 @@
         <h3>📄 导出 PDF</h3>
         <div id="export-summary" style="font-size:13px;color:var(--text-tertiary);margin-bottom:var(--space-md)"></div>
         <div style="margin-bottom:var(--space-md)">
-            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">题目与答案</label>
-            <div class="mode-option selected" onclick="selectExportMode(this,'merged')">
-                <div><div class="mode-label">📋 题目 + 答案在一起</div><div class="mode-desc">每道题后面紧跟对应答案</div></div>
+            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">布局方式</label>
+            <div class="mode-option selected" onclick="selectExportMode(this,'single')">
+                <div><div class="mode-label">📄 单栏排列</div><div class="mode-desc">每道题全宽显示，题后紧跟答案</div></div>
+            </div>
+            <div class="mode-option" onclick="selectExportMode(this,'double')">
+                <div><div class="mode-label">📋 双栏排列</div><div class="mode-desc">左右各一题，紧凑排列</div></div>
             </div>
             <div class="mode-option" onclick="selectExportMode(this,'separate')">
-                <div><div class="mode-label">📑 题目和答案分开</div><div class="mode-desc">前面全部是题目，后面全部是答案</div></div>
+                <div><div class="mode-label">📑 题目/答案分开</div><div class="mode-desc">前面全部是题目，后面全部是答案</div></div>
             </div>
         </div>
         <div style="margin-bottom:var(--space-md)">
@@ -769,11 +776,27 @@
                 <div class="spacing-option" onclick="selectSpacing(this,'large')">📄<br><input type="number" id="spc-large" value="8" min="0" max="30" step="0.5" onclick="event.stopPropagation()" style="width:48px;text-align:center;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px"> cm</div>
             </div>
         </div>
+        <div class="form-group" style="margin-bottom:var(--space-md)">
+            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">📁 保存文件夹</label>
+            <select id="export-folder-select" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)">
+                <option value="">加载中...</option>
+            </select>
+            <div id="export-new-folder-wrap" style="display:none;margin-top:6px;display:none">
+                <input type="text" id="export-new-folder-name" placeholder="输入新文件夹名" style="width:calc(100% - 70px);padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
+                <button type="button" onclick="confirmNewExportFolder()" style="padding:6px 12px;font-size:12px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer">创建</button>
+            </div>
+        </div>
+        <div class="form-group" style="margin-bottom:var(--space-md)">
+            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">文件名</label>
+            <input type="text" id="export-filename" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
+        </div>
         <div class="btn-group">
             <button class="secondary" onclick="closeExportModal()">取消</button>
-            <div style="display:flex;gap:8px">
+            <div style="display:flex;gap:8px;align-items:center">
+                <button onclick="previewExportPDF()" style="padding:12px 18px">👁️ 预览</button>
                 <button onclick="doExportPDF()" style="padding:12px 18px">📄 导出 PDF</button>
                 <button onclick="doExportImagesFromBasket()" style="background:var(--warning);box-shadow:0 4px 0 #B07A08;padding:12px 18px">📁 导出图片</button>
+                <button id="export-img-mode-btn" onclick="toggleExportImgMode()" style="padding:6px 8px;font-size:11px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);border-radius:var(--radius-sm);cursor:pointer" title="切换导出模式"></button>
             </div>
         </div>
     </div>
@@ -894,7 +917,7 @@
         </div>
         <div class="btn-group">
             <button class="secondary" onclick="closeExportImagesModal()">取消</button>
-            <button onclick="doExportImages()" style="background:var(--warning);box-shadow:0 4px 0 #B07A08;padding:12px 20px">确认导出</button>
+            <button onclick="_doExportImagesModalConfirm()" style="background:var(--warning);box-shadow:0 4px 0 #B07A08;padding:12px 20px">确认导出</button>
         </div>
     </div>
 </div>
@@ -1248,7 +1271,7 @@ let floatingPollTimer = null;
 let selectedQuestions = new Set();
 let questionBasket = new Set();
 let detailIndex = -1, filteredList = [];
-let exportMode = 'merged', exportSpacing = 'none';
+let exportMode = 'single', exportSpacing = 'none';
 let newTagContext = null;
 let currentPaperId = null;
 let similarCandidates = [];
@@ -1267,10 +1290,9 @@ if (!window.Capacitor.Plugins.Gemma4) {
             summary: "这是一道考察三角形内角和与勾股定理结合的几何题，计算量适中。"
         }),
         recommendQuestions: async (o) => {
-            const c = JSON.parse(o.candidatesJson);
             return {
-                recommended_ids: c.slice(0, 2).map(x => x.id),
-                reason: "根据您的需求，AI 挑选了题库中最符合考察辅助线逻辑的 2 道经典题目。"
+                recommended_ids: [],
+                reason: "根据您的需求: '" + (o.requirement || "") + "'，AI 挑选了模拟结果。"
             };
         }
     };
@@ -1342,8 +1364,17 @@ function applyVersionTheme(versionId) {
 
     const title = document.getElementById('header-title');
     if (title) {
-        title.textContent = version.emoji + ' ' + version.name;
+        title.innerHTML = version.emoji + ' ' + version.name + ' <span onclick="renameCurrentVersion()" style="font-size:12px;cursor:pointer;opacity:.5" title="改名">✏️</span>';
     }
+}
+
+function renameCurrentVersion() {
+    const v = getCurrentVersion();
+    const newName = prompt("输入新版本名称", v.name);
+    if (!newName || newName.trim() === v.name) return;
+    const versions = getAppVersions();
+    const target = versions.find(x => x.id === v.id);
+    if (target) { target.name = newName.trim(); saveAppVersions(versions); applyVersionTheme(v.id); renderVersionSwitcher(); renderVersionCheckboxes(); showStatus("版本已改名", "success"); }
 }
 
 function setAppVersion(versionId) {
@@ -1428,6 +1459,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     applyVersionTheme(getCurrentVersionId());
     renderVersionCheckboxes();
     renderVersionSwitcher();
+    updateExportImgModeBtn();
 
     // 初始化远程同步
     initRemoteSync(serverUrl, apiToken, syncEnabled);
@@ -2852,12 +2884,14 @@ document.getElementById("question-form").addEventListener("submit", async (e) =>
         const newQuestion = await dbCreateQuestion(qi, ai, tags, lt, bi, versions, bookInfo);
 
         // 创建主版本笔记（仅有图片时）
-        if (qi) await dbAddQuestionNote(newQuestion.id, qi, "笔记 v1", "");
+        const textNote = (document.getElementById("form-text-note")?.value || "").trim();
+        if (qi) await dbAddQuestionNote(newQuestion.id, qi, "笔记 v1", textNote);
 
         // 保存评价
         const comment = document.getElementById("form-comment").value.trim();
         if (comment) {
             await dbQuestions.setItem(newQuestion.id, { ...newQuestion, user_comment: comment, updated_at: new Date().toISOString() });
+            _invalidateQuestionsCache();
         }
 
         // 创建额外版本笔记
@@ -2882,6 +2916,7 @@ document.getElementById("question-form").addEventListener("submit", async (e) =>
         document.getElementById("page-number").value = "";
         document.getElementById("question-number").value = "";
         document.getElementById("form-comment").value = "";
+        document.getElementById("form-text-note").value = "";
         clearFormGeneratedTags();
         await loadQuestions(); await loadBookFilter();
         showStatus("题目添加成功", "success");
@@ -3899,6 +3934,31 @@ function exportPaperAsImages() {
     document.getElementById("export-images-modal").classList.add("active");
 }
 
+function getExportImgMode() { return localStorage.getItem('exportImgMode') || 'manual'; }
+function setExportImgMode(m) { localStorage.setItem('exportImgMode', m); updateExportImgModeBtn(); }
+function updateExportImgModeBtn() {
+    const btn = document.getElementById('export-img-mode-btn');
+    if (!btn) return;
+    const m = getExportImgMode();
+    btn.textContent = m === 'manual' ? '✏️ 手动输入' : '⚡ 自动填入';
+    btn.title = m === 'manual' ? '点击切换为自动填入' : '点击切换为手动输入';
+}
+function toggleExportImgMode() {
+    setExportImgMode(getExportImgMode() === 'manual' ? 'auto' : 'manual');
+}
+
+function _doExportImagesModalConfirm() {
+    const folderName = document.getElementById("export-images-folder").value.trim();
+    if (!folderName) { alert('请输入文件夹名称'); return; }
+    const basketQuestions = window._exportQuestions;
+    if (basketQuestions && basketQuestions.length && !currentPaperId) {
+        closeExportImagesModal();
+        _runExportImagesFromBasket(basketQuestions, folderName);
+    } else {
+        doExportImages();
+    }
+}
+
 function closeExportImagesModal() {
     document.getElementById("export-images-modal").classList.remove("active");
 }
@@ -3916,16 +3976,7 @@ async function exportImagesToFolder(imageList, folderName, answerImageList) {
     }
 
     try {
-        // 判断平台：优先用 Device 插件，否则用 Capacitor 自带方法，默认 Android
-        let directory = 'DOWNLOAD'; // Android 默认用 Download
-        try {
-            if (window.Capacitor.Plugins.Device?.getInfo) {
-                const info = await window.Capacitor.Plugins.Device.getInfo();
-                if (info?.platform === 'ios') directory = 'DOCUMENTS';
-            } else if (window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'ios') {
-                directory = 'DOCUMENTS';
-            }
-        } catch (e) { /* ignore，用默认 DOWNLOAD */ }
+        let directory = 'DOCUMENTS';
 
         // 创建主文件夹
         try {
@@ -4023,8 +4074,21 @@ async function doExportImagesFromBasket() {
     const questions = window._exportQuestions;
     if (!questions || !questions.length) { alert('没有可导出的题目'); return; }
 
-    const folderName = document.getElementById("export-images-folder").value.trim();
-    if (!folderName) { alert('请输入文件夹名称'); return; }
+    if (getExportImgMode() === 'auto') {
+        const folderName = "题库导出_" + new Date().toISOString().slice(0, 10);
+        await _runExportImagesFromBasket(questions, folderName);
+    } else {
+        document.getElementById("export-images-folder").value = '';
+        document.getElementById("export-images-summary").textContent = '';
+        document.getElementById("export-images-progress").style.display = 'none';
+        document.getElementById("export-images-modal").classList.add("active");
+    }
+}
+
+async function _runExportImagesFromBasket(questions, folderName) {
+    // 合并用户选择的文件夹
+    const selectedFolder = getExportFolder();
+    if (selectedFolder) folderName = selectedFolder + '/' + folderName;
 
     const exportType = document.querySelector('input[name="export-type"]:checked')?.value || 'with_notes';
 
@@ -4693,7 +4757,78 @@ function exportSelectedOrAll() {
 function showExportModal(questions) {
     window._exportQuestions = questions;
     document.getElementById("export-summary").textContent = "将导出 " + questions.length + " 道题目";
+    // 默认文件名带日期时间
+    const now = new Date();
+    const ts = now.getFullYear() + String(now.getMonth()+1).padStart(2,'0') + String(now.getDate()).padStart(2,'0') + '_' + String(now.getHours()).padStart(2,'0') + String(now.getMinutes()).padStart(2,'0');
+    document.getElementById("export-filename").value = "题库导出_" + ts;
+    loadExportFolders();
     document.getElementById("export-modal").classList.add("active");
+}
+
+async function loadExportFolders() {
+    const sel = document.getElementById("export-folder-select");
+    sel.innerHTML = '<option value="">加载中...</option>';
+    try {
+        const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+        if (isNative && window.Capacitor?.Plugins?.Filesystem) {
+            const result = await window.Capacitor.Plugins.Filesystem.readdir({ path: '.', directory: 'DOCUMENTS' });
+            const dirs = (result.files || []).filter(f => typeof f === 'object' && f.type === 'directory');
+            sel.innerHTML = '';
+            dirs.forEach(d => { const o = document.createElement('option'); o.value = d.name; o.textContent = '📁 ' + d.name; sel.appendChild(o); });
+        }
+    } catch (e) { sel.innerHTML = ''; }
+    // 底部加新建选项
+    const opt = document.createElement('option');
+    opt.value = '__new__';
+    opt.textContent = '＋ 新建文件夹...';
+    sel.appendChild(opt);
+    sel.onchange = () => {
+        document.getElementById("export-new-folder-wrap").style.display = sel.value === '__new__' ? 'flex' : 'none';
+    };
+}
+
+async function confirmNewExportFolder() {
+    const name = document.getElementById("export-new-folder-name").value.trim();
+    if (!name) return;
+    try {
+        await window.Capacitor.Plugins.Filesystem.mkdir({ path: name, directory: 'DOCUMENTS', recursive: true });
+    } catch (e) {}
+    await loadExportFolders();
+    const sel = document.getElementById("export-folder-select");
+    sel.value = name;
+    sel.onchange();
+    showStatus("文件夹已创建: " + name, "success");
+}
+
+function getExportFolder() {
+    const sel = document.getElementById("export-folder-select");
+    return (sel && sel.value && sel.value !== '__new__') ? sel.value : '';
+}
+
+function getExportFileName() {
+    return document.getElementById("export-filename")?.value?.trim() || '题库导出';
+}
+
+async function previewExportPDF() {
+    const qs = window._exportQuestions; if (!qs || !qs.length) { showStatus("没有可导出的题目", "error"); return; }
+    const spc = exportSpacing === 'large' ? parseFloat(document.getElementById("spc-large").value) : exportSpacing === 'small' ? parseFloat(document.getElementById("spc-small").value) : 0;
+    const { jsPDF } = window.jspdf;
+    // 先生成 PDF 到临时 doc
+    const tmpDoc = await generatePDF(qs, { mode: exportMode, spacing: exportSpacing, spacingCm: spc, title: getExportFileName(), noSave: true });
+    if (!tmpDoc) return;
+    const pdfDataUri = tmpDoc.output('dataurlstring');
+    // 打开预览弹窗
+    let previewModal = document.getElementById('pdf-preview-modal');
+    if (!previewModal) {
+        previewModal = document.createElement('div');
+        previewModal.id = 'pdf-preview-modal';
+        previewModal.className = 'modal';
+        previewModal.onclick = (ev) => { if (ev.target === previewModal) previewModal.classList.remove('active'); };
+        previewModal.innerHTML = '<div class="modal-content" style="max-width:90vw;height:85vh;display:flex;flex-direction:column;padding:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">👁️ PDF 预览</h3><button onclick="document.getElementById(\'pdf-preview-modal\').classList.remove(\'active\')" style="padding:6px 12px;cursor:pointer">关闭</button></div><iframe id="pdf-preview-frame" style="flex:1;border:1px solid var(--border);border-radius:var(--radius-sm)"></iframe></div>';
+        document.body.appendChild(previewModal);
+    }
+    document.getElementById('pdf-preview-frame').src = pdfDataUri;
+    previewModal.classList.add('active');
 }
 function closeExportModal() { document.getElementById("export-modal").classList.remove("active"); }
 function selectExportMode(el, mode) { exportMode = mode; document.querySelectorAll("#export-modal .mode-option").forEach(e => e.classList.remove("selected")); el.classList.add("selected"); }
@@ -5586,6 +5721,7 @@ async function saveUserComment() {
         user_comment: comment,
         updated_at: new Date().toISOString()
     });
+    _invalidateQuestionsCache();
     await loadQuestions();
     await doAutoBackup();
 }
@@ -5622,17 +5758,22 @@ async function analyzeSingleQuestion() {
                 btn.textContent = "分析中 " + pct + "% (" + info.status + ")";
             });
 
-            result = await new Promise((resolve, reject) => {
-                Gemma4.analyzeQuestion({ imageBase64: q.question_image_url || "", prompt: "请简要描述这张题目图片的内容，包括学科和大致知识点" })
-                    .then(resolve).catch(reject);
-                setTimeout(() => reject(new Error("超时")), 600000);
-            });
-            progressListener.remove();
+            try {
+                result = await new Promise((resolve, reject) => {
+                    const timer = setTimeout(() => reject(new Error("超时")), 600000);
+                    Gemma4.analyzeQuestion({ prompt: "请简要描述这张题目图片的内容，包括学科和大致知识点" })
+                        .then(r => { clearTimeout(timer); resolve(r); })
+                        .catch(e => { clearTimeout(timer); reject(e); });
+                });
+            } finally {
+                progressListener.remove();
+            }
         }
 
         q.semantic_summary = result.summary || "分析完成";
         q.ai_metadata = { difficulty: result.difficulty || 3, tags: result.tags || [], analyzed_at: new Date().toISOString(), mode };
         await dbQuestions.setItem(q.id, q);
+        _invalidateQuestionsCache();
 
         const aiDiv = document.getElementById("modal-ai-summary");
         const aiText = document.getElementById("modal-ai-text");
@@ -5674,10 +5815,10 @@ async function handleBatchAnalyze() {
             if (!img || !img.startsWith("data:")) { done++; continue; }
 
             const result = await new Promise((resolve, reject) => {
-                Gemma4.analyzeQuestion({ imageBase64: img, prompt: "请简要描述这张题目图片的内容，包括学科和大致知识点" })
-                    .then(resolve)
-                    .catch(reject);
-                setTimeout(() => reject(new Error("超时")), 600000);
+                const timer = setTimeout(() => reject(new Error("超时")), 600000);
+                Gemma4.analyzeQuestion({ prompt: "请简要描述这张题目图片的内容，包括学科和大致知识点" })
+                    .then(r => { clearTimeout(timer); resolve(r); })
+                    .catch(e => { clearTimeout(timer); reject(e); });
             });
 
             q.semantic_summary = result.summary || "分析完成";
@@ -5687,6 +5828,7 @@ async function handleBatchAnalyze() {
                 analyzed_at: new Date().toISOString()
             };
             await dbQuestions.setItem(q.id, q);
+            _invalidateQuestionsCache();
             done++;
         } catch (e) {
             btn.disabled = false;
@@ -5725,6 +5867,7 @@ window.runFullAIAutomation = async function() {
         question_tags: [],
         ai_metadata: { difficulty: 5 }
     });
+    _invalidateQuestionsCache();
     await loadQuestions();
     console.log("🛠️ [自动化] ✅ Step 1: 模拟题目注入成功");
 
@@ -5986,6 +6129,8 @@ async function importBackupData(data) {
         const ids = [link.question_id, link.similar_question_id].sort();
         if (ids[0] && ids[1] && ids[0] !== ids[1]) await dbSimilarQuestionLinks.setItem(ids[0] + "_" + ids[1], { ...link, question_id: ids[0], similar_question_id: ids[1] });
     }
+    _invalidateQuestionsCache();
+    _invalidateTagIndex();
 }
 
 // 包装数据修改操作，自动触发备份

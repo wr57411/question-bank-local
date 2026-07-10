@@ -66,10 +66,10 @@ public class SmartCaptureActivity extends AppCompatActivity {
     private Camera camera;
     private ExecutorService cameraExecutor;
     private TextRecognizer recognizer;
-    private boolean detectorBusy = false;
-    private boolean captureBusy = false;
-    private RectF stableRect;
-    private RectF stableRectNormalized;
+    private volatile boolean detectorBusy = false;
+    private volatile boolean captureBusy = false;
+    private volatile RectF stableRect;
+    private volatile RectF stableRectNormalized;
     private int stableFrames = 0;
     private int missFrames = 0;
     private int analysisWidth = 0;
@@ -261,6 +261,7 @@ public class SmartCaptureActivity extends AppCompatActivity {
             uprightBitmap.recycle();
             runOnUiThread(() -> finishWithResult(outputFile, width, height, finalRect));
         } catch (Exception e) {
+            outputFile.delete();
             runOnUiThread(() -> {
                 captureBusy = false;
                 shootButton.setEnabled(true);
@@ -835,6 +836,7 @@ public class SmartCaptureActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (cameraProvider != null) cameraProvider.unbindAll();
         if (cameraExecutor != null) cameraExecutor.shutdown();
         if (recognizer != null) recognizer.close();
         super.onDestroy();
