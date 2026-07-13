@@ -1446,15 +1446,16 @@ async function generatePDF(questions, options = {}) {
   // 加载中文字体
   if (!_pdfFontLoaded) {
     try {
-      const resp = await fetch('fonts/NotoSansSC-Regular.ttf');
-      const buf = await resp.arrayBuffer();
-      const bytes = new Uint8Array(buf);
-      let binary = '';
-      for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-      const base64 = btoa(binary);
-      doc.addFileToVFS('NotoSansSC-Regular.ttf', base64);
-      doc.addFont('NotoSansSC-Regular.ttf', 'NotoSC', 'normal');
-      _pdfFontLoaded = true;
+      const resp = await fetch('./fonts/NotoSansSC-Regular.ttf');
+      if (resp.ok) {
+        const buf = await resp.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        doc.addFileToVFS('NotoSansSC-Regular.ttf', btoa(binary));
+        doc.addFont('NotoSansSC-Regular.ttf', 'NotoSC', 'normal');
+        _pdfFontLoaded = true;
+      }
     } catch (e) { console.warn('中文字体加载失败:', e); }
   }
   const CN = _pdfFontLoaded ? 'NotoSC' : 'helvetica';

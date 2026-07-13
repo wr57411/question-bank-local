@@ -2067,20 +2067,30 @@ function selectLayout(el, val) {
 function renderVersionCheckboxes() {
     const container = document.getElementById('version-checkboxes');
     if (!container) return;
+    const checkedIds = new Set(Array.from(container.querySelectorAll('input[name="question_versions"]:checked')).map(cb => cb.value));
     const versions = getAppVersions();
     container.innerHTML = '';
     versions.forEach(v => {
-        const label = document.createElement('label');
-        label.style.cssText = `display:flex;align-items:center;gap:6px;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-md);cursor:pointer;font-size:13px;font-weight:500;transition:all .2s;background:var(--surface)`;
+        const wrap = document.createElement('div');
+        wrap.style.cssText = `display:flex;align-items:center;gap:6px;padding:8px 12px;border:1.5px solid var(--border);border-radius:var(--radius-md);cursor:pointer;font-size:13px;font-weight:500;transition:border-color .2s,background-color .2s;background:var(--surface)`;
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.name = 'question_versions';
         cb.value = v.id;
-        cb.style.cssText = 'accent-color:' + v.theme.primary;
+        cb.checked = checkedIds.has(v.id);
+        cb.style.cssText = 'accent-color:' + v.theme.primary + ';width:18px;height:18px;cursor:pointer;flex-shrink:0';
+        const updateStyle = () => { wrap.style.background = cb.checked ? v.theme.primary + '15' : 'var(--surface)'; wrap.style.borderColor = cb.checked ? v.theme.primary : 'var(--border)'; };
+        cb.onchange = updateStyle;
+        wrap.onclick = (e) => {
+            if (e.target === cb) return;
+            cb.checked = !cb.checked;
+            updateStyle();
+        };
         const span = document.createElement('span');
         span.textContent = v.emoji + ' ' + v.name;
-        label.append(cb, span);
-        container.appendChild(label);
+        wrap.append(cb, span);
+        if (cb.checked) { wrap.style.background = v.theme.primary + '15'; wrap.style.borderColor = v.theme.primary; }
+        container.appendChild(wrap);
     });
 }
 
@@ -3483,7 +3493,7 @@ function renderDetailContent(q) {
     let versionHtml = '<h3 style="margin-top:12px">适用版本</h3><div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:6px">';
     allVersions.forEach(v => {
         const checked = versions.includes(v.id);
-        versionHtml += `<label style="display:flex;align-items:center;gap:4px;padding:6px 10px;border:1.5px solid ${checked ? v.theme.primary : 'var(--border)'};border-radius:var(--radius-md);cursor:pointer;font-size:12px;background:${checked ? v.theme.primaryLight : 'var(--surface)'}"><input type="checkbox" onchange="toggleQuestionVersion('${q.id}','${v.id}',this.checked)" ${checked ? 'checked' : ''} style="accent-color:${v.theme.primary}"><span>${v.emoji} ${v.name}</span></label>`;
+        versionHtml += `<div style="display:flex;align-items:center;gap:4px;padding:6px 10px;border:1.5px solid ${checked ? v.theme.primary : 'var(--border)'};border-radius:var(--radius-md);cursor:pointer;font-size:12px;transition:border-color .2s,background-color .2s;background:${checked ? v.theme.primaryLight : 'var(--surface)'}" onclick="if(event.target.tagName!=='INPUT'){var cb=this.querySelector('input');cb.checked=!cb.checked;var p=cb.parentElement;p.style.borderColor=cb.checked?'${v.theme.primary}':'var(--border)';p.style.background=cb.checked?'${v.theme.primaryLight}':'var(--surface)';toggleQuestionVersion('${q.id}','${v.id}',cb.checked)}"><input type="checkbox" onchange="var p=this.parentElement;p.style.borderColor=this.checked?'${v.theme.primary}':'var(--border)';p.style.background=this.checked?'${v.theme.primaryLight}':'var(--surface)';toggleQuestionVersion('${q.id}','${v.id}',this.checked)" ${checked ? 'checked' : ''} style="accent-color:${v.theme.primary};width:18px;height:18px;cursor:pointer;flex-shrink:0"><span>${v.emoji} ${v.name}</span></div>`;
     });
     versionHtml += '</div><small style="color:#888;font-size:11px">不勾选则所有版本均可见</small>';
     document.getElementById("modal-tags").innerHTML += versionHtml;
@@ -4811,24 +4821,20 @@ function getExportFileName() {
 
 async function previewExportPDF() {
     const qs = window._exportQuestions; if (!qs || !qs.length) { showStatus("没有可导出的题目", "error"); return; }
+    showStatus("正在生成预览...", "success");
     const spc = exportSpacing === 'large' ? parseFloat(document.getElementById("spc-large").value) : exportSpacing === 'small' ? parseFloat(document.getElementById("spc-small").value) : 0;
-    const { jsPDF } = window.jspdf;
-    // 先生成 PDF 到临时 doc
     const tmpDoc = await generatePDF(qs, { mode: exportMode, spacing: exportSpacing, spacingCm: spc, title: getExportFileName(), noSave: true });
-    if (!tmpDoc) return;
-    const pdfDataUri = tmpDoc.output('dataurlstring');
-    // 打开预览弹窗
-    let previewModal = document.getElementById('pdf-preview-modal');
-    if (!previewModal) {
-        previewModal = document.createElement('div');
-        previewModal.id = 'pdf-preview-modal';
-        previewModal.className = 'modal';
-        previewModal.onclick = (ev) => { if (ev.target === previewModal) previewModal.classList.remove('active'); };
-        previewModal.innerHTML = '<div class="modal-content" style="max-width:90vw;height:85vh;display:flex;flex-direction:column;padding:8px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">👁️ PDF 预览</h3><button onclick="document.getElementById(\'pdf-preview-modal\').classList.remove(\'active\')" style="padding:6px 12px;cursor:pointer">关闭</button></div><iframe id="pdf-preview-frame" style="flex:1;border:1px solid var(--border);border-radius:var(--radius-sm)"></iframe></div>';
-        document.body.appendChild(previewModal);
+    if (!tmpDoc) { showStatus("生成失败", "error"); return; }
+    const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    if (isNative && window.Capacitor?.Plugins?.Browser) {
+        const pdfDataUri = tmpDoc.output('dataurlstring');
+        try { await window.Capacitor.Plugins.Browser.open({ url: pdfDataUri }); } catch (e) { alert('预览失败: ' + e.message); }
+    } else {
+        const blob = tmpDoc.output('blob');
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
     }
-    document.getElementById('pdf-preview-frame').src = pdfDataUri;
-    previewModal.classList.add('active');
+    showStatus("预览已打开", "success");
 }
 function closeExportModal() { document.getElementById("export-modal").classList.remove("active"); }
 function selectExportMode(el, mode) { exportMode = mode; document.querySelectorAll("#export-modal .mode-option").forEach(e => e.classList.remove("selected")); el.classList.add("selected"); }
@@ -4837,7 +4843,7 @@ async function doExportPDF() {
     const qs = window._exportQuestions; if (!qs || !qs.length) { showStatus("没有可导出的题目", "error"); return; }
     closeExportModal(); showStatus("正在生成 PDF...", "success");
     const spc = exportSpacing === 'large' ? parseFloat(document.getElementById("spc-large").value) : exportSpacing === 'small' ? parseFloat(document.getElementById("spc-small").value) : 0;
-    await generatePDF(qs, { mode: exportMode, spacing: exportSpacing, spacingCm: spc, title: "题库导出" });
+    await generatePDF(qs, { mode: exportMode, spacing: exportSpacing, spacingCm: spc, title: getExportFileName() });
     showStatus("PDF 已生成", "success");
 }
 
