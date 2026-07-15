@@ -1434,7 +1434,8 @@ async function dbReplaceWithRemoteSnapshot(snapshot) {
 
 // ========== PDF 生成 ==========
 
-let _pdfFontLoaded = false;
+let _pdfFontBase64 = null;
+let _pdfFontLoading = null;
 
 async function generatePDF(questions, options = {}) {
   const { jsPDF } = window.jspdf;
@@ -1443,22 +1444,51 @@ async function generatePDF(questions, options = {}) {
   const { mode = 'single', spacing = 'none', spacingCm = 5, title = '', noSave = false } = options;
   const spcMm = spacing !== 'none' ? spacingCm * 10 : 0;
 
-  // 加载中文字体
-  if (!_pdfFontLoaded) {
-    try {
-      const resp = await fetch('./fonts/NotoSansSC-Regular.ttf');
-      if (resp.ok) {
-        const buf = await resp.arrayBuffer();
-        const bytes = new Uint8Array(buf);
-        let binary = '';
-        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-        doc.addFileToVFS('NotoSansSC-Regular.ttf', btoa(binary));
-        doc.addFont('NotoSansSC-Regular.ttf', 'NotoSC', 'normal');
-        _pdfFontLoaded = true;
+  // 加载中文字体（全局缓存 base64，每次新 doc 都重新注册）
+  async function _loadFontBase64() {
+    if (_pdfFontBase64 !== null) return _pdfFontBase64;
+    if (_pdfFontLoading) return await _pdfFontLoading;
+    _pdfFontLoading = (async () => {
+      for (const p of ['fonts/NotoSansSC-Regular.ttf', './fonts/NotoSansSC-Regular.ttf', '/public/fonts/NotoSansSC-Regular.ttf']) {
+        try {
+          const resp = await fetch(p);
+          if (resp.ok) {
+            const buf = await resp.arrayBuffer();
+            const bytes = new Uint8Array(buf);
+            let binary = '';
+            for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+            const b64 = btoa(binary);
+            _pdfFontBase64 = b64;
+            return b64;
+          }
+        } catch (e) {}
       }
-    } catch (e) { console.warn('中文字体加载失败:', e); }
+      // fallback: 尝试 XHR
+      try {
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', 'fonts/NotoSansSC-Regular.ttf', false);
+        xhr.overrideMimeType('text/plain; charset=x-user-defined');
+        xhr.send();
+        if (xhr.status === 0 || xhr.status === 200) {
+          const binary = xhr.responseText;
+          const b64 = btoa(binary);
+          _pdfFontBase64 = b64;
+          return b64;
+        }
+      } catch (e) {}
+      return null;
+    })();
+    return await _pdfFontLoading;
   }
-  const CN = _pdfFontLoaded ? 'NotoSC' : 'helvetica';
+  const fontB64 = await _loadFontBase64();
+  let CN = 'helvetica';
+  if (fontB64) {
+    doc.addFileToVFS('NotoSansSC-Regular.ttf', fontB64);
+    doc.addFont('NotoSansSC-Regular.ttf', 'NotoSC', 'normal');
+    CN = 'NotoSC';
+  } else {
+    console.warn('中文字体加载失败，使用回退字体');
+  }
 
   function loadImg(dataUrl) {
     return new Promise((resolve) => {

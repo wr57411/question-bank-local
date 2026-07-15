@@ -148,7 +148,8 @@
         .question-card .info{padding:10px 12px}
         .question-card .tags{display:flex;flex-wrap:wrap;gap:4px}
         .question-card .tag{font-size:10px;padding:2px 8px;border-radius:var(--radius-xl)}
-        .q-checkbox{position:absolute;top:8px;left:8px;width:28px;height:28px;border-radius:var(--radius-sm);border:2px solid var(--border);background:rgba(255,255,255,.95);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:5;color:var(--primary);font-weight:bold;backdrop-filter:blur(4px);transition:all .2s}
+        .q-checkbox{position:absolute;top:6px;left:6px;width:40px;height:40px;border-radius:var(--radius-sm);border:2px solid var(--border);background:rgba(255,255,255,.95);font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;color:var(--primary);font-weight:bold;backdrop-filter:blur(4px);transition:all .2s;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+                .q-checkbox:active{transform:scale(1.15)}
         .q-checkbox.checked{background:var(--primary);border-color:var(--primary);color:#fff}
 
         /* FAB */
@@ -185,9 +186,22 @@
         /* Search & Filter */
         .search-bar{display:flex;gap:8px;margin-bottom:var(--space-md)}
         .search-bar input{flex:1}
-        .filter-tags{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:var(--space-md)}
+        .filter-tags-wrap{margin-bottom:var(--space-md)}
+                .filter-toggle{display:flex;align-items:center;gap:6px;cursor:pointer;padding:6px 0;font-size:13px;color:var(--text-secondary);font-weight:600;user-select:none}
+                .filter-toggle .arrow{transition:transform .2s;display:inline-block;font-size:10px}
+                .filter-toggle.expanded .arrow{transform:rotate(90deg)}
+                .filter-toggle .badge{background:var(--primary);color:#fff;border-radius:10px;padding:1px 8px;font-size:11px;margin-left:4px}
+                .filter-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+                .filter-tags.collapsed{display:none}
         .filter-tag{padding:6px 14px;border-radius:var(--radius-xl);font-size:12px;cursor:pointer;border:1.5px solid var(--border);background:var(--surface);color:var(--text-secondary);transition:all .2s;font-weight:500}
         .filter-tag.active{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 2px 0 var(--primary-dark)}
+                .tag-suggest-dropdown{position:absolute;top:calc(100% + 2px);left:0;right:0;z-index:100;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);max-height:220px;overflow-y:auto;display:none}
+                .tag-suggest-dropdown.show{display:block}
+                .tag-suggest-item{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;font-size:13px;transition:background .15s;border-bottom:1px solid var(--border-light)}
+                .tag-suggest-item:last-child{border-bottom:none}
+                .tag-suggest-item:active{background:var(--surface-dim)}
+                .tag-suggest-item .dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+                .tag-suggest-item .match-type{font-size:10px;color:var(--text-tertiary);margin-left:auto;padding:2px 8px;background:var(--surface-dim);border-radius:8px}
 
         /* Similar */
         .similar-list{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--space-sm);margin-top:var(--space-sm)}
@@ -530,12 +544,22 @@
                     <button onclick="exportSelectedOrAll()" style="padding:10px 18px;font-size:13px;border-radius:var(--radius-md)">📄 导出 PDF</button>
                 </div>
             </div>
-            <div class="filter-tags" id="filter-tags"></div>
+            <div class="filter-tags-wrap">
+                <div class="filter-toggle" id="filter-toggle" onclick="toggleFilterTags()">
+                    <span class="arrow">▶</span>
+                    <span>标签筛选</span>
+                    <span class="badge" id="filter-badge" style="display:none">0</span>
+                </div>
+                <div class="filter-tags collapsed" id="filter-tags"></div>
+            </div>
             <div style="display:flex;gap:8px;margin-bottom:var(--space-md);flex-wrap:wrap">
                 <select id="book-filter" onchange="filterByBook(this.value)" style="flex:1;min-width:120px;padding:8px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface)">
                     <option value="">📚 全部书本</option>
                 </select>
-                <input id="search-input" type="text" placeholder="🔍 搜索题目..." oninput="filterQuestions()" style="flex:2;min-width:150px;padding:8px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-md)" />
+                <div class="tag-suggest" style="flex:2;min-width:150px;position:relative">
+                    <input id="search-input" type="text" placeholder="🔍 搜索标签/书名/页码..." oninput="filterQuestions()" onkeyup="filterQuestions()" oncompositionend="filterQuestions()" style="width:100%;padding:8px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-md)" autocomplete="off" />
+                    <div class="tag-suggest-dropdown" id="tag-suggest-dropdown"></div>
+                </div>
             </div>
             <div class="question-grid" id="questions-list"></div>
         </div>
@@ -2713,8 +2737,20 @@ function renderFormSelectedTags() {
         div.appendChild(el);
     });
 }
+function toggleFilterTags() {
+    const toggle = document.getElementById('filter-toggle');
+    const tags = document.getElementById('filter-tags');
+    const collapsed = tags.classList.toggle('collapsed');
+    toggle.classList.toggle('expanded', !collapsed);
+    localStorage.setItem('filterTagsExpanded', collapsed ? '0' : '1');
+}
 function renderFilterTags() {
     const c = document.getElementById("filter-tags"); c.replaceChildren();
+    const badge = document.getElementById('filter-badge');
+    if (badge) { badge.textContent = activeFilterTags.length; badge.style.display = activeFilterTags.length ? 'inline' : 'none'; }
+    const expanded = localStorage.getItem('filterTagsExpanded') === '1';
+    if (expanded) { c.classList.remove('collapsed'); document.getElementById('filter-toggle').classList.add('expanded'); }
+    else { c.classList.add('collapsed'); document.getElementById('filter-toggle').classList.remove('expanded'); }
     const all = document.createElement("span"); all.className = "filter-tag" + (!activeFilterTags.length ? " active" : "");
     all.textContent = "全部"; all.onclick = () => { activeFilterTags = []; renderFilterTags(); renderQuestions(); }; c.appendChild(all);
     allTags.forEach(tag => {
@@ -2964,7 +3000,77 @@ function filterByBook(bookName) {
     renderQuestions();
 }
 
+function fuzzyMatchTags(searchText) {
+    if (!searchText || !allTags.length) return [];
+    const q = searchText.toLowerCase().trim();
+    if (!q) return [];
+    const results = [];
+    for (const tag of allTags) {
+        const name = (tag.name || '').toLowerCase();
+        if (!name) continue;
+        let score = 0, type = '';
+        if (name.includes(q)) {
+            score = 100;
+            type = '精确匹配';
+        } else if (q.includes(name) && name.length >= 2) {
+            score = 90;
+            type = '包含标签';
+        } else {
+            let qi = 0;
+            for (let ci = 0; ci < name.length && qi < q.length; ci++) {
+                if (name[ci] === q[qi]) qi++;
+            }
+            if (qi === q.length && q.length >= 2) {
+                score = 80;
+                type = '顺序匹配';
+            }
+        }
+        if (score === 0) {
+            const qChars = new Set(q);
+            const nChars = new Set(name);
+            let intersection = 0;
+            for (const c of qChars) { if (nChars.has(c)) intersection++; }
+            const union = new Set([...qChars, ...nChars]).size;
+            const jaccard = intersection / union;
+            if (jaccard >= 0.34 && intersection >= 2) {
+                score = Math.round(40 + jaccard * 40);
+                type = '相似';
+            }
+        }
+        if (score > 0) results.push({ tag, score, type });
+    }
+    results.sort((a, b) => b.score - a.score);
+    return results.slice(0, 5);
+}
+function showTagSuggestions() {
+    const input = document.getElementById('search-input');
+    const dropdown = document.getElementById('tag-suggest-dropdown');
+    if (!input || !dropdown) return;
+    const searchText = input.value.trim();
+    if (!searchText) { dropdown.classList.remove('show'); dropdown.replaceChildren(); return; }
+    const matches = fuzzyMatchTags(searchText);
+    if (!matches.length) { dropdown.classList.remove('show'); dropdown.replaceChildren(); return; }
+    dropdown.replaceChildren();
+    matches.forEach(m => {
+        const item = document.createElement('div');
+        item.className = 'tag-suggest-item';
+        const dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = m.tag.color || '#3B82F6';
+        const label = document.createElement('span'); label.textContent = m.tag.name;
+        const badge = document.createElement('span'); badge.className = 'match-type'; badge.textContent = m.type;
+        item.appendChild(dot); item.appendChild(label); item.appendChild(badge);
+        item.onclick = () => {
+            input.value = m.tag.name;
+            dropdown.classList.remove('show');
+            dropdown.replaceChildren();
+            filterQuestions();
+            input.focus();
+        };
+        dropdown.appendChild(item);
+    });
+    dropdown.classList.add('show');
+}
 function filterQuestions() {
+    showTagSuggestions();
     renderQuestions();
 }
 function getFilteredQuestions() {
@@ -3214,7 +3320,9 @@ let extraNoteVersions = [];
 let extraNoteVersionCounter = 0;
 
 async function loadNoteVersionsForDetail(questionId) {
+    const myToken = ++_detailLoadToken;
     currentNoteVersions = await dbGetQuestionNotes(questionId);
+    if (myToken !== _detailLoadToken) return;
     const select = document.getElementById("modal-note-version-select");
     const bar = document.getElementById("modal-note-version-bar");
     const imgDiv = document.getElementById("modal-question-image");
@@ -3479,8 +3587,10 @@ function showQuestionDetail(qId) {
     document.getElementById("question-modal").classList.add("active");
     updatePendingLinkBtnStyle(qId);
 }
+let _detailLoadToken = 0;
 function renderDetailContent(q) {
-    // 加载笔记版本
+    _detailLoadToken++;
+    document.getElementById("modal-question-image").innerHTML = '<div style="text-align:center;padding:20px"><p style="color:var(--text-tertiary)">加载中...</p></div>';
     loadNoteVersionsForDetail(q.id);
 
     document.getElementById("modal-answer-image").innerHTML = q.answer_image_url ? '<h3 style="margin-top:12px">答案</h3><img src="' + q.answer_image_url + '" style="max-width:100%;border-radius:8px">' : '<p style="color:#999;margin-top:12px">无答案图片</p>';
@@ -4821,20 +4931,47 @@ function getExportFileName() {
 
 async function previewExportPDF() {
     const qs = window._exportQuestions; if (!qs || !qs.length) { showStatus("没有可导出的题目", "error"); return; }
-    showStatus("正在生成预览...", "success");
+    showStatus("正在生成预览，请稍候...", "success");
     const spc = exportSpacing === 'large' ? parseFloat(document.getElementById("spc-large").value) : exportSpacing === 'small' ? parseFloat(document.getElementById("spc-small").value) : 0;
-    const tmpDoc = await generatePDF(qs, { mode: exportMode, spacing: exportSpacing, spacingCm: spc, title: getExportFileName(), noSave: true });
-    if (!tmpDoc) { showStatus("生成失败", "error"); return; }
+    // 生成完整 PDF（不保存）
+    const doc = await generatePDF(qs, { mode: exportMode, spacing: exportSpacing, spacingCm: spc, title: getExportFileName(), noSave: true });
+    if (!doc) { showStatus("生成失败", "error"); return; }
     const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-    if (isNative && window.Capacitor?.Plugins?.Browser) {
-        const pdfDataUri = tmpDoc.output('dataurlstring');
-        try { await window.Capacitor.Plugins.Browser.open({ url: pdfDataUri }); } catch (e) { alert('预览失败: ' + e.message); }
+    if (isNative && window.Capacitor?.Plugins?.Filesystem) {
+        // 用 arraybuffer 输出避免 dataurlstring 内存溢出
+        const ab = doc.output('arraybuffer');
+        const bytes = new Uint8Array(ab);
+        let binary = '';
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+        }
+        const b64 = btoa(binary);
+        const tmpFile = 'preview_temp.pdf';
+        try {
+            try { await window.Capacitor.Plugins.Filesystem.deleteFile({ path: tmpFile, directory: 'CACHE' }); } catch (_) {}
+            await window.Capacitor.Plugins.Filesystem.writeFile({ path: tmpFile, data: b64, directory: 'CACHE' });
+            const uriResult = await window.Capacitor.Plugins.Filesystem.getUri({ path: tmpFile, directory: 'CACHE' });
+            // 用 FileOpener 打开 PDF（需要安装 @capacitor-community/file-opener）
+            if (window.Capacitor.Plugins.FileOpener) {
+                await window.Capacitor.Plugins.FileOpener.open({
+                    filePath: uriResult.uri,
+                    contentType: 'application/pdf'
+                });
+            } else {
+                // 降级到 Browser（可能不工作）
+                await window.Capacitor.Plugins.Browser.open({ url: uriResult.uri });
+            }
+            showStatus("预览已打开", "success");
+            setTimeout(() => { try { window.Capacitor.Plugins.Filesystem.deleteFile({ path: tmpFile, directory: 'CACHE' }); } catch (_) {} }, 30000);
+        } catch (e) {
+            showStatus("预览失败: " + e.message, "error");
+        }
     } else {
-        const blob = tmpDoc.output('blob');
+        const blob = doc.output('blob');
         const url = URL.createObjectURL(blob);
         window.open(url, '_blank');
     }
-    showStatus("预览已打开", "success");
 }
 function closeExportModal() { document.getElementById("export-modal").classList.remove("active"); }
 function selectExportMode(el, mode) { exportMode = mode; document.querySelectorAll("#export-modal .mode-option").forEach(e => e.classList.remove("selected")); el.classList.add("selected"); }
@@ -5855,6 +5992,13 @@ async function handleBatchAnalyze() {
 window.addEventListener('DOMContentLoaded', () => {
     updateAIStatusUI();
     setInterval(updateAIStatusUI, 10000);
+    document.addEventListener('click', (e) => {
+        const dropdown = document.getElementById('tag-suggest-dropdown');
+        const wrap = dropdown?.parentElement;
+        if (dropdown && wrap && !wrap.contains(e.target)) {
+            dropdown.classList.remove('show');
+        }
+    });
 });
 
 // ========== 自动化测试上帝模式 ==========
