@@ -2,14 +2,18 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="format-detection" content="telephone=no" />
     <title>本地题库</title>
     <link rel="stylesheet" href="cropper.min.css" />
+    <link rel="stylesheet" href="katex/katex.min.css" />
     <script src="localforage.min.js"></script>
     <script src="jspdf.umd.min.js"></script>
     <script src="cropper.min.js"></script>
+    <script src="marked.min.js"></script>
+    <script src="katex/katex.min.js"></script>
+    <script src="katex/auto-render.min.js"></script>
     <style>
         :root {
             --primary: #1B7A4E;
@@ -283,6 +287,91 @@
             border-color: var(--primary);
             box-shadow: 0 0 0 3px var(--primary-light);
         }
+
+        /* Teaching Module */
+        .teaching-stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:var(--space-md)}
+        .teaching-stat{flex:1;min-width:80px;text-align:center;padding:10px 6px;border-radius:var(--radius-md);background:var(--surface);border:1px solid var(--border-light);box-shadow:var(--shadow-sm)}
+        .teaching-stat .stat-num{font-size:20px;font-weight:800;color:var(--primary)}
+        .teaching-stat .stat-label{font-size:10px;color:var(--text-tertiary);margin-top:2px}
+        .teaching-stat.pending{border-color:var(--warning)}.teaching-stat.pending .stat-num{color:var(--warning)}
+        .teaching-stat.generating{border-color:var(--accent)}.teaching-stat.generating .stat-num{color:var(--accent)}
+        .teaching-stat.generated{border-color:#3B82F6}.teaching-stat.generated .stat-num{color:#3B82F6}
+        .teaching-stat.verified{border-color:var(--primary)}.teaching-stat.verified .stat-num{color:var(--primary)}
+        .teaching-stat.error{border-color:var(--danger)}.teaching-stat.error .stat-num{color:var(--danger)}
+
+        .teaching-node-card{display:flex;align-items:center;gap:8px;padding:12px;border-radius:var(--radius-md);background:var(--surface);border:1px solid var(--border-light);margin-bottom:8px;box-shadow:var(--shadow-sm);transition:all .2s}
+        .teaching-node-card:hover{box-shadow:var(--shadow-md)}
+        .teaching-node-info{flex:1;min-width:0}
+        .teaching-node-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .teaching-node-meta{font-size:11px;color:var(--text-tertiary);margin-top:2px}
+        .teaching-node-actions{display:flex;gap:4px;flex-shrink:0}
+        .teaching-node-actions button{padding:6px 10px;font-size:11px;border-radius:var(--radius-sm);min-width:auto}
+        .status-badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap}
+        .status-PENDING{background:var(--warning-light);color:var(--warning)}
+        .status-GENERATING{background:var(--accent-light);color:var(--accent)}
+        .status-GENERATED{background:#DBEAFE;color:#2563EB}
+        .status-VERIFIED{background:var(--primary-light);color:var(--primary)}
+        .status-ERROR{background:var(--danger-light);color:var(--danger)}
+
+        .teaching-progress{width:100%;height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin:12px 0}
+        .teaching-progress-bar{height:100%;background:linear-gradient(90deg,var(--primary),#2BB673);transition:width .3s;border-radius:4px}
+
+        .quick-chapter-btn{padding:8px 14px;font-size:12px;border-radius:var(--radius-xl);background:var(--surface);border:1px solid var(--border);cursor:pointer;font-weight:500;transition:all .2s}
+        .quick-chapter-btn:active{transform:translateY(1px)}
+        .quick-chapter-btn:hover{border-color:var(--primary);background:var(--primary-light)}
+
+        .teaching-content-render{padding:16px;line-height:1.8;font-size:clamp(14px,3.5vw,16px);color:var(--text);overflow-wrap:break-word;word-wrap:break-word}
+        .teaching-content-render h1{font-size:clamp(20px,5vw,24px);font-weight:800;margin:16px 0 8px;color:var(--primary-dark)}
+        .teaching-content-render h2{font-size:clamp(17px,4.5vw,20px);font-weight:700;margin:14px 0 6px;color:var(--primary);padding-top:8px;border-top:1px solid var(--border-light)}
+        .teaching-content-render h3{font-size:clamp(15px,4vw,17px);font-weight:600;margin:12px 0 4px;color:var(--text)}
+        .teaching-content-render p{margin:8px 0}
+        .teaching-content-render ul,.teaching-content-render ol{margin:8px 0;padding-left:24px}
+        .teaching-content-render li{margin:4px 0}
+        .teaching-content-render code{background:var(--surface-dim);padding:2px 6px;border-radius:4px;font-size:13px}
+        .teaching-content-render pre{background:var(--surface-dim);padding:12px;border-radius:var(--radius-md);overflow-x:auto;margin:8px 0}
+        .teaching-content-render strong{font-weight:700}
+        .teaching-content-render blockquote{border-left:3px solid var(--primary);padding-left:12px;margin:8px 0;color:var(--text-secondary)}
+        .teaching-content-render table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%;border-collapse:collapse;margin:12px 0}
+        .teaching-content-render th,.teaching-content-render td{border:1px solid var(--border);padding:6px 10px;white-space:nowrap}
+        .teaching-content-render img{max-width:100%;height:auto;border-radius:var(--radius-md)}
+        .teaching-content-render .katex{font-size:1.05em}
+        .teaching-content-render .katex-display{margin:12px 0;overflow-x:auto;overflow-y:hidden}
+        .teaching-content-render .math-error{color:var(--danger);background:var(--danger-light);padding:2px 6px;border-radius:4px;font-family:monospace;font-size:0.9em}
+
+        .draw-placeholder{margin:12px 0;border:2px dashed var(--border);border-radius:var(--radius-md);overflow:hidden;background:var(--surface-dim)}
+        .draw-placeholder-header{display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--surface);border-bottom:1px solid var(--border-light)}
+        .draw-placeholder-desc{font-size:13px;color:var(--text-secondary)}
+        .draw-toolbar{display:flex;gap:4px;align-items:center;flex-wrap:wrap}
+        .draw-toolbar button{padding:4px 8px;font-size:11px;border-radius:var(--radius-sm);min-width:auto;border:1px solid var(--border);background:var(--surface);cursor:pointer}
+        .draw-toolbar button.active{background:var(--primary);color:#fff}
+        .draw-canvas-wrap{position:relative;background:#fff;touch-action:none}
+        .draw-canvas-wrap canvas{display:block;width:100%;touch-action:none}
+        .draw-saved-img{display:block;width:100%;cursor:pointer;border-radius:var(--radius-md)}
+
+        .edit-split{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}
+        .edit-source{width:100%;flex:1;font-family:monospace;font-size:13px;resize:none;border:1px solid var(--border);border-radius:var(--radius-md);padding:12px;line-height:1.5;tab-size:2}
+        .edit-preview{padding:12px;overflow-y:auto;flex:1;border:1px solid var(--border-light);border-radius:var(--radius-md);margin-top:8px}
+        .edit-actions{display:flex;gap:8px;margin-top:8px;flex-shrink:0}
+        .edit-actions button{flex:1;padding:10px;font-size:14px}
+        @media(min-width:768px){
+            #verify-edit-area{flex-direction:row !important}
+            #verify-edit-area .edit-source-split{flex:1}
+            #verify-edit-area .edit-preview-split{flex:1}
+        }
+
+        .projection-overlay{position:fixed;inset:0;z-index:9999;background:#fff;display:none;flex-direction:column;overflow-y:auto}
+        .projection-overlay.active{display:flex}
+        .projection-header{position:absolute;top:0;right:0;z-index:20;padding:8px;background:transparent}
+        .projection-body{flex:1;padding:clamp(20px,5vw,56px);max-width:min(900px,100%);margin:0 auto;width:100%}
+        .projection-body .teaching-content-render{font-size:clamp(18px,5vw,26px);line-height:2.2}
+        .projection-body .teaching-content-render h1{font-size:clamp(26px,7vw,36px)}
+        .projection-body .teaching-content-render h2{font-size:clamp(22px,6vw,30px);margin-top:24px;border-top:2px solid var(--border-light);padding-top:16px}
+        .projection-body .teaching-content-render h3{font-size:clamp(18px,5vw,24px)}
+        .projection-body .teaching-content-render .katex-display{margin:16px 0}
+        .projection-body .teaching-content-render .draw-placeholder{margin:20px 0}
+        .projection-nav{display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:var(--surface);border-top:1px solid var(--border-light);position:sticky;bottom:0}
+        .projection-nav button{padding:10px 20px;font-size:14px}
+        .projection-exit-btn{padding:6px 14px;font-size:13px;border-radius:var(--radius-xl);background:rgba(0,0,0,.06);color:var(--text-secondary);border:none;cursor:pointer}
     </style>
 </head>
 <body>
@@ -312,6 +401,7 @@
         <button class="tab" onclick="showTab('pending-link',this);renderPendingLinkList()">🔗 待关联<span id="pending-link-count" class="badge" style="display:none;margin-left:4px;background:#f59e0b;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
         <button class="tab" onclick="showPendingBlankList()" id="pending-blank-tab">📷 待补拍<span id="pending-blank-count" class="badge" style="display:none;margin-left:4px;background:#ef4444;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
         <button class="tab" onclick="showPendingPhotosTab()" id="pending-photos-tab">📸 待处理<span id="pending-photos-count" class="badge" style="display:none;margin-left:4px;background:#8B5CF6;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
+        <button class="tab" onclick="showTab('teaching',this);loadTeachingView()">🎓 AI教学</button>
     </div>
 
     <!-- 题目管理 -->
@@ -663,6 +753,142 @@
             <p style="color:var(--text-secondary);font-size:13px;margin-bottom:var(--space-md);line-height:1.5">以下照片来自快速拍照，点击可处理（关联到题目）。</p>
             <div id="pending-photos-list"></div>
         </div>
+    </div>
+
+    <!-- AI教学内容生产 -->
+    <div id="teaching-tab" class="hidden">
+        <div class="card" style="border:1px solid var(--accent);background:var(--accent-light)">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <h2 style="margin:0;color:var(--accent);font-size:17px;font-weight:700">🎓 AI教学内容生产</h2>
+            </div>
+            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5">输入章节名称，AI自动拆解知识点并批量生成教学内容。生成完成后可校验并投屏展示。</p>
+
+            <div class="form-group">
+                <label>章节名称</label>
+                <div style="display:flex;gap:6px">
+                    <input id="teaching-chapter-input" type="text" placeholder="例如：必修一 第三章 相互作用" style="flex:1" onkeydown="if(event.key==='Enter')atomizeChapter()" />
+                    <button onclick="atomizeChapter()" id="atomize-btn" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0">🔍 拆解</button>
+                </div>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px" id="quick-chapters">
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修一 第一章 运动的描述';atomizeChapter()">运动的描述</button>
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修一 第二章 匀变速直线运动';atomizeChapter()">匀变速直线运动</button>
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修一 第三章 相互作用';atomizeChapter()">相互作用</button>
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修一 第四章 牛顿运动定律';atomizeChapter()">牛顿运动定律</button>
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修二 第五章 抛体运动';atomizeChapter()">抛体运动</button>
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修二 第六章 圆周运动';atomizeChapter()">圆周运动</button>
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修三 第十章 电磁感应';atomizeChapter()">电磁感应</button>
+            </div>
+        </div>
+
+        <div class="card" id="teaching-queue-card" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                <h2 style="margin:0;font-size:17px;font-weight:700">生产队列</h2>
+                <div style="display:flex;gap:6px">
+                    <button id="batch-start-btn" onclick="startBatchGeneration()" style="background:var(--primary);font-size:13px">▶ 开始生成</button>
+                    <button id="batch-pause-btn" onclick="pauseBatchGeneration()" class="secondary" style="font-size:13px;display:none">⏸ 暂停</button>
+                    <button onclick="retryAllErrors()" class="secondary" style="font-size:13px">↻ 重试错误</button>
+                </div>
+            </div>
+
+            <div class="teaching-stats">
+                <div class="teaching-stat pending"><div class="stat-num" id="stat-pending">0</div><div class="stat-label">待生成</div></div>
+                <div class="teaching-stat generating"><div class="stat-num" id="stat-generating">0</div><div class="stat-label">生成中</div></div>
+                <div class="teaching-stat generated"><div class="stat-num" id="stat-generated">0</div><div class="stat-label">待校验</div></div>
+                <div class="teaching-stat verified"><div class="stat-num" id="stat-verified">0</div><div class="stat-label">已完成</div></div>
+                <div class="teaching-stat error"><div class="stat-num" id="stat-error">0</div><div class="stat-label">错误</div></div>
+            </div>
+
+            <div class="teaching-progress" id="teaching-progress-wrap" style="display:none">
+                <div class="teaching-progress-bar" id="teaching-progress-bar" style="width:0%"></div>
+            </div>
+
+            <div id="teaching-node-list" style="margin-top:12px"></div>
+        </div>
+
+        <div class="card" id="teaching-project-entry" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <h2 style="margin:0;font-size:17px;font-weight:700">🖥️ 投屏模式</h2>
+                <button onclick="enterProjectionMode()" style="background:var(--primary);font-size:13px">🖥️ 进入投屏</button>
+            </div>
+            <p style="font-size:12px;color:var(--text-secondary);margin-top:8px">已校验的教学内容可在课堂投屏展示，支持滑动切换。建议横屏使用。</p>
+        </div>
+    </div>
+</div>
+
+<!-- 校验弹窗 -->
+<div id="teaching-verify-modal" class="modal" onclick="if(event.target===this)closeVerifyModal()">
+    <div class="modal-content" style="max-width:900px;max-height:95dvh;overflow:hidden;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-shrink:0;padding-bottom:8px;border-bottom:1px solid var(--border-light)">
+            <div style="display:flex;align-items:center;gap:8px">
+                <button id="verify-prev-btn" onclick="verifyPrev()" class="secondary" style="font-size:13px;padding:6px 12px">← 上一个</button>
+                <h2 style="margin:0;font-size:16px;font-weight:700" id="verify-title">校验教学内容</h2>
+                <button id="verify-next-btn" onclick="verifyNext()" class="secondary" style="font-size:13px;padding:6px 12px">下一个 →</button>
+            </div>
+            <span style="cursor:pointer;font-size:28px;color:#999" onclick="closeVerifyModal()">×</span>
+        </div>
+        <div id="verify-content" class="teaching-content-render" style="flex:1;overflow-y:auto"></div>
+        <div id="verify-edit-area" style="display:none;flex-direction:column;flex:1;min-height:0">
+            <div class="edit-split edit-source-split">
+                <textarea id="verify-edit-textarea" class="edit-source" placeholder="编辑 Markdown 源码..."></textarea>
+            </div>
+            <div class="edit-split edit-preview-split">
+                <div id="verify-edit-preview" class="teaching-content-render edit-preview"></div>
+            </div>
+            <div class="edit-actions">
+                <button onclick="saveVerifyEdit()" style="background:var(--primary)">💾 保存</button>
+                <button onclick="cancelVerifyEdit()" class="secondary">取消</button>
+            </div>
+        </div>
+        <div id="verify-actions" style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-light);flex-shrink:0">
+            <button onclick="verifyApprove()" style="background:var(--primary);flex:1">✅ 通过</button>
+            <button onclick="verifyRegenerate()" class="secondary" style="flex:1">🔄 重新生成</button>
+            <button onclick="toggleVerifyEdit()" class="secondary" style="flex:1">✏️ 编辑</button>
+            <button onclick="openNodeQuestionPicker()" class="secondary" style="flex:1">📎 关联题目</button>
+            <button onclick="closeVerifyModal()" class="secondary">关闭</button>
+        </div>
+        <div id="verify-linked-questions" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border-light);flex-shrink:0;max-height:150px;overflow-y:auto"></div>
+    </div>
+</div>
+
+<!-- 关联题目选择器 -->
+<div id="node-question-picker-modal" class="modal" onclick="if(event.target===this)closeNodeQuestionPicker()">
+    <div class="modal-content" style="max-width:600px;max-height:80dvh;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h2 style="margin:0;font-size:16px;font-weight:700">关联题库题目</h2>
+            <span style="cursor:pointer;font-size:24px;color:#999" onclick="closeNodeQuestionPicker()">×</span>
+        </div>
+        <div style="margin-bottom:8px">
+            <select id="nq-module-select" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-md);font-size:13px">
+                <option value="模块一">模块一：概念原子化拆解</option>
+                <option value="模块二">模块二：沉浸式样例库</option>
+                <option value="模块三">模块三：配对练习</option>
+                <option value="模块四">模块四：变式组题</option>
+                <option value="模块五">模块五：小循环复习包</option>
+                <option value="其他">其他</option>
+            </select>
+        </div>
+        <div id="node-question-picker-list" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);padding:8px"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+            <button onclick="confirmNodeQuestionLinks()" style="background:var(--primary);flex:1">确认关联</button>
+            <button onclick="closeNodeQuestionPicker()" class="secondary">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 投屏覆盖层 -->
+<div id="projection-overlay" class="projection-overlay">
+    <div class="projection-header">
+        <button onclick="exitProjectionMode()" class="projection-exit-btn">✕ 退出</button>
+    </div>
+    <div class="projection-body">
+        <div id="projection-content" class="teaching-content-render"></div>
+    </div>
+    <div class="projection-nav">
+        <button id="proj-prev-btn" onclick="projectionPrev()" class="secondary" style="font-size:13px">← 上一个</button>
+        <span id="proj-nav-info" style="font-size:13px;color:var(--text-secondary)"></span>
+        <button id="proj-next-btn" onclick="projectionNext()" style="font-size:13px">下一个 →</button>
     </div>
 </div>
 
@@ -1278,6 +1504,7 @@
 </div>
 
 <script src="db.js"></script>
+<script src="ai.js"></script>
 <script>
 console.log("[DEBUG] Script loaded, isNative=" + (typeof window.Capacitor !== 'undefined'));
 let currentQuestionId = null, allTags = [], allQuestions = [], trashedQuestions = [];
@@ -5476,97 +5703,7 @@ function initProviderList() {
     renderProviderList();
 }
 
-async function callCloudAI(prompt, imageBase64) {
-    const provider = getCurrentProvider();
-    if (!provider) throw new Error("请先添加并选择一个模型服务商");
-
-    const baseUrl = provider.baseUrl || '';
-    const apiKey = provider.apiKey || '';
-    const model = provider.model;
-    const endpoint = provider.endpoint || '';
-    const authHeader = provider.authHeader || 'Authorization';
-    const authScheme = provider.authScheme != null ? provider.authScheme : 'Bearer';
-
-    console.log("[CloudAI] 调用 API:", { baseUrl, model, endpoint: endpoint || '(auto)', authScheme, hasImage: !!imageBase64 });
-
-    // 构建消息内容（OpenAI 兼容格式）
-    let content = prompt;
-    if (imageBase64) {
-        const imageUrl = imageBase64.startsWith('data:') ? imageBase64 :
-                       "data:image/jpeg;base64," + imageBase64;
-        content = [
-            { type: "text", text: prompt },
-            { type: "image_url", image_url: { url: imageUrl } }
-        ];
-        console.log("[CloudAI] 图片URL前50字符:", imageUrl.substring(0, 50));
-    }
-
-    const messages = [{ role: "user", content }];
-
-    // 确定请求 URL：优先用自定义端点，否则拼接 baseUrl + /chat/completions
-    let url;
-    if (endpoint) {
-        url = endpoint;
-    } else {
-        url = baseUrl.replace(/\/+$/, '') + "/chat/completions";
-    }
-
-    // 构建 headers
-    const headers = { "Content-Type": "application/json" };
-
-    // 认证头：支持自定义 header 名称和 scheme
-    if (apiKey) {
-        if (authScheme) {
-            headers[authHeader] = authScheme + " " + apiKey;
-        } else {
-            headers[authHeader] = apiKey;
-        }
-    }
-
-    // OpenRouter 额外 headers
-    if (baseUrl.includes('openrouter')) {
-        headers["HTTP-Referer"] = "http://localhost";
-        headers["X-Title"] = "Question Bank Local";
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000);
-
-    try {
-        const response = await fetch(url, {
-            method: "POST",
-            headers: headers,
-            body: JSON.stringify({
-                model,
-                messages,
-                temperature: 0.7
-            }),
-            signal: controller.signal
-        });
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error("[CloudAI] API 错误:", response.status, errorText);
-            throw new Error("API 请求失败: " + response.status + " - " + errorText);
-        }
-
-        const data = await response.json();
-        console.log("[CloudAI] 响应:", JSON.stringify(data).substring(0, 200));
-
-        const result = data.choices?.[0]?.message?.content ||
-                       data.choices?.[0]?.text ||
-                       "";
-        console.log("[CloudAI] 解析结果:", result.substring(0, 100));
-        return result;
-    } catch (error) {
-        clearTimeout(timeoutId);
-        if (error.name === 'AbortError') {
-            throw new Error("API 请求超时（60秒）");
-        }
-        throw error;
-    }
-}
+// AI 函数已提取到 ai.js
 
 // 基于用户评价生成标签
 async function generateTagsFromComment() {
@@ -6966,6 +7103,928 @@ window.addEventListener('question-ai-ready', async (event) => {
     // 重新加载所有题目并渲染 (如果想更精细，可以只更新对应的 DOM)
     allQuestions = await dbGetAllQuestions();
     renderQuestions();
+});
+
+// ========== AI教学内容生产流水线 ==========
+// Prompt 常量、callCloudAIStream、safeParseJSON 已提取到 ai.js
+
+// ========== 统一 Markdown 渲染（含 KaTeX + 手绘占位） ==========
+
+var currentDrawNode = null;
+
+function escapeHtml(s) {
+    return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function renderMarkdown(mdText, containerEl, options) {
+    options = options || {};
+    var drawings = options.drawings || {};
+    var readOnly = options.readOnly || false;
+    var node = options.node || null;
+    if (node) currentDrawNode = node;
+
+    try {
+        var html = marked.parse(mdText || '');
+
+        html = html.replace(/\[DRAW:id=([^:\]]+):([^\]]+)\]/g, function(m, id, desc) {
+            return _buildDrawHTML(id, desc.trim(), drawings, readOnly);
+        });
+        html = html.replace(/\[绘图占位[：:]([^\]]+)\]/g, function(m, desc) {
+            var id = 'draw_' + Math.random().toString(36).substr(2, 6);
+            return _buildDrawHTML(id, desc.trim(), drawings, readOnly);
+        });
+
+        containerEl.innerHTML = html;
+
+        if (typeof renderMathInElement === 'function') {
+            renderMathInElement(containerEl, {
+                delimiters: [
+                    {left: '$$', right: '$$', display: true},
+                    {left: '$', right: '$', display: false},
+                    {left: '\\(', right: '\\)', display: false},
+                    {left: '\\[', right: '\\]', display: true}
+                ],
+                throwOnError: false,
+                errorColor: '#cc0000',
+                strict: false
+            });
+        }
+
+        containerEl.querySelectorAll('.draw-init-btn').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var wrap = btn.closest('.draw-placeholder').querySelector('.draw-canvas-wrap');
+                var id = wrap.getAttribute('data-draw-id');
+                var desc = wrap.getAttribute('data-draw-desc');
+                initDrawCanvas(wrap, id, desc);
+            });
+        });
+        containerEl.querySelectorAll('.draw-saved-img').forEach(function(img) {
+            img.addEventListener('click', function() {
+                if (readOnly) return;
+                var id = img.getAttribute('data-draw-id');
+                var desc = img.getAttribute('data-draw-desc');
+                var wrap = img.closest('.draw-placeholder').querySelector('.draw-canvas-wrap');
+                if (!wrap) {
+                    var ph = img.closest('.draw-placeholder');
+                    wrap = document.createElement('div');
+                    wrap.className = 'draw-canvas-wrap';
+                    wrap.setAttribute('data-draw-id', id);
+                    wrap.setAttribute('data-draw-desc', desc);
+                    ph.appendChild(wrap);
+                }
+                initDrawCanvas(wrap, id, desc, img.src);
+            });
+        });
+
+    } catch (e) {
+        console.error('renderMarkdown 失败:', e);
+        containerEl.textContent = mdText || '';
+    }
+}
+
+function _buildDrawHTML(id, desc, drawings, readOnly) {
+    var d = drawings[id];
+    if (d && d.data) {
+        return '<div class="draw-placeholder" data-draw-id="' + id + '">' +
+            '<div class="draw-placeholder-header"><span class="draw-placeholder-desc">🎨 ' + escapeHtml(desc) + '</span></div>' +
+            '<img class="draw-saved-img" src="' + d.data + '" data-draw-id="' + id + '" data-draw-desc="' + escapeHtml(desc) + '" />' +
+            '</div>';
+    }
+    return '<div class="draw-placeholder" data-draw-id="' + id + '">' +
+        '<div class="draw-placeholder-header"><span class="draw-placeholder-desc">🎨 ' + escapeHtml(desc) + '</span>' +
+        (readOnly ? '' : '<div class="draw-toolbar"><button class="draw-init-btn">✏️ 手绘</button></div>') +
+        '</div>' +
+        '<div class="draw-canvas-wrap" data-draw-id="' + id + '" data-draw-desc="' + escapeHtml(desc) + '"></div>' +
+        '</div>';
+}
+
+var drawState = null;
+
+function initDrawCanvas(wrapEl, drawId, desc, existingImgSrc) {
+    wrapEl.innerHTML = '';
+    var w = wrapEl.offsetWidth || wrapEl.parentElement.offsetWidth - 4 || 300;
+    var h = 220;
+    var canvas = document.createElement('canvas');
+    canvas.width = Math.min(w, 1200);
+    canvas.height = h;
+    canvas.style.width = '100%';
+    canvas.style.height = h + 'px';
+    wrapEl.appendChild(canvas);
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    if (existingImgSrc) {
+        var img = new Image();
+        img.onload = function() { ctx.drawImage(img, 0, 0, canvas.width, canvas.height); };
+        img.src = existingImgSrc;
+    }
+
+    var toolbar = document.createElement('div');
+    toolbar.className = 'draw-toolbar';
+    toolbar.style.padding = '6px 8px';
+    toolbar.innerHTML =
+        '<button data-c="#000" class="active">⚫</button>' +
+        '<button data-c="#E63946">🔴</button>' +
+        '<button data-c="#2563EB">🔵</button>' +
+        '<button data-c="#16A34A">🟢</button>' +
+        '<span style="width:8px"></span>' +
+        '<button data-w="2">细</button>' +
+        '<button data-w="4" class="active">中</button>' +
+        '<button data-w="6">粗</button>' +
+        '<span style="width:8px"></span>' +
+        '<button data-mode="erase">橡皮</button>' +
+        '<button data-act="undo">↩ 撤销</button>' +
+        '<button data-act="clear">🗑 清空</button>' +
+        '<span style="flex:1"></span>' +
+        '<button data-act="save" style="background:var(--primary);color:#fff">💾 保存</button>' +
+        '<button data-act="cancel">取消</button>';
+    wrapEl.insertBefore(toolbar, canvas);
+
+    drawState = {
+        canvas: canvas, ctx: ctx, drawId: drawId, desc: desc,
+        color: '#000', width: 4, mode: 'draw',
+        paths: [], currentPath: null, drawing: false,
+        lastX: 0, lastY: 0
+    };
+
+    toolbar.querySelectorAll('button[data-c]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            drawState.color = btn.getAttribute('data-c');
+            drawState.mode = 'draw';
+            toolbar.querySelectorAll('button[data-c],button[data-mode]').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+        });
+    });
+    toolbar.querySelectorAll('button[data-w]').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            drawState.width = parseInt(btn.getAttribute('data-w'));
+            toolbar.querySelectorAll('button[data-w]').forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+        });
+    });
+    toolbar.querySelector('button[data-mode="erase"]').addEventListener('click', function() {
+        drawState.mode = drawState.mode === 'erase' ? 'draw' : 'erase';
+        toolbar.querySelectorAll('button[data-c],button[data-mode]').forEach(function(b) { b.classList.remove('active'); });
+        if (drawState.mode === 'erase') btn.classList.add('active');
+        else toolbar.querySelector('button[data-c="#000"]').classList.add('active');
+    });
+    toolbar.querySelector('button[data-act="undo"]').addEventListener('click', function() {
+        if (drawState.paths.length > 0) {
+            drawState.paths.pop();
+            redrawCanvas();
+        }
+    });
+    toolbar.querySelector('button[data-act="clear"]').addEventListener('click', function() {
+        drawState.paths = [];
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    });
+    toolbar.querySelector('button[data-act="save"]').addEventListener('click', function() {
+        saveDrawing(drawId, desc);
+    });
+    toolbar.querySelector('button[data-act="cancel"]').addEventListener('click', function() {
+        cancelDraw(wrapEl, drawId, desc);
+    });
+
+    function getPos(e) {
+        var rect = canvas.getBoundingClientRect();
+        var sx = canvas.width / rect.width;
+        var sy = canvas.height / rect.height;
+        var cx, cy;
+        if (e.touches && e.touches[0]) { cx = e.touches[0].clientX; cy = e.touches[0].clientY; }
+        else { cx = e.clientX; cy = e.clientY; }
+        return { x: (cx - rect.left) * sx, y: (cy - rect.top) * sy };
+    }
+
+    function startDraw(e) {
+        e.preventDefault();
+        drawState.drawing = true;
+        var p = getPos(e);
+        drawState.lastX = p.x; drawState.lastY = p.y;
+        drawState.currentPath = { color: drawState.color, width: drawState.width, mode: drawState.mode, points: [{x: p.x, y: p.y}] };
+    }
+    function moveDraw(e) {
+        if (!drawState.drawing) return;
+        e.preventDefault();
+        var p = getPos(e);
+        var ctx2 = drawState.ctx;
+        ctx2.beginPath();
+        ctx2.moveTo(drawState.lastX, drawState.lastY);
+        ctx2.lineTo(p.x, p.y);
+        if (drawState.mode === 'erase') {
+            ctx2.strokeStyle = '#fff';
+            ctx2.lineWidth = drawState.width * 3;
+        } else {
+            ctx2.strokeStyle = drawState.color;
+            ctx2.lineWidth = drawState.width;
+        }
+        ctx2.lineCap = 'round';
+        ctx2.lineJoin = 'round';
+        ctx2.stroke();
+        drawState.lastX = p.x; drawState.lastY = p.y;
+        drawState.currentPath.points.push({x: p.x, y: p.y});
+    }
+    function endDraw(e) {
+        if (!drawState.drawing) return;
+        e.preventDefault();
+        drawState.drawing = false;
+        if (drawState.currentPath && drawState.currentPath.points.length > 0) {
+            drawState.paths.push(drawState.currentPath);
+        }
+        drawState.currentPath = null;
+    }
+
+    canvas.addEventListener('pointerdown', startDraw);
+    canvas.addEventListener('pointermove', moveDraw);
+    canvas.addEventListener('pointerup', endDraw);
+    canvas.addEventListener('pointerleave', endDraw);
+    canvas.addEventListener('touchstart', startDraw, {passive: false});
+    canvas.addEventListener('touchmove', moveDraw, {passive: false});
+    canvas.addEventListener('touchend', endDraw, {passive: false});
+
+    function redrawCanvas() {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        for (var i = 0; i < drawState.paths.length; i++) {
+            var path = drawState.paths[i];
+            ctx.beginPath();
+            ctx.strokeStyle = path.mode === 'erase' ? '#fff' : path.color;
+            ctx.lineWidth = path.mode === 'erase' ? path.width * 3 : path.width;
+            ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+            for (var j = 0; j < path.points.length; j++) {
+                var pt = path.points[j];
+                if (j === 0) ctx.moveTo(pt.x, pt.y);
+                else ctx.lineTo(pt.x, pt.y);
+            }
+            ctx.stroke();
+        }
+    }
+}
+
+async function saveDrawing(drawId, desc) {
+    if (!drawState || !currentDrawNode) return;
+    var canvas = drawState.canvas;
+    try {
+        var dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+        if (!currentDrawNode.drawings) currentDrawNode.drawings = {};
+        currentDrawNode.drawings[drawId] = {
+            data: dataUrl, desc: desc,
+            width: canvas.width, height: canvas.height
+        };
+        await dbUpdateTeachingNode(currentDrawNode.id, { drawings: currentDrawNode.drawings });
+        var contentEl = document.getElementById('verify-content');
+        var editPreviewEl = document.getElementById('verify-edit-preview');
+        var projContentEl = document.getElementById('projection-content');
+        if (contentEl && contentEl.style.display !== 'none') {
+            renderMarkdown(currentDrawNode.content_markdown, contentEl, { drawings: currentDrawNode.drawings || {}, node: currentDrawNode });
+        }
+        if (editPreviewEl && editPreviewEl.style.display !== 'none') {
+            renderMarkdown(document.getElementById('verify-edit-textarea').value, editPreviewEl, { drawings: currentDrawNode.drawings || {}, node: currentDrawNode });
+        }
+        if (projContentEl && document.getElementById('projection-overlay').classList.contains('active')) {
+            renderMarkdown(currentDrawNode.content_markdown, projContentEl, { drawings: currentDrawNode.drawings || {}, node: currentDrawNode, readOnly: true });
+        }
+        showStatus('手绘图已保存', 'success');
+    } catch (e) {
+        console.error('saveDrawing failed:', e);
+        showStatus('手绘图保存失败: ' + e.message, 'error');
+    }
+}
+
+function cancelDraw(wrapEl, drawId, desc) {
+    if (!currentDrawNode) return;
+    var drawings = (currentDrawNode.drawings || {});
+    var existing = drawings[drawId];
+    if (existing && existing.data) {
+        wrapEl.innerHTML = '<img class="draw-saved-img" src="' + existing.data + '" data-draw-id="' + drawId + '" data-draw-desc="' + escapeHtml(desc) + '" />';
+        wrapEl.querySelector('img').addEventListener('click', function() {
+            initDrawCanvas(wrapEl, drawId, desc, this.src);
+        });
+    } else {
+        wrapEl.innerHTML = '';
+    }
+    drawState = null;
+}
+
+// ========== 教学模块 UI ==========
+
+let allTeachingNodes = [];
+let currentVerifyNodeId = null;
+let projectionNodeList = [];
+let projectionIndex = 0;
+
+async function loadTeachingView() {
+    allTeachingNodes = await dbGetAllTeachingNodes();
+    // 断点续传：将上次中断的 GENERATING 状态重置为 PENDING
+    let resetCount = 0;
+    for (const node of allTeachingNodes) {
+        if (node.status === 'GENERATING') {
+            await dbUpdateTeachingNode(node.id, { status: 'PENDING', error_msg: null });
+            node.status = 'PENDING';
+            node.error_msg = null;
+            resetCount++;
+        }
+    }
+    if (resetCount > 0) {
+        showStatus(`已恢复 ${resetCount} 个中断的生成任务`, 'info');
+    }
+    renderTeachingStats();
+    renderTeachingNodeList();
+    const hasNodes = allTeachingNodes.length > 0;
+    document.getElementById('teaching-queue-card').style.display = hasNodes ? 'block' : 'none';
+    document.getElementById('teaching-project-entry').style.display = hasNodes ? 'block' : 'none';
+}
+
+function renderTeachingStats() {
+    const counts = { PENDING: 0, GENERATING: 0, GENERATED: 0, VERIFIED: 0, ERROR: 0 };
+    allTeachingNodes.forEach(n => {
+        if (counts[n.status] !== undefined) counts[n.status]++;
+    });
+    document.getElementById('stat-pending').textContent = counts.PENDING;
+    document.getElementById('stat-generating').textContent = counts.GENERATING;
+    document.getElementById('stat-generated').textContent = counts.GENERATED;
+    document.getElementById('stat-verified').textContent = counts.VERIFIED;
+    document.getElementById('stat-error').textContent = counts.ERROR;
+}
+
+function renderTeachingNodeList() {
+    const container = document.getElementById('teaching-node-list');
+    if (allTeachingNodes.length === 0) {
+        container.innerHTML = '<p style="color:var(--text-tertiary);font-size:13px;text-align:center;padding:20px">暂无知识点，请先拆解章节</p>';
+        return;
+    }
+    const statusOrder = { GENERATING: 0, PENDING: 1, ERROR: 2, GENERATED: 3, VERIFIED: 4 };
+    const sorted = [...allTeachingNodes].sort((a, b) => (statusOrder[a.status] ?? 9) - (statusOrder[b.status] ?? 9));
+    container.innerHTML = sorted.map(node => {
+        const statusText = { PENDING: '待生成', GENERATING: '生成中', GENERATED: '待校验', VERIFIED: '已完成', ERROR: '错误' }[node.status] || node.status;
+        let actions = '';
+        if (node.status === 'GENERATED') {
+            actions = `<button onclick="openVerifyModal('${node.id}')" style="background:var(--primary)">👁 查看</button>`;
+        } else if (node.status === 'VERIFIED') {
+            actions = `<button onclick="openVerifyModal('${node.id}')" style="background:var(--primary)">👁 查看</button><button onclick="regenerateNode('${node.id}')" class="secondary">🔄</button>`;
+        } else if (node.status === 'ERROR') {
+            actions = `<button onclick="regenerateNode('${node.id}')" style="background:var(--danger)">↻ 重试</button>`;
+        } else if (node.status === 'PENDING') {
+            actions = `<button onclick="deleteTeachingNode('${node.id}')" class="secondary" style="background:var(--danger)">🗑</button>`;
+        }
+        const errorInfo = node.status === 'ERROR' && node.error_msg ? ` · ${node.error_msg.substring(0, 40)}` : '';
+        return `<div class="teaching-node-card" data-node-id="${node.id}">
+            <div class="teaching-node-info">
+                <div class="teaching-node-name">${node.name}</div>
+                <div class="teaching-node-meta">${node.chapter} · ${node.difficulty}${errorInfo}</div>
+            </div>
+            <span class="status-badge status-${node.status}">${statusText}</span>
+            <div class="teaching-node-actions">${actions}</div>
+        </div>`;
+    }).join('');
+}
+
+async function atomizeChapter() {
+    const chapter = document.getElementById('teaching-chapter-input').value.trim();
+    if (!chapter) {
+        showStatus('请输入章节名称', 'error');
+        return;
+    }
+    const provider = getCurrentProvider();
+    if (!provider) {
+        showStatus('请先添加并选择一个模型服务商', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('atomize-btn');
+    btn.disabled = true;
+    btn.textContent = '拆解中...';
+
+    try {
+        let resultText = '';
+        let parsed = null;
+        let retryCount = 0;
+        const maxRetries = 3;
+
+        while (retryCount < maxRetries && !parsed) {
+            const isRetry = retryCount > 0;
+            const promptText = isRetry
+                ? `上一次返回的内容无法解析为合法JSON。请重新拆解章节【${chapter}】，只输出纯JSON数组，不要任何markdown标记或解释文字。`
+                : `请拆解章节：【${chapter}】`;
+            btn.textContent = isRetry ? `JSON解析失败，重试(${retryCount}/${maxRetries})...` : '拆解中...';
+            resultText = await callCloudAIStream(
+                promptText,
+                (chunk, full) => { btn.textContent = (isRetry ? `重试(${retryCount}/${maxRetries}) ` : '拆解中... ') + full.length + '字'; },
+                { systemPrompt: KNOWLEDGE_ATOMIZER_PROMPT, temperature: isRetry ? 0.3 : 0.5 }
+            );
+            parsed = safeParseJSON(resultText);
+            if (!parsed) {
+                console.warn(`[atomizeChapter] 第${retryCount + 1}次解析失败，AI返回前300字:`, resultText.substring(0, 300));
+                retryCount++;
+            }
+        }
+
+        if (!parsed || !Array.isArray(parsed)) {
+            console.error('[atomizeChapter] 最终解析失败，完整返回内容:', resultText);
+            throw new Error('AI返回的内容无法解析为JSON数组（已重试' + maxRetries + '次）');
+        }
+
+        let created = 0;
+        for (const item of parsed) {
+            if (!item.name) continue;
+            await dbCreateTeachingNode({
+                chapter,
+                subject: '物理',
+                name: item.name,
+                difficulty: item.difficulty || '基础',
+                key_concept: item.key_concept || '',
+                status: 'PENDING'
+            });
+            created++;
+        }
+
+        showStatus(`已拆解出 ${created} 个知识点`, 'success');
+        await loadTeachingView();
+    } catch (e) {
+        showStatus('拆解失败: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = '🔍 拆解';
+    }
+}
+
+// ========== 任务队列引擎 ==========
+
+class TeachingTaskQueue {
+    constructor(maxConcurrency = 2) {
+        this.maxConcurrency = maxConcurrency;
+        this.isRunning = false;
+        this.activeCount = 0;
+        this.totalProcessed = 0;
+        this.totalToProcess = 0;
+    }
+
+    async start() {
+        if (this.isRunning) return;
+        this.isRunning = true;
+        document.getElementById('batch-start-btn').style.display = 'none';
+        document.getElementById('batch-pause-btn').style.display = 'inline-block';
+        document.getElementById('teaching-progress-wrap').style.display = 'block';
+        this._scheduleNext();
+    }
+
+    pause() {
+        this.isRunning = false;
+        document.getElementById('batch-start-btn').style.display = 'inline-block';
+        document.getElementById('batch-start-btn').textContent = '▶ 继续';
+        document.getElementById('batch-pause-btn').style.display = 'none';
+    }
+
+    _scheduleNext() {
+        if (!this.isRunning) return;
+        if (this.activeCount >= this.maxConcurrency) return;
+        const nextNode = allTeachingNodes.find(n => n.status === 'PENDING');
+        if (!nextNode) {
+            if (this.activeCount === 0) {
+                this.isRunning = false;
+                document.getElementById('batch-start-btn').style.display = 'inline-block';
+                document.getElementById('batch-start-btn').textContent = '▶ 开始生成';
+                document.getElementById('batch-pause-btn').style.display = 'none';
+                if (this.totalProcessed > 0) {
+                    showStatus(`批量生成完成，共处理 ${this.totalProcessed} 个知识点`, 'success');
+                }
+            }
+            return;
+        }
+        this.activeCount++;
+        this._processNode(nextNode).finally(() => {
+            this.activeCount--;
+            this._scheduleNext();
+        });
+        this._scheduleNext();
+    }
+
+    async _processNode(node) {
+        await dbUpdateTeachingNode(node.id, { status: 'GENERATING', error_msg: null });
+        node.status = 'GENERATING';
+        renderTeachingStats();
+        renderTeachingNodeList();
+
+        let retryCount = 0;
+        const maxRetries = 3;
+        let lastError = null;
+        let fullText = '';
+
+        while (retryCount < maxRetries) {
+            try {
+                fullText = '';
+                const result = await callCloudAIStream(
+                    `请生成关于【${node.name}】的教学内容。${node.key_concept ? '核心概念：' + node.key_concept : ''}`,
+                    (chunk, full) => {
+                        fullText = full;
+                        this._updateNodeProgress(node.id, full);
+                    },
+                    { systemPrompt: TEACHING_GENERATOR_PROMPT, temperature: 0.7 }
+                );
+
+                if (!result || result.trim().length < 50) {
+                    throw new Error('生成内容过短');
+                }
+
+                await dbUpdateTeachingNode(node.id, {
+                    status: 'GENERATED',
+                    content_markdown: result,
+                    content_json: null,
+                    error_msg: null,
+                    retry_count: retryCount
+                });
+                node.status = 'GENERATED';
+                node.content_markdown = result;
+                this.totalProcessed++;
+                this._updateProgress();
+                renderTeachingStats();
+                renderTeachingNodeList();
+                return;
+            } catch (e) {
+                lastError = e;
+                retryCount++;
+                if (retryCount < maxRetries) {
+                    await dbUpdateTeachingNode(node.id, { retry_count: retryCount });
+                    console.warn(`[TeachingQueue] 节点 ${node.name} 第${retryCount}次重试:`, e.message);
+                }
+            }
+        }
+
+        await dbUpdateTeachingNode(node.id, {
+            status: 'ERROR',
+            error_msg: lastError ? lastError.message.substring(0, 100) : '未知错误',
+            retry_count: retryCount
+        });
+        node.status = 'ERROR';
+        node.error_msg = lastError ? lastError.message : '未知错误';
+        this.totalProcessed++;
+        this._updateProgress();
+        renderTeachingStats();
+        renderTeachingNodeList();
+    }
+
+    _updateNodeProgress(nodeId, fullText) {
+        const card = document.querySelector(`[data-node-id="${nodeId}"]`);
+        if (card) {
+            const meta = card.querySelector('.teaching-node-meta');
+            if (meta) meta.textContent = `生成中... ${fullText.length}字`;
+        }
+    }
+
+    _updateProgress() {
+        const total = allTeachingNodes.length;
+        const done = allTeachingNodes.filter(n => n.status === 'GENERATED' || n.status === 'VERIFIED' || n.status === 'ERROR').length;
+        const pct = total > 0 ? Math.round(done / total * 100) : 0;
+        document.getElementById('teaching-progress-bar').style.width = pct + '%';
+    }
+}
+
+let teachingQueue = null;
+
+function startBatchGeneration() {
+    const pendingCount = allTeachingNodes.filter(n => n.status === 'PENDING').length;
+    if (pendingCount === 0) {
+        showStatus('没有待生成的知识点', 'error');
+        return;
+    }
+    if (!teachingQueue) {
+        teachingQueue = new TeachingTaskQueue(2);
+    }
+    teachingQueue.totalToProcess = pendingCount;
+    teachingQueue.totalProcessed = 0;
+    teachingQueue.start();
+}
+
+function pauseBatchGeneration() {
+    if (teachingQueue) teachingQueue.pause();
+}
+
+async function regenerateNode(nodeId) {
+    const node = await dbGetTeachingNode(nodeId);
+    if (!node) return;
+    await dbUpdateTeachingNode(node.id, {
+        status: 'PENDING',
+        error_msg: null,
+        content_markdown: '',
+        content_json: null,
+        drawings: {}
+    });
+    const idx = allTeachingNodes.findIndex(n => n.id === nodeId);
+    if (idx !== -1) {
+        allTeachingNodes[idx].status = 'PENDING';
+        allTeachingNodes[idx].error_msg = null;
+        allTeachingNodes[idx].content_markdown = '';
+        allTeachingNodes[idx].drawings = {};
+    }
+    renderTeachingStats();
+    renderTeachingNodeList();
+    if (teachingQueue && teachingQueue.isRunning) {
+        teachingQueue._scheduleNext();
+    }
+}
+
+async function retryAllErrors() {
+    const errorNodes = allTeachingNodes.filter(n => n.status === 'ERROR');
+    for (const node of errorNodes) {
+        await dbUpdateTeachingNode(node.id, { status: 'PENDING', error_msg: null });
+        const idx = allTeachingNodes.findIndex(n => n.id === node.id);
+        if (idx !== -1) {
+            allTeachingNodes[idx].status = 'PENDING';
+            allTeachingNodes[idx].error_msg = null;
+        }
+    }
+    renderTeachingStats();
+    renderTeachingNodeList();
+    if (teachingQueue && teachingQueue.isRunning) {
+        teachingQueue._scheduleNext();
+    }
+}
+
+async function deleteTeachingNode(nodeId) {
+    await dbDeleteTeachingNode(nodeId);
+    allTeachingNodes = allTeachingNodes.filter(n => n.id !== nodeId);
+    renderTeachingStats();
+    renderTeachingNodeList();
+    if (allTeachingNodes.length === 0) {
+        document.getElementById('teaching-queue-card').style.display = 'none';
+        document.getElementById('teaching-project-entry').style.display = 'none';
+    }
+}
+
+// ========== 校验界面 ==========
+
+function getVerifyNodeList() {
+    return allTeachingNodes.filter(n => n.status === 'GENERATED' || n.status === 'VERIFIED');
+}
+
+function openVerifyModal(nodeId) {
+    const node = allTeachingNodes.find(n => n.id === nodeId);
+    if (!node) return;
+    currentVerifyNodeId = nodeId;
+    const verifyList = getVerifyNodeList();
+    const idx = verifyList.findIndex(n => n.id === nodeId);
+    document.getElementById('verify-title').textContent = node.name;
+    document.getElementById('verify-prev-btn').disabled = idx <= 0;
+    document.getElementById('verify-next-btn').disabled = idx >= verifyList.length - 1;
+    const contentEl = document.getElementById('verify-content');
+    if (node.content_markdown) {
+        renderMarkdown(node.content_markdown, contentEl, { drawings: node.drawings || {}, node: node });
+    } else {
+        contentEl.innerHTML = '<p style="color:var(--text-tertiary)">暂无内容</p>';
+    }
+    document.getElementById('verify-content').style.display = 'block';
+    document.getElementById('verify-edit-area').style.display = 'none';
+    document.getElementById('verify-actions').style.display = 'flex';
+    document.getElementById('teaching-verify-modal').classList.add('active');
+    loadLinkedQuestions(nodeId);
+}
+
+function verifyPrev() {
+    const verifyList = getVerifyNodeList();
+    const idx = verifyList.findIndex(n => n.id === currentVerifyNodeId);
+    if (idx > 0) {
+        openVerifyModal(verifyList[idx - 1].id);
+    }
+}
+
+function verifyNext() {
+    const verifyList = getVerifyNodeList();
+    const idx = verifyList.findIndex(n => n.id === currentVerifyNodeId);
+    if (idx >= 0 && idx < verifyList.length - 1) {
+        openVerifyModal(verifyList[idx + 1].id);
+    }
+}
+
+var editPreviewTimer = null;
+function toggleVerifyEdit() {
+    const contentEl = document.getElementById('verify-content');
+    const editArea = document.getElementById('verify-edit-area');
+    const actionsEl = document.getElementById('verify-actions');
+    const node = allTeachingNodes.find(n => n.id === currentVerifyNodeId);
+    if (!node) return;
+    if (editArea.style.display === 'none') {
+        const textarea = document.getElementById('verify-edit-textarea');
+        textarea.value = node.content_markdown || '';
+        contentEl.style.display = 'none';
+        actionsEl.style.display = 'none';
+        editArea.style.display = 'flex';
+        updateEditPreview();
+        textarea.addEventListener('input', function() {
+            clearTimeout(editPreviewTimer);
+            editPreviewTimer = setTimeout(updateEditPreview, 300);
+        });
+        textarea.addEventListener('scroll', function() {
+            const preview = document.getElementById('verify-edit-preview');
+            if (preview) {
+                const ratio = textarea.scrollTop / (textarea.scrollHeight - textarea.clientHeight || 1);
+                preview.scrollTop = ratio * (preview.scrollHeight - preview.clientHeight);
+            }
+        });
+    } else {
+        contentEl.style.display = 'block';
+        actionsEl.style.display = 'flex';
+        editArea.style.display = 'none';
+    }
+}
+function updateEditPreview() {
+    const node = allTeachingNodes.find(n => n.id === currentVerifyNodeId);
+    if (!node) return;
+    const text = document.getElementById('verify-edit-textarea').value;
+    const previewEl = document.getElementById('verify-edit-preview');
+    renderMarkdown(text, previewEl, { drawings: node.drawings || {}, node: node });
+}
+
+async function saveVerifyEdit() {
+    const node = allTeachingNodes.find(n => n.id === currentVerifyNodeId);
+    if (!node) return;
+    const newText = document.getElementById('verify-edit-textarea').value;
+    await dbUpdateTeachingNode(node.id, { content_markdown: newText, status: 'GENERATED' });
+    node.content_markdown = newText;
+    node.status = 'GENERATED';
+    renderTeachingStats();
+    renderTeachingNodeList();
+    openVerifyModal(node.id);
+    showStatus('内容已保存', 'success');
+}
+
+function cancelVerifyEdit() {
+    document.getElementById('verify-content').style.display = 'block';
+    document.getElementById('verify-actions').style.display = 'flex';
+    document.getElementById('verify-edit-area').style.display = 'none';
+}
+
+function closeVerifyModal() {
+    document.getElementById('teaching-verify-modal').classList.remove('active');
+    currentVerifyNodeId = null;
+}
+
+async function verifyApprove() {
+    if (!currentVerifyNodeId) return;
+    await dbUpdateTeachingNode(currentVerifyNodeId, { status: 'VERIFIED' });
+    const idx = allTeachingNodes.findIndex(n => n.id === currentVerifyNodeId);
+    if (idx !== -1) allTeachingNodes[idx].status = 'VERIFIED';
+    renderTeachingStats();
+    renderTeachingNodeList();
+    closeVerifyModal();
+    showStatus('已通过校验', 'success');
+}
+
+async function verifyRegenerate() {
+    if (!currentVerifyNodeId) return;
+    const nodeId = currentVerifyNodeId;
+    closeVerifyModal();
+    await regenerateNode(nodeId);
+}
+
+// ========== 知识点关联题库 ==========
+
+async function loadLinkedQuestions(nodeId) {
+    const linked = await dbGetNodeQuestions(nodeId);
+    const container = document.getElementById('verify-linked-questions');
+    if (!linked.length) {
+        container.style.display = 'none';
+        container.innerHTML = '';
+        return;
+    }
+    container.style.display = 'block';
+    container.innerHTML = '<div style="font-size:12px;color:var(--text-tertiary);margin-bottom:6px">已关联题目：</div>' +
+        linked.map(nq => {
+            const q = nq.question_data;
+            const thumb = q.question_image_url ? `<img src="${q.question_image_url}" style="width:48px;height:48px;object-fit:contain;border-radius:4px;background:var(--surface-dim)">` : '<div style="width:48px;height:48px;background:var(--surface-dim);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-tertiary)">无图</div>';
+            const label = q.semantic_summary || q.user_comment || nq.module;
+            return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid var(--border-light)">
+                ${thumb}
+                <div style="flex:1;font-size:12px;color:var(--text)">${label}<br><span style="color:var(--text-tertiary)">${nq.module} · #${nq.order}</span></div>
+                <button onclick="unlinkQuestionFromNode('${nq.id}','${nq.question_id}')" style="font-size:11px;padding:2px 8px;background:var(--danger);color:#fff;border:none;border-radius:4px;cursor:pointer">移除</button>
+            </div>`;
+        }).join('');
+}
+
+async function unlinkQuestionFromNode(linkId, questionId) {
+    if (!currentVerifyNodeId) return;
+    const links = await dbGetNodeQuestions(currentVerifyNodeId);
+    const link = links.find(l => l.id === linkId);
+    if (link) {
+        await dbUnlinkQuestionFromNode(currentVerifyNodeId, questionId);
+        await loadLinkedQuestions(currentVerifyNodeId);
+        showStatus('已移除关联', 'info');
+    }
+}
+
+function openNodeQuestionPicker() {
+    if (!currentVerifyNodeId) return;
+    const container = document.getElementById('node-question-picker-list');
+    container.innerHTML = '';
+    if (!allQuestions || !allQuestions.length) {
+        container.innerHTML = '<div style="text-align:center;color:var(--text-tertiary);padding:16px">题库为空，请先添加题目</div>';
+    } else {
+        allQuestions.forEach(q => {
+            const label = document.createElement('label');
+            label.style.cssText = 'display:flex;align-items:center;gap:8px;padding:8px;border-bottom:1px solid var(--border-light);cursor:pointer';
+            const cb = document.createElement('input');
+            cb.type = 'checkbox';
+            cb.name = 'node_questions';
+            cb.value = q.id;
+            cb.style.cssText = 'accent-color:var(--primary)';
+            const img = document.createElement('img');
+            img.src = q.question_image_url || '';
+            img.style.cssText = 'width:40px;height:40px;object-fit:contain;border-radius:4px;background:var(--surface-dim)';
+            if (!q.question_image_url) img.style.visibility = 'hidden';
+            const info = document.createElement('div');
+            info.style.cssText = 'flex:1;font-size:13px;color:var(--text)';
+            info.textContent = q.semantic_summary || q.user_comment || (q.question_tags && q.question_tags.length ? q.question_tags.map(qt => qt.tags?.name).filter(Boolean).join('、') : '') || '题目 ' + q.id.substring(0, 8);
+            label.append(cb, img, info);
+            container.appendChild(label);
+        });
+    }
+    document.getElementById('node-question-picker-modal').classList.add('active');
+}
+
+function closeNodeQuestionPicker() {
+    document.getElementById('node-question-picker-modal').classList.remove('active');
+}
+
+async function confirmNodeQuestionLinks() {
+    if (!currentVerifyNodeId) return;
+    const selected = Array.from(document.querySelectorAll('input[name="node_questions"]:checked')).map(cb => cb.value);
+    const module = document.getElementById('nq-module-select').value;
+    const existing = await dbGetNodeQuestions(currentVerifyNodeId);
+    const existingIds = new Set(existing.map(nq => nq.question_id));
+    let added = 0;
+    for (const qId of selected) {
+        if (!existingIds.has(qId)) {
+            const maxOrder = existing.reduce((max, nq) => nq.module === module ? Math.max(max, nq.order || 0) : max, 0);
+            await dbLinkQuestionToNode(currentVerifyNodeId, qId, module, maxOrder + 1);
+            added++;
+        }
+    }
+    closeNodeQuestionPicker();
+    await loadLinkedQuestions(currentVerifyNodeId);
+    if (added > 0) showStatus(`已关联 ${added} 道题目到「${module}」`, 'success');
+    else showStatus('没有新增关联', 'info');
+}
+
+// ========== 投屏模式 ==========
+
+async function enterProjectionMode() {
+    projectionNodeList = allTeachingNodes.filter(n => n.status === 'VERIFIED');
+    if (projectionNodeList.length === 0) {
+        showStatus('没有已校验的教学内容', 'error');
+        return;
+    }
+    projectionIndex = 0;
+    renderProjection();
+    document.getElementById('projection-overlay').classList.add('active');
+}
+
+function exitProjectionMode() {
+    document.getElementById('projection-overlay').classList.remove('active');
+}
+
+function renderProjection() {
+    if (projectionNodeList.length === 0) return;
+    const node = projectionNodeList[projectionIndex];
+    const contentEl = document.getElementById('projection-content');
+    if (node.content_markdown) {
+        renderMarkdown(node.content_markdown, contentEl, { drawings: node.drawings || {}, node: node, readOnly: true });
+    }
+    document.getElementById('proj-nav-info').textContent = `${projectionIndex + 1} / ${projectionNodeList.length}`;
+    document.getElementById('proj-prev-btn').disabled = projectionIndex === 0;
+    document.getElementById('proj-next-btn').disabled = projectionIndex === projectionNodeList.length - 1;
+}
+
+function projectionPrev() {
+    if (projectionIndex > 0) {
+        projectionIndex--;
+        renderProjection();
+    }
+}
+
+function projectionNext() {
+    if (projectionIndex < projectionNodeList.length - 1) {
+        projectionIndex++;
+        renderProjection();
+    }
+}
+
+// 投屏左右滑动
+document.addEventListener('keydown', (e) => {
+    if (!document.getElementById('projection-overlay').classList.contains('active')) return;
+    if (e.key === 'ArrowLeft') projectionPrev();
+    if (e.key === 'ArrowRight') projectionNext();
+    if (e.key === 'Escape') exitProjectionMode();
+});
+
+let touchStartX = 0;
+document.getElementById('projection-overlay').addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+});
+document.getElementById('projection-overlay').addEventListener('touchend', (e) => {
+    const dx = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(dx) > 50) {
+        if (dx > 0) projectionPrev(); else projectionNext();
+    }
 });
 
 </script>

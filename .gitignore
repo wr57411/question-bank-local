@@ -11,6 +11,10 @@ android/local.properties
 android/*.iml
 *.apk
 
+# AI Test Harness
+.env
+.env.local
+
 # 允许 AI 工具配置文件纳入版本控制
 !.Codex/
 !.Codex/**
@@ -18,15 +22,3 @@ android/*.iml
 !.claude/**
 !.agents/
 !.agents/**
-node_modules/
-ios/
-.DS_Store
-*.log
-playwright-report/
-test-results/
-android/app/build/
-android/.gradle/
-android/.idea/
-android/local.properties
-android/*.iml
-*.apk

@@ -1,0 +1,57 @@
+{
+  "stack": "vitest",
+  "source": {
+    "aiFunctions": ["www/ai.js"],
+    "extractFrom": "www/index.html",
+    "functionsToExtract": ["safeParseJSON", "callCloudAIStream", "callCloudAI"]
+  },
+  "api": {
+    "provider": "openrouter",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "keyEnvVar": "OPENROUTER_API_KEY",
+    "testModel": "nvidia/nemotron-3-ultra-550b-a55b:free",
+    "authHeader": "Authorization",
+    "authScheme": "Bearer",
+    "extraHeaders": {
+      "HTTP-Referer": "http://localhost",
+      "X-Title": "Question Bank Local"
+    }
+  },
+  "pipelines": [
+    {
+      "name": "atomizer",
+      "input": { "type": "text", "sample": "牛顿第二定律" },
+      "systemPrompt": "KNOWLEDGE_ATOMIZER_PROMPT",
+      "outputSchema": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "required": ["name"],
+          "properties": {
+            "id": { "type": "string" },
+            "name": { "type": "string", "minLength": 1 },
+            "difficulty": { "type": "string", "enum": ["基础", "进阶", "挑战"] },
+            "key_concept": { "type": "string" }
+          }
+        },
+        "minItems": 1,
+        "maxItems": 20
+      },
+      "testFixtures": ["good", "markdown_wrapped", "extra_text", "truncated", "empty"]
+    },
+    {
+      "name": "generator",
+      "input": { "type": "text", "sample": "牛顿第二定律基本应用" },
+      "systemPrompt": "TEACHING_GENERATOR_PROMPT",
+      "outputValidation": {
+        "type": "markdown",
+        "minLength": 500,
+        "requiredSections": ["模块一", "模块二", "模块三", "模块四", "模块五"],
+        "latexCheck": true
+      },
+      "testFixtures": ["good_response", "short_response", "missing_modules"]
+    }
+  ],
+  "testDir": "unit-tests",
+  "fixtureDir": "unit-tests/fixtures"
+}

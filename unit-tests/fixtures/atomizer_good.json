@@ -1,0 +1,5 @@
+[
+  {"id":"k001","name":"牛顿第二定律基本应用","difficulty":"基础","key_concept":"F=ma的直接应用，单一物体受力分析"},
+  {"id":"k002","name":"连接体问题","difficulty":"进阶","key_concept":"整体法与隔离法的灵活运用"},
+  {"id":"k003","name":"斜面模型分析","difficulty":"挑战","key_concept":"斜面上力的分解与摩擦力方向判断"}
+]

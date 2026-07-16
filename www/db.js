@@ -13,6 +13,8 @@ const dbTopics = localforage.createInstance({ name: 'questionBank', storeName: '
 const dbTopicQuestions = localforage.createInstance({ name: 'questionBank', storeName: 'topic_questions' });
 const dbQuestionNotes = localforage.createInstance({ name: 'questionBank', storeName: 'question_notes' });
 const dbPendingPhotos = localforage.createInstance({ name: 'questionBank', storeName: 'pending_photos' });
+const dbTeachingNodes = localforage.createInstance({ name: 'questionBank', storeName: 'teaching_nodes' });
+const dbNodeQuestions = localforage.createInstance({ name: 'questionBank', storeName: 'node_questions' });
 
 function generateId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -1423,6 +1425,7 @@ async function dbClearAllData() {
   await dbTopicQuestions.clear();
   await dbQuestionNotes.clear();
   await dbPendingPhotos.clear();
+  await dbNodeQuestions.clear();
   _invalidateQuestionsCache();
   _invalidateTagIndex();
 }
@@ -1674,7 +1677,7 @@ async function generatePaperPDF(paperId) {
 // ========== 数据导入/导出 ==========
 
 async function exportAllData() {
-  const data = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [], similar_question_links: [], pending_link_list: [], topics: [], topic_questions: [], question_notes: [], pending_photos: [] };
+  const data = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [], similar_question_links: [], pending_link_list: [], topics: [], topic_questions: [], question_notes: [], pending_photos: [], teaching_nodes: [], node_questions: [] };
   await dbQuestions.iterate((v) => data.questions.push(v));
   await dbTags.iterate((v) => data.tags.push(v));
   await dbQuestionTags.iterate((v) => data.question_tags.push(v));
@@ -1685,6 +1688,8 @@ async function exportAllData() {
   await dbTopicQuestions.iterate((v) => data.topic_questions.push(v));
   await dbQuestionNotes.iterate((v) => data.question_notes.push(v));
   await dbPendingPhotos.iterate((v) => data.pending_photos.push(v));
+  await dbTeachingNodes.iterate((v) => data.teaching_nodes.push(v));
+  await dbNodeQuestions.iterate((v) => data.node_questions.push(v));
   data.pending_link_list = JSON.parse(localStorage.getItem('pendingLinkList') || '[]');
   const jsonStr = JSON.stringify(data);
   const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
@@ -1725,7 +1730,135 @@ async function importAllData(file) {
     }));
   }
   if (data.pending_link_list) localStorage.setItem('pendingLinkList', JSON.stringify(data.pending_link_list));
+  if (data.teaching_nodes) {
+    await Promise.all(data.teaching_nodes.map(n => dbTeachingNodes.setItem(n.id, n)));
+  }
+  if (data.node_questions) {
+    await Promise.all(data.node_questions.map(nq => dbNodeQuestions.setItem(nq.id, nq)));
+  }
   _invalidateQuestionsCache();
   _invalidateTagIndex();
-  return { questions: data.questions?.length || 0, tags: data.tags?.length || 0, papers: data.papers?.length || 0, topics: data.topics?.length || 0, question_notes: data.question_notes?.length || 0, pending_photos: data.pending_photos?.length || 0 };
+  return { questions: data.questions?.length || 0, tags: data.tags?.length || 0, papers: data.papers?.length || 0, topics: data.topics?.length || 0, question_notes: data.question_notes?.length || 0, pending_photos: data.pending_photos?.length || 0, teaching_nodes: data.teaching_nodes?.length || 0 };
+}
+
+// ========== 教学内容节点 (Teaching Nodes) ==========
+
+async function dbCreateTeachingNode(node) {
+  const now = _nowIso();
+  const record = {
+    id: node.id || generateId(),
+    chapter: node.chapter || '',
+    subject: node.subject || '物理',
+    name: node.name || '',
+    difficulty: node.difficulty || '基础',
+    key_concept: node.key_concept || '',
+    status: node.status || 'PENDING',
+    content_json: node.content_json || null,
+    content_markdown: node.content_markdown || '',
+    error_msg: node.error_msg || null,
+    retry_count: node.retry_count || 0,
+    drawings: node.drawings || {},
+    created_at: now,
+    updated_at: now
+  };
+  await dbTeachingNodes.setItem(record.id, record);
+  return record;
+}
+
+async function dbGetTeachingNode(id) {
+  return await dbTeachingNodes.getItem(id);
+}
+
+async function dbGetTeachingNodesByStatus(status) {
+  const result = [];
+  await dbTeachingNodes.iterate((node) => {
+    if (node && node.status === status) result.push(node);
+  });
+  return result;
+}
+
+async function dbGetTeachingNodesByChapter(chapter) {
+  const result = [];
+  await dbTeachingNodes.iterate((node) => {
+    if (node && node.chapter === chapter) result.push(node);
+  });
+  return result;
+}
+
+async function dbGetAllTeachingNodes() {
+  const result = [];
+  await dbTeachingNodes.iterate((node) => {
+    if (node) result.push(node);
+  });
+  result.sort((a, b) => (b.updated_at || '').localeCompare(a.updated_at || ''));
+  return result;
+}
+
+async function dbUpdateTeachingNode(id, updates) {
+  const node = await dbTeachingNodes.getItem(id);
+  if (!node) return null;
+  const updated = { ...node, ...updates, updated_at: _nowIso() };
+  await dbTeachingNodes.setItem(id, updated);
+  return updated;
+}
+
+async function dbDeleteTeachingNode(id) {
+  await dbTeachingNodes.removeItem(id);
+  const nqKeys = [];
+  await dbNodeQuestions.iterate((v, key) => { if (v && v.node_id === id) nqKeys.push(key); });
+  for (const key of nqKeys) await dbNodeQuestions.removeItem(key);
+}
+
+// ========== 知识点↔题目关联 (Node Questions) ==========
+
+async function dbLinkQuestionToNode(nodeId, questionId, module, order) {
+  const id = generateId();
+  const record = {
+    id,
+    node_id: nodeId,
+    question_id: questionId,
+    module: module || '',
+    order: order || 0,
+    created_at: _nowIso()
+  };
+  await dbNodeQuestions.setItem(id, record);
+  return record;
+}
+
+async function dbUnlinkQuestionFromNode(nodeId, questionId) {
+  const keysToRemove = [];
+  await dbNodeQuestions.iterate((v, key) => {
+    if (v && v.node_id === nodeId && v.question_id === questionId) keysToRemove.push(key);
+  });
+  for (const key of keysToRemove) await dbNodeQuestions.removeItem(key);
+}
+
+async function dbGetNodeQuestions(nodeId) {
+  const result = [];
+  await dbNodeQuestions.iterate((v) => {
+    if (v && v.node_id === nodeId) result.push(v);
+  });
+  result.sort((a, b) => (a.order || 0) - (b.order || 0));
+  const enriched = [];
+  for (const nq of result) {
+    const q = _normalizeQuestionRecord(await dbQuestions.getItem(nq.question_id), nq.question_id);
+    if (q && !q.deleted_at) {
+      enriched.push({ ...nq, question_data: q });
+    }
+  }
+  return enriched;
+}
+
+async function dbGetQuestionNodes(questionId) {
+  const result = [];
+  await dbNodeQuestions.iterate((v) => {
+    if (v && v.question_id === questionId) result.push(v);
+  });
+  return result;
+}
+
+async function dbGetAllNodeQuestions() {
+  const result = [];
+  await dbNodeQuestions.iterate((v) => { if (v) result.push(v); });
+  return result;
 }

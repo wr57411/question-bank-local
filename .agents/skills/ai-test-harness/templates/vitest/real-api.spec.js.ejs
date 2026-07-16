@@ -1,0 +1,114 @@
+/**
+ * <%= pipeline.name %> 真实 API 烟雾测试
+ * 自动生成 by ai-test-harness
+ * 需要: <%= api.keyEnvVar %> 环境变量
+ */
+import { describe, it, expect, beforeAll } from 'vitest'
+import { parse, validate, validateContent } from '../helpers/ai-test-lib.js'
+
+const API_KEY = process.env.<%= api.keyEnvVar %>
+const BASE_URL = process.env.API_BASE_URL || '<%= api.baseUrl %>'
+const TEST_MODEL = process.env.TEST_MODEL || '<%= api.testModel %>'
+
+const hasKey = !!API_KEY && API_KEY !== 'your-key-here'
+
+if (!hasKey) {
+  console.log('\n⚠️  跳过 <%= pipeline.name %> 真实 API 测试')
+  console.log(`   请设置环境变量: export <%= api.keyEnvVar %>=your_key`)
+  console.log('   或复制 .env.example 到 .env 并填写\n')
+}
+
+describe.skipIf(!hasKey)('<%= pipeline.name %> - 真实 API 烟雾测试', () => {
+
+  let rawResponse = ''
+
+  beforeAll(async () => {
+    const headers = {
+      'Content-Type': 'application/json',
+      '<%= api.authHeader %>': '<%= api.authScheme %> ' + API_KEY
+    }
+<% if (api.extraHeaders) { %>
+<% for (const [k, v] of Object.entries(api.extraHeaders)) { %>
+    headers['<%= k %>'] = '<%= v %>'
+<% } %>
+<% } %>
+
+    const body = {
+      model: TEST_MODEL,
+      messages: [
+<% if (pipeline.systemPrompt) { %>
+        { role: 'system', content: `<%= pipeline.systemPrompt %>` },
+<% } %>
+        { role: 'user', content: '<%= pipeline.input.sample %>' }
+      ],
+      temperature: 0.3,
+      stream: false
+    }
+
+    const response = await fetch(BASE_URL.replace(/\/+$/, '') + '/chat/completions', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body)
+    })
+
+    expect(response.ok).toBe(true)
+    const data = await response.json()
+    rawResponse = data.choices?.[0]?.message?.content || ''
+    expect(rawResponse.length).toBeGreaterThan(0)
+  }, 120000)
+
+  it('API 连通性 - 返回非空内容', () => {
+    expect(rawResponse).toBeTruthy()
+    expect(rawResponse.length).toBeGreaterThan(10)
+  })
+
+<% if (pipeline.outputSchema) { %>
+  it('JSON 解析 - safeParseJSON 成功', () => {
+    const result = parse(rawResponse)
+    expect(result.data).not.toBeNull()
+    expect(Array.isArray(result.data)).toBe(true)
+    if (result.errors.length > 0) {
+      console.warn('解析警告:', result.errors)
+    }
+  })
+
+  it('Schema 校验 - 输出符合 schema', () => {
+    const parsed = parse(rawResponse)
+    expect(parsed.data).not.toBeNull()
+    const schema = <%- JSON.stringify(pipeline.outputSchema) %>
+    const validation = validate(parsed.data, schema)
+    if (!validation.valid) {
+      console.error('Schema 校验失败:', JSON.stringify(validation.errors, null, 2))
+      console.error('原始响应前500字:', rawResponse.substring(0, 500))
+    }
+    expect(validation.valid).toBe(true)
+  })
+
+  it('业务规则 - 数组项数合理', () => {
+    const parsed = parse(rawResponse)
+    expect(parsed.data).not.toBeNull()
+    expect(parsed.data.length).toBeGreaterThanOrEqual(1)
+    expect(parsed.data.length).toBeLessThanOrEqual(20)
+  })
+<% } %>
+
+<% if (pipeline.outputValidation) { %>
+  it('内容质量 - 通过内容校验', () => {
+    const config = <%- JSON.stringify(pipeline.outputValidation) %>
+    const result = validateContent(rawResponse, config)
+    if (!result.valid) {
+      console.error('内容校验失败:', JSON.stringify(result.errors, null, 2))
+      console.error('原始响应前500字:', rawResponse.substring(0, 500))
+    }
+    expect(result.valid).toBe(true)
+  })
+<% } %>
+
+  it('调试输出 - 打印原始响应（便于排查）', () => {
+    console.log(`\n===== <%= pipeline.name %> 真实 API 响应 =====`)
+    console.log('模型:', TEST_MODEL)
+    console.log('响应长度:', rawResponse.length, '字符')
+    console.log('前300字:', rawResponse.substring(0, 300))
+    console.log('=====================================\n')
+  })
+})

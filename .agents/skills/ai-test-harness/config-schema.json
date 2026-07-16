@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AI Test Harness Configuration",
+  "type": "object",
+  "required": ["stack", "api", "pipelines"],
+  "properties": {
+    "stack": {
+      "type": "string",
+      "enum": ["vitest", "jest", "pytest", "flutter"],
+      "description": "测试框架类型"
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "aiFunctions": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "AI 函数所在文件路径列表"
+        },
+        "extractFrom": {
+          "type": "string",
+          "description": "需要从中提取函数的大文件路径"
+        },
+        "functionsToExtract": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "需要提取的函数名列表"
+        }
+      }
+    },
+    "api": {
+      "type": "object",
+      "required": ["keyEnvVar"],
+      "properties": {
+        "provider": {
+          "type": "string",
+          "description": "API 提供商名称"
+        },
+        "baseUrl": {
+          "type": "string",
+          "description": "API 基础 URL"
+        },
+        "keyEnvVar": {
+          "type": "string",
+          "description": "API 密钥对应的环境变量名"
+        },
+        "testModel": {
+          "type": "string",
+          "description": "测试使用的模型 ID"
+        },
+        "authHeader": {
+          "type": "string",
+          "default": "Authorization"
+        },
+        "authScheme": {
+          "type": "string",
+          "default": "Bearer"
+        },
+        "extraHeaders": {
+          "type": "object",
+          "description": "额外请求头"
+        },
+        "useStructuredOutputs": {
+          "type": "boolean",
+          "default": true,
+          "description": "启用 OpenAI structured outputs (response_format: json_schema)，显著降低脏 JSON 概率"
+        },
+        "maxRetries": {
+          "type": "integer",
+          "default": 2,
+          "description": "API 调用失败重试次数"
+        },
+        "timeout": {
+          "type": "integer",
+          "default": 120000,
+          "description": "API 调用超时时间（毫秒）"
+        }
+      }
+    },
+    "pipelines": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "input"],
+        "properties": {
+          "name": { "type": "string" },
+          "input": {
+            "type": "object",
+            "required": ["type", "sample"],
+            "properties": {
+              "type": { "type": "string", "enum": ["text", "image", "multimodal"] },
+              "sample": { "type": "string" }
+            }
+          },
+          "systemPrompt": { "type": "string" },
+          "outputSchema": { "type": "object" },
+          "outputValidation": {
+            "type": "object",
+            "properties": {
+              "type": { "type": "string", "enum": ["json", "markdown", "text"] },
+              "minLength": { "type": "integer" },
+              "requiredSections": { "type": "array", "items": { "type": "string" } },
+              "latexCheck": { "type": "boolean" }
+            }
+          },
+          "testFixtures": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "要生成的 fixture 类型列表"
+          }
+        }
+      }
+    },
+    "testDir": {
+      "type": "string",
+      "default": "unit-tests",
+      "description": "测试文件输出目录"
+    },
+    "fixtureDir": {
+      "type": "string",
+      "default": "unit-tests/fixtures",
+      "description": "Fixture 文件输出目录"
+    }
+  }
+}

@@ -1,0 +1,8 @@
+以下是拆解结果：
+```json
+[
+  {"id":"k001","name":"牛顿第二定律基本应用","difficulty":"基础","key_concept":"F=ma的直接应用"},
+  {"id":"k002","name":"连接体问题","difficulty":"进阶","key_concept":"整体法与隔离法"}
+]
+```
+希望对你有帮助！

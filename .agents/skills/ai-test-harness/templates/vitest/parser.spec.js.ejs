@@ -1,0 +1,88 @@
+/**
+ * {{pipeline.name}} 解析器单元测试
+ * 自动生成 by ai-test-harness
+ * 测试: safeParseJSON + schema 校验
+ */
+import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'fs'
+import { resolve } from 'path'
+import { parse } from '../helpers/ai-test-lib.js'
+import { validate } from '../helpers/ai-test-lib.js'
+
+const FIXTURE_DIR = resolve(process.cwd(), '<%= fixtureDir %>')
+
+// ========== safeParseJSON 测试 ==========
+
+describe('<%= pipeline.name %> - JSON 解析', () => {
+
+  it('应正确解析合法 JSON 数组', () => {
+    const fixture = readFileSync(resolve(FIXTURE_DIR, '<%= pipeline.name %>_good.json'), 'utf8')
+    const result = parse(fixture)
+    expect(result.data).not.toBeNull()
+    expect(Array.isArray(result.data)).toBe(true)
+    expect(result.data.length).toBeGreaterThan(0)
+  })
+
+  it('应从 markdown 代码块中提取 JSON', () => {
+    const fixture = readFileSync(resolve(FIXTURE_DIR, '<%= pipeline.name %>_markdown_wrapped.txt'), 'utf8')
+    const result = parse(fixture)
+    expect(result.data).not.toBeNull()
+    expect(Array.isArray(result.data)).toBe(true)
+  })
+
+  it('应从带前缀文字的响应中提取 JSON', () => {
+    const fixture = readFileSync(resolve(FIXTURE_DIR, '<%= pipeline.name %>_extra_text.txt'), 'utf8')
+    const result = parse(fixture)
+    expect(result.data).not.toBeNull()
+  })
+
+  it('截断 JSON 应返回 null', () => {
+    const fixture = readFileSync(resolve(FIXTURE_DIR, '<%= pipeline.name %>_truncated.txt'), 'utf8')
+    const result = parse(fixture)
+    expect(result.data).toBeNull()
+    expect(result.errors.length).toBeGreaterThan(0)
+  })
+
+  it('空响应应返回 null', () => {
+    const fixture = readFileSync(resolve(FIXTURE_DIR, '<%= pipeline.name %>_empty.txt'), 'utf8')
+    const result = parse(fixture)
+    expect(result.data).toBeNull()
+  })
+
+  it('null 输入应返回 null', () => {
+    const result = parse(null)
+    expect(result.data).toBeNull()
+  })
+
+  it('纯文本无 JSON 应返回 null', () => {
+    const result = parse('这是一段没有 JSON 的纯文本回复，只包含解释性内容。')
+    expect(result.data).toBeNull()
+  })
+
+<% if (pipeline.outputSchema) { %>
+  // ========== Schema 校验测试 ==========
+
+  describe('Schema 校验', () => {
+    const schema = <%- JSON.stringify(pipeline.outputSchema, null, 4).replace(/\n/g, '\n    ') %>
+
+    it('合法输出应通过 schema 校验', () => {
+      const fixture = readFileSync(resolve(FIXTURE_DIR, '<%= pipeline.name %>_good.json'), 'utf8')
+      const parsed = parse(fixture)
+      expect(parsed.data).not.toBeNull()
+      const result = validate(parsed.data, schema)
+      expect(result.valid).toBe(true)
+      expect(result.errors).toHaveLength(0)
+    })
+
+    it('非数组输入应校验失败', () => {
+      const result = validate({ notAnArray: true }, schema)
+      expect(result.valid).toBe(false)
+    })
+
+    it('空数组应校验失败（minItems）', () => {
+      const result = validate([], schema)
+      expect(result.valid).toBe(false)
+    })
+  })
+<% } %>
+})
