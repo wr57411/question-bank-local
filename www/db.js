@@ -14,6 +14,7 @@ const dbTopicQuestions = localforage.createInstance({ name: 'questionBank', stor
 const dbQuestionNotes = localforage.createInstance({ name: 'questionBank', storeName: 'question_notes' });
 const dbPendingPhotos = localforage.createInstance({ name: 'questionBank', storeName: 'pending_photos' });
 const dbTeachingNodes = localforage.createInstance({ name: 'questionBank', storeName: 'teaching_nodes' });
+const dbTeachingVersions = localforage.createInstance({ name: 'questionBank', storeName: 'teaching_versions' });
 const dbNodeQuestions = localforage.createInstance({ name: 'questionBank', storeName: 'node_questions' });
 
 function generateId() {
@@ -1677,7 +1678,7 @@ async function generatePaperPDF(paperId) {
 // ========== 数据导入/导出 ==========
 
 async function exportAllData() {
-  const data = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [], similar_question_links: [], pending_link_list: [], topics: [], topic_questions: [], question_notes: [], pending_photos: [], teaching_nodes: [], node_questions: [] };
+  const data = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [], similar_question_links: [], pending_link_list: [], topics: [], topic_questions: [], question_notes: [], pending_photos: [], teaching_nodes: [], teaching_versions: [], node_questions: [] };
   await dbQuestions.iterate((v) => data.questions.push(v));
   await dbTags.iterate((v) => data.tags.push(v));
   await dbQuestionTags.iterate((v) => data.question_tags.push(v));
@@ -1689,6 +1690,7 @@ async function exportAllData() {
   await dbQuestionNotes.iterate((v) => data.question_notes.push(v));
   await dbPendingPhotos.iterate((v) => data.pending_photos.push(v));
   await dbTeachingNodes.iterate((v) => data.teaching_nodes.push(v));
+  await dbTeachingVersions.iterate((v) => data.teaching_versions.push(v));
   await dbNodeQuestions.iterate((v) => data.node_questions.push(v));
   data.pending_link_list = JSON.parse(localStorage.getItem('pendingLinkList') || '[]');
   const jsonStr = JSON.stringify(data);
@@ -1733,6 +1735,9 @@ async function importAllData(file) {
   if (data.teaching_nodes) {
     await Promise.all(data.teaching_nodes.map(n => dbTeachingNodes.setItem(n.id, n)));
   }
+  if (data.teaching_versions) {
+    await Promise.all(data.teaching_versions.map(v => dbTeachingVersions.setItem(v.id, v)));
+  }
   if (data.node_questions) {
     await Promise.all(data.node_questions.map(nq => dbNodeQuestions.setItem(nq.id, nq)));
   }
@@ -1752,12 +1757,7 @@ async function dbCreateTeachingNode(node) {
     name: node.name || '',
     difficulty: node.difficulty || '基础',
     key_concept: node.key_concept || '',
-    status: node.status || 'PENDING',
-    content_json: node.content_json || null,
-    content_markdown: node.content_markdown || '',
-    error_msg: node.error_msg || null,
-    retry_count: node.retry_count || 0,
-    drawings: node.drawings || {},
+    current_version_id: node.current_version_id || null,
     created_at: now,
     updated_at: now
   };
@@ -1804,9 +1804,144 @@ async function dbUpdateTeachingNode(id, updates) {
 
 async function dbDeleteTeachingNode(id) {
   await dbTeachingNodes.removeItem(id);
+  const verKeys = [];
+  await dbTeachingVersions.iterate((v, key) => { if (v && v.node_id === id) verKeys.push(key); });
+  for (const key of verKeys) await dbTeachingVersions.removeItem(key);
   const nqKeys = [];
   await dbNodeQuestions.iterate((v, key) => { if (v && v.node_id === id) nqKeys.push(key); });
   for (const key of nqKeys) await dbNodeQuestions.removeItem(key);
+}
+
+// ========== 教学版本 (Teaching Versions) ==========
+
+async function dbCreateVersion(nodeId, versionData) {
+  const now = _nowIso();
+  const existingVersions = await dbGetVersionsByNode(nodeId);
+  const versionNum = existingVersions.length > 0 ? Math.max(...existingVersions.map(v => v.version_num)) + 1 : 1;
+  const record = {
+    id: versionData.id || generateId(),
+    node_id: nodeId,
+    version_num: versionData.version_num || versionNum,
+    model_name: versionData.model_name || '',
+    status: versionData.status || 'PENDING',
+    content_markdown: versionData.content_markdown || '',
+    content_json: versionData.content_json || null,
+    drawings: versionData.drawings || {},
+    error_msg: versionData.error_msg || null,
+    retry_count: versionData.retry_count || 0,
+    is_current: versionData.is_current || false,
+    created_at: now,
+    updated_at: now
+  };
+  await dbTeachingVersions.setItem(record.id, record);
+  if (record.is_current) {
+    await dbTeachingNodes.setItem(nodeId, { ...(await dbTeachingNodes.getItem(nodeId)), current_version_id: record.id, updated_at: now });
+  }
+  return record;
+}
+
+async function dbGetVersionsByNode(nodeId) {
+  const result = [];
+  await dbTeachingVersions.iterate((v) => {
+    if (v && v.node_id === nodeId) result.push(v);
+  });
+  result.sort((a, b) => (a.version_num || 0) - (b.version_num || 0));
+  return result;
+}
+
+async function dbGetVersion(versionId) {
+  return await dbTeachingVersions.getItem(versionId);
+}
+
+async function dbUpdateVersion(versionId, updates) {
+  const version = await dbTeachingVersions.getItem(versionId);
+  if (!version) return null;
+  const updated = { ...version, ...updates, updated_at: _nowIso() };
+  await dbTeachingVersions.setItem(versionId, updated);
+  return updated;
+}
+
+async function dbDeleteVersion(versionId) {
+  const version = await dbTeachingVersions.getItem(versionId);
+  if (!version) return;
+  await dbTeachingVersions.removeItem(versionId);
+  if (version.is_current) {
+    const remaining = await dbGetVersionsByNode(version.node_id);
+    const newCurrent = remaining.length > 0 ? remaining[remaining.length - 1] : null;
+    const node = await dbTeachingNodes.getItem(version.node_id);
+    if (node) {
+      await dbTeachingNodes.setItem(version.node_id, { ...node, current_version_id: newCurrent ? newCurrent.id : null, updated_at: _nowIso() });
+    }
+    if (newCurrent) {
+      await dbTeachingVersions.setItem(newCurrent.id, { ...newCurrent, is_current: true });
+    }
+  }
+}
+
+async function dbSetCurrentVersion(nodeId, versionId) {
+  const versions = await dbGetVersionsByNode(nodeId);
+  for (const v of versions) {
+    if (v.is_current) {
+      await dbTeachingVersions.setItem(v.id, { ...v, is_current: false });
+    }
+  }
+  const version = await dbTeachingVersions.getItem(versionId);
+  if (version) {
+    await dbTeachingVersions.setItem(versionId, { ...version, is_current: true });
+  }
+  const node = await dbTeachingNodes.getItem(nodeId);
+  if (node) {
+    await dbTeachingNodes.setItem(nodeId, { ...node, current_version_id: versionId, updated_at: _nowIso() });
+  }
+}
+
+async function migrateTeachingNodesToVersions() {
+  const nodes = await dbGetAllTeachingNodes();
+  let migrated = 0;
+  for (const node of nodes) {
+    if (node.current_version_id) continue;
+    const hasOldContent = node.content_markdown || node.status !== 'PENDING';
+    if (hasOldContent) {
+      const version = await dbCreateVersion(node.id, {
+        version_num: 1,
+        status: node.status || 'PENDING',
+        content_markdown: node.content_markdown || '',
+        content_json: node.content_json || null,
+        drawings: node.drawings || {},
+        error_msg: node.error_msg || null,
+        retry_count: node.retry_count || 0,
+        is_current: true
+      });
+      const cleaned = { ...node };
+      delete cleaned.status;
+      delete cleaned.content_markdown;
+      delete cleaned.content_json;
+      delete cleaned.drawings;
+      delete cleaned.error_msg;
+      delete cleaned.retry_count;
+      cleaned.current_version_id = version.id;
+      cleaned.updated_at = _nowIso();
+      await dbTeachingNodes.setItem(node.id, cleaned);
+    } else {
+      const version = await dbCreateVersion(node.id, {
+        version_num: 1,
+        status: 'PENDING',
+        is_current: true
+      });
+      const cleaned = { ...node };
+      delete cleaned.status;
+      delete cleaned.content_markdown;
+      delete cleaned.content_json;
+      delete cleaned.drawings;
+      delete cleaned.error_msg;
+      delete cleaned.retry_count;
+      cleaned.current_version_id = version.id;
+      cleaned.updated_at = _nowIso();
+      await dbTeachingNodes.setItem(node.id, cleaned);
+    }
+    migrated++;
+  }
+  return migrated;
 }
 
 // ========== 知识点↔题目关联 (Node Questions) ==========
@@ -1860,5 +1995,68 @@ async function dbGetQuestionNodes(questionId) {
 async function dbGetAllNodeQuestions() {
   const result = [];
   await dbNodeQuestions.iterate((v) => { if (v) result.push(v); });
+  return result;
+}
+
+// ========== 艾宾浩斯复习提醒 ==========
+
+const EBBINGHAUS_INTERVALS = [1, 2, 4, 7, 15, 30];
+
+async function dbEnableReview(questionId) {
+  const q = await dbQuestions.getItem(questionId);
+  if (!q) return null;
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const updated = {
+    ...q,
+    review_enabled: true,
+    review_next_date: tomorrow.toISOString().slice(0, 10),
+    review_interval_index: 0,
+    review_count: 0
+  };
+  await dbQuestions.setItem(questionId, updated);
+  return updated;
+}
+
+async function dbDisableReview(questionId) {
+  const q = await dbQuestions.getItem(questionId);
+  if (!q) return null;
+  const updated = {
+    ...q,
+    review_enabled: false,
+    review_next_date: null,
+    review_interval_index: 0,
+    review_count: 0
+  };
+  await dbQuestions.setItem(questionId, updated);
+  return updated;
+}
+
+async function dbCompleteReview(questionId) {
+  const q = await dbQuestions.getItem(questionId);
+  if (!q) return null;
+  const idx = Math.min((q.review_interval_index || 0) + 1, EBBINGHAUS_INTERVALS.length - 1);
+  const days = EBBINGHAUS_INTERVALS[idx];
+  const next = new Date();
+  next.setDate(next.getDate() + days);
+  const updated = {
+    ...q,
+    review_next_date: next.toISOString().slice(0, 10),
+    review_interval_index: idx,
+    review_count: (q.review_count || 0) + 1
+  };
+  await dbQuestions.setItem(questionId, updated);
+  return updated;
+}
+
+async function dbGetPendingReviews() {
+  const today = new Date().toISOString().slice(0, 10);
+  const result = [];
+  await dbQuestions.iterate((q) => {
+    if (q && q.review_enabled && q.review_next_date && q.review_next_date <= today && !q.deleted_at) {
+      result.push(q);
+    }
+  });
+  result.sort((a, b) => (a.review_next_date || '').localeCompare(b.review_next_date || ''));
   return result;
 }
