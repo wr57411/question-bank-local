@@ -41,10 +41,15 @@
 
 ## 适配清单
 
-### iOS
-- Info.plist 权限：Camera, PhotoLibrary, PhotoLibraryAdd
-- 备份目录：Documents（iCloud 自动同步）
-- CocoaPods 依赖管理
+### iOS（Universal：iPhone + iPad）
+- 工程：`ios/`（Capacitor 生成，已纳入 git；仅忽略 Pods/build/DerivedData）
+- Info.plist 权限：Camera, PhotoLibrary, PhotoLibraryAdd（见 `scripts/ios-plist-patch.sh`，`cap sync` 后自动补）
+- 方向：iPhone 竖屏+横屏；iPad 四向（含 UpsideDown）
+- 备份目录：Documents（iCloud 自动同步）；备份文案按平台显示
+- 端侧 AI（Gemma4）/ 悬浮窗 / 快捷拍摄：iOS 首版不支持，已在 Web 层隐藏入口并给出提示
+- Clipboard 插件版本与 Capacitor 6 对齐（`^6.0.1`，原 ^8 与核心不兼容已降级）
+- iPad 布局：见 `docs/ipad-ios-adaptation.md`
+- 依赖 Xcode + CocoaPods：`pod install` 与 Archive 在装好 Xcode 后执行
 
 ### Android
 - AndroidManifest.xml 权限：Camera, Storage, Media
@@ -87,3 +92,4 @@
 | 文档名称 | 摘要 | 存储路径 | 创建日期 | 关联模块 |
 |---------|------|---------|---------|--------|
 | AI测试基础设施E2E扩展与加固 | 教学内容关联题库 + Web E2E测试 + Seed Fixture + CI模板 | docs/ai-test-harness-e2e-extension.md | 2026-07-16 | AI管线, 题库关联, E2E测试, Playwright |
+| iPad/iPhone(Universal) iOS 版本开发 | iOS 骨架+Web降级+iPad布局+依赖Xcode说明 | docs/ipad-ios-adaptation.md | 2026-07-19 | iOS工程, 平台降级, iPad适配 |

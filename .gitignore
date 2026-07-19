@@ -1,5 +1,12 @@
 node_modules/
-ios/
+
+# iOS：保留工程源码，仅忽略构建产物
+ios/App/Pods/
+ios/App/build/
+ios/App/DerivedData/
+ios/App/*.xcworkspace/xcuserdata/
+ios/App/Podfile.lock
+
 .DS_Store
 **/.DS_Store
 *.log
