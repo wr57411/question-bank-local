@@ -1081,6 +1081,59 @@ async function _prepareQuestionForSync(question) {
   return nextQuestion;
 }
 
+// ========== 同步数据完整性检测 ==========
+
+let _onSyncDataWarning = null;
+function setOnSyncDataWarning(fn) { _onSyncDataWarning = fn; }
+
+async function collectDataFingerprint() {
+  let questions = 0, tags = 0, questionTags = 0, papers = 0, teachingNodes = 0;
+  await dbQuestions.iterate(() => questions++);
+  await dbTags.iterate(() => tags++);
+  await dbQuestionTags.iterate(() => questionTags++);
+  await dbPapers.iterate(() => papers++);
+  await dbTeachingNodes.iterate(() => teachingNodes++);
+  return { questions, tags, questionTags, papers, teachingNodes };
+}
+
+function checkSyncDataIntegrity(before, after) {
+  const warnings = [];
+  const tables = ['questions', 'tags', 'questionTags', 'papers', 'teachingNodes'];
+  for (const table of tables) {
+    const b = before[table] || 0;
+    const a = after[table] || 0;
+    if (b > 0 && a < b) {
+      const ratio = (b - a) / b;
+      if (ratio >= 0.1 || (b > 0 && a === 0)) {
+        warnings.push({
+          table,
+          before: b,
+          after: a,
+          lost: b - a,
+          severity: ratio >= 0.5 || a === 0 ? 'critical' : 'warning'
+        });
+      }
+    }
+  }
+  return { passed: warnings.length === 0, warnings };
+}
+
+function _checkVersionsDiscard(localQ, remoteQ) {
+  if (!localQ || !localQ.versions || localQ.versions.length === 0) return null;
+  const remoteVersions = remoteQ.versions || [];
+  if (remoteVersions.length === 0) {
+    return {
+      table: 'versions',
+      before: localQ.versions.length,
+      after: 0,
+      lost: localQ.versions.length,
+      severity: 'critical',
+      detail: '题目 ' + localQ.id + ' 的版本信息丢失'
+    };
+  }
+  return null;
+}
+
 async function dbBuildSyncPayload() {
   const tags = [];
   const tagUpdates = [];
@@ -1119,6 +1172,7 @@ async function dbBuildSyncPayload() {
       question_image_url: question.question_image_url,
       answer_image_url: question.answer_image_url,
       layout_type: question.layout_type || 0,
+      versions: question.versions || [],
       created_at: question.created_at || question.updated_at || _nowIso(),
       updated_at: question.updated_at || question.created_at || _nowIso(),
       deleted_at: question.deleted_at || null,
@@ -1256,6 +1310,8 @@ async function _cacheImageIfRemote(imageUrl) {
 async function dbApplyRemoteSnapshot(snapshot) {
   _invalidateQuestionsCache();
   _invalidateTagIndex();
+  const fpBefore = await collectDataFingerprint();
+  const syncWarnings = [];
   try {
   for (const tag of snapshot.tags || []) {
     const localTag = await dbTags.getItem(tag.id);
@@ -1284,6 +1340,9 @@ async function dbApplyRemoteSnapshot(snapshot) {
       question_image_url: qImg,
       answer_image_url: aImg,
       layout_type: question.layout_type || 0,
+      versions: question.versions !== undefined
+        ? question.versions
+        : (localQuestion ? localQuestion.versions || [] : []),
       created_at: question.created_at || question.updated_at || _nowIso(),
       updated_at: question.updated_at || question.created_at || _nowIso(),
       deleted_at: question.deleted_at || null,
@@ -1295,6 +1354,9 @@ async function dbApplyRemoteSnapshot(snapshot) {
       page_number: question.page_number !== undefined ? question.page_number : (localQuestion ? localQuestion.page_number || '' : ''),
       question_number: question.question_number !== undefined ? question.question_number : (localQuestion ? localQuestion.question_number || '' : '')
     };
+    // 检测版本信息丢弃
+    const versionsWarning = _checkVersionsDiscard(localQuestion, nextQuestion);
+    if (versionsWarning) syncWarnings.push(versionsWarning);
     if (_isRemoteNewer(nextQuestion, localQuestion)) {
       if (nextQuestion.purged_at) {
         await dbQuestions.removeItem(question.id);
@@ -1383,6 +1445,16 @@ async function dbApplyRemoteSnapshot(snapshot) {
   if (Array.isArray(snapshot.pending_link_list)) {
     localStorage.setItem('pendingLinkList', JSON.stringify(snapshot.pending_link_list));
   }
+
+  const fpAfter = await collectDataFingerprint();
+  const integrity = checkSyncDataIntegrity(fpBefore, fpAfter);
+  if (!integrity.passed) syncWarnings.push(...integrity.warnings);
+  if (syncWarnings.length > 0) {
+    console.warn('[Sync] 数据完整性警告:', syncWarnings);
+    if (typeof _onSyncDataWarning === 'function') _onSyncDataWarning(syncWarnings);
+  }
+  return { passed: syncWarnings.length === 0, warnings: syncWarnings };
+
   } finally {
     _invalidateQuestionsCache();
     _invalidateTagIndex();

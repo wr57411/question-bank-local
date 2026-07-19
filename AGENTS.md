@@ -81,9 +81,12 @@
 | 文档名称 | 问题摘要 | 存储路径 | 创建日期 | 关联模块 |
 |---------|---------|---------|---------|--------|
 | 修复版本勾选框点击不灵敏 | label包裹checkbox导致Android WebView双触发 | docs/fix-version-checkbox-double-toggle.md | 2026-07-13 | 版本勾选, 添加题目表单, 题目详情 |
+| 修复版本勾选同步缺陷 | versions字段在同步时被丢弃，新设备无法获取版本信息 | docs/fix-version-sync-missing.md | 2026-07-16 | 同步, dbBuildSyncPayload, dbApplyRemoteSnapshot |
+| 同步数据丢弃检测与UI风险提醒机制 | 数据指纹检测+版本信息丢弃检测+警告弹窗 | docs/sync-data-integrity-detection.md | 2026-07-16 | 同步, 数据完整性, UI警告 |
 
 ### 功能设计文档
 
 | 文档名称 | 摘要 | 存储路径 | 创建日期 | 关联模块 |
 |---------|------|---------|---------|--------|
 | AI测试基础设施E2E扩展与加固 | 教学内容关联题库 + Web E2E测试 + Seed Fixture + CI模板 | docs/ai-test-harness-e2e-extension.md | 2026-07-16 | AI管线, 题库关联, E2E测试, Playwright |
+| 可视化同步状态与操作模块（修订版） | 顶部状态条 + 复用已有接口 + 失败状态追踪 + 修复showSyncStatus缺失 | docs/visual-sync-status-module.md | 2026-07-19 | 同步, UI, 状态显示 |
