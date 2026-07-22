@@ -1257,7 +1257,16 @@ async function dbBuildSyncPayload() {
   const questionNotes = [];
   await dbQuestionNotes.iterate((v) => { questionNotes.push(v); });
 
-  return { tags, questions: questionPayload, papers: paperPayload, similar_links: similarLinks, pending_link_list, topics: topicPayload, question_notes: questionNotes };
+  const teachingNodes = [];
+  await dbTeachingNodes.iterate((v) => { if (v) teachingNodes.push(v); });
+
+  const teachingVersions = [];
+  await dbTeachingVersions.iterate((v) => { if (v) teachingVersions.push(v); });
+
+  const nodeQuestions = [];
+  await dbNodeQuestions.iterate((v) => { if (v) nodeQuestions.push(v); });
+
+  return { tags, questions: questionPayload, papers: paperPayload, similar_links: similarLinks, pending_link_list, topics: topicPayload, question_notes: questionNotes, teaching_nodes: teachingNodes, teaching_versions: teachingVersions, node_questions: nodeQuestions };
 }
 
 async function _replaceQuestionTags(questionId, tagIds) {
@@ -1444,6 +1453,27 @@ async function dbApplyRemoteSnapshot(snapshot) {
 
   if (Array.isArray(snapshot.pending_link_list)) {
     localStorage.setItem('pendingLinkList', JSON.stringify(snapshot.pending_link_list));
+  }
+
+  for (const node of snapshot.teaching_nodes || []) {
+    const local = await dbTeachingNodes.getItem(node.id);
+    if (_isRemoteNewer(node, local)) {
+      await dbTeachingNodes.setItem(node.id, node);
+    }
+  }
+
+  for (const ver of snapshot.teaching_versions || []) {
+    const local = await dbTeachingVersions.getItem(ver.id);
+    if (_isRemoteNewer(ver, local)) {
+      await dbTeachingVersions.setItem(ver.id, ver);
+    }
+  }
+
+  for (const nq of snapshot.node_questions || []) {
+    const local = await dbNodeQuestions.getItem(nq.id);
+    if (!local) {
+      await dbNodeQuestions.setItem(nq.id, nq);
+    }
   }
 
   const fpAfter = await collectDataFingerprint();
