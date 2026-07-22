@@ -1266,7 +1266,12 @@ async function dbBuildSyncPayload() {
   const nodeQuestions = [];
   await dbNodeQuestions.iterate((v) => { if (v) nodeQuestions.push(v); });
 
-  return { tags, questions: questionPayload, papers: paperPayload, similar_links: similarLinks, pending_link_list, topics: topicPayload, question_notes: questionNotes, teaching_nodes: teachingNodes, teaching_versions: teachingVersions, node_questions: nodeQuestions };
+  const settings = {
+    cloud_providers: JSON.parse(localStorage.getItem('cloud_providers') || '[]'),
+    current_provider_id: localStorage.getItem('current_provider_id') || ''
+  };
+
+  return { tags, questions: questionPayload, papers: paperPayload, similar_links: similarLinks, pending_link_list, topics: topicPayload, question_notes: questionNotes, teaching_nodes: teachingNodes, teaching_versions: teachingVersions, node_questions: nodeQuestions, settings };
 }
 
 async function _replaceQuestionTags(questionId, tagIds) {
@@ -1473,6 +1478,16 @@ async function dbApplyRemoteSnapshot(snapshot) {
     const local = await dbNodeQuestions.getItem(nq.id);
     if (!local) {
       await dbNodeQuestions.setItem(nq.id, nq);
+    }
+  }
+
+  if (snapshot.settings) {
+    const localProviders = JSON.parse(localStorage.getItem('cloud_providers') || '[]');
+    if (localProviders.length === 0 && snapshot.settings.cloud_providers && snapshot.settings.cloud_providers.length > 0) {
+      localStorage.setItem('cloud_providers', JSON.stringify(snapshot.settings.cloud_providers));
+      if (snapshot.settings.current_provider_id) {
+        localStorage.setItem('current_provider_id', snapshot.settings.current_provider_id);
+      }
     }
   }
 
