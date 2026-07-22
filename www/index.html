@@ -312,6 +312,9 @@
 
         .teaching-node-card{display:flex;align-items:center;gap:8px;padding:12px;border-radius:var(--radius-md);background:var(--surface);border:1px solid var(--border-light);margin-bottom:8px;box-shadow:var(--shadow-sm);transition:all .2s}
         .teaching-node-card:hover{box-shadow:var(--shadow-md)}
+        .node-diagram-thumb{width:40px;height:40px;flex-shrink:0;border-radius:6px;border:1px solid var(--border-light);overflow:hidden;display:flex;align-items:center;justify-content:center;background:#fff;cursor:pointer}
+        .node-diagram-thumb svg{width:100%;height:100%}
+        .node-diagram-thumb img{width:100%;height:100%;object-fit:contain}
         .teaching-node-info{flex:1;min-width:0}
         .teaching-node-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .teaching-node-meta{font-size:11px;color:var(--text-tertiary);margin-top:2px}
@@ -785,6 +788,14 @@
                 <div style="display:flex;gap:6px">
                     <input id="teaching-chapter-input" type="text" placeholder="例如：必修一 第三章 相互作用" style="flex:1" onkeydown="if(event.key==='Enter')atomizeChapter()" />
                     <button onclick="atomizeChapter()" id="atomize-btn" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0">🔍 拆解</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+                    <span style="font-size:11px;color:var(--text-tertiary)">拆解模式</span>
+                    <select id="atomize-mode-select" onchange="localStorage.setItem('atomize_mode',this.value)" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface)">
+                        <option value="text">✏️ 纯文字</option>
+                        <option value="multimodal">🖼️ 图文（多模态）</option>
+                    </select>
+                    <span id="atomize-mode-hint" style="font-size:10px;color:var(--text-tertiary)"></span>
                 </div>
             </div>
 
@@ -1755,6 +1766,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await updatePendingPhotosBadge();
     restartSyncPolling();
     if (currentUser && autoSyncEnabled && syncEnabled) queueAutoSync(true);
+    if (currentUser && apiToken) startSupabaseAutoSync();
     checkServerConnection();
     updateSyncBar();
     setInterval(checkServerConnection, 60000);
@@ -6175,6 +6187,9 @@ async function handleBatchAnalyze() {
 window.addEventListener('DOMContentLoaded', () => {
     updateAIStatusUI();
     setInterval(updateAIStatusUI, 10000);
+    const savedAtomizeMode = localStorage.getItem('atomize_mode') || 'text';
+    const atomizeSelect = document.getElementById('atomize-mode-select');
+    if (atomizeSelect) atomizeSelect.value = savedAtomizeMode;
     document.addEventListener('click', (e) => {
         const dropdown = document.getElementById('tag-suggest-dropdown');
         const wrap = dropdown?.parentElement;
@@ -6730,7 +6745,9 @@ let serverConnected = null;
 let syncTimer = null;
 let syncPollTimer = null;
 const SYNC_DEBOUNCE_MS = 800;
-const SYNC_POLL_MS = 4000;
+const SYNC_POLL_MS = 300000;
+const SUPABASE_SYNC_MS = 300000;
+let supabaseSyncTimer = null;
 
 function apiHeaders() {
     return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiToken };
@@ -6917,6 +6934,7 @@ async function doLogin() {
         closeLoginModal(); updateLoginUI();
         restartSyncPolling();
         if (autoSyncEnabled && syncEnabled) queueAutoSync(true);
+        startSupabaseAutoSync();
         showStatus('登录成功', 'success');
     } catch (e) { showLoginError('连接失败: ' + e.message); }
 }
@@ -6942,6 +6960,7 @@ async function doRegister() {
         closeLoginModal(); updateLoginUI();
         restartSyncPolling();
         if (autoSyncEnabled && syncEnabled) queueAutoSync(true);
+        startSupabaseAutoSync();
         showStatus('注册成功', 'success');
     } catch (e) { showLoginError('连接失败: ' + e.message); }
 }
@@ -6982,10 +7001,25 @@ async function fullSyncToCloud() {
         showStatus('正在同步到云端...', 'info');
         const resp = await apiCall('/api/recovery/sync-to-supabase', 'POST');
         if (resp.error) { showStatus('同步失败: ' + resp.error, 'error'); return; }
-        showStatus('全量同步完成，已推送 ' + resp.users + ' 个用户', 'success');
+        showStatus(resp.message || '☁️ 云端同步已启动，后台执行中', 'success');
     } catch (e) {
         showStatus('同步失败: ' + e.message, 'error');
     }
+}
+
+async function silentSupabaseSync() {
+    if (!currentUser || !apiToken || !serverUrl) return;
+    try {
+        await apiCall('/api/recovery/sync-to-supabase', 'POST');
+    } catch (e) {
+        console.warn('[Supabase自动同步] 失败:', e.message);
+    }
+}
+
+function startSupabaseAutoSync() {
+    if (supabaseSyncTimer) clearInterval(supabaseSyncTimer);
+    silentSupabaseSync();
+    supabaseSyncTimer = setInterval(silentSupabaseSync, SUPABASE_SYNC_MS);
 }
 
 function switchToBackupServer() {
@@ -7684,8 +7718,10 @@ async function renderTeachingNodeList() {
                 actions += `<button onclick="showVersionSwitcher('${node.id}')" class="secondary" title="切换版本">${verLabel}</button>`;
             }
             const errorInfo = status === 'ERROR' && curVer?.error_msg ? ` · ${curVer.error_msg.substring(0, 40)}` : '';
+            const diagramThumb = node.diagram ? `<div class="node-diagram-thumb" onclick="event.stopPropagation();showNodeDiagram('${node.id}')" title="查看示意图">${node.diagram.startsWith('<svg') ? node.diagram : '<img src="' + node.diagram + '" style="width:100%;height:100%;object-fit:contain" />'}</div>` : '';
             html += `<div class="teaching-node-card" data-node-id="${node.id}">
                 ${checkbox}
+                ${diagramThumb}
                 <div class="teaching-node-info">
                     <div class="teaching-node-name">${node.name}</div>
                     <div class="teaching-node-meta">${node.difficulty}${errorInfo}</div>
@@ -7697,6 +7733,23 @@ async function renderTeachingNodeList() {
         html += '</div></details>';
     }
     container.innerHTML = html;
+}
+
+async function showNodeDiagram(nodeId) {
+    const node = await dbGetTeachingNode(nodeId);
+    if (!node || !node.diagram) return;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:12px;padding:20px;max-width:90vw;max-height:80vh;overflow:auto;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+    box.innerHTML = '<div style="font-size:14px;font-weight:700;margin-bottom:12px;color:#1f2937">' + node.name + ' - 示意图</div>' +
+        '<div style="min-width:200px;min-height:150px;display:flex;align-items:center;justify-content:center">' +
+        (node.diagram.startsWith('<svg') ? node.diagram : '<img src="' + node.diagram + '" style="max-width:100%;max-height:60vh" />') +
+        '</div>' +
+        '<div style="margin-top:12px;font-size:11px;color:#9ca3af">点击空白处关闭 · 手绘功能在校验弹窗中使用</div>';
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
 }
 
 async function atomizeChapter() {
@@ -7711,54 +7764,81 @@ async function atomizeChapter() {
         return;
     }
 
+    const mode = document.getElementById('atomize-mode-select').value;
     const btn = document.getElementById('atomize-btn');
     btn.disabled = true;
-    btn.textContent = '拆解中...';
+    btn.textContent = mode === 'multimodal' ? '图文拆解中...' : '拆解中...';
 
     try {
-        let resultText = '';
         let parsed = null;
-        let retryCount = 0;
-        const maxRetries = 3;
 
-        while (retryCount < maxRetries && !parsed) {
-            const isRetry = retryCount > 0;
-            const promptText = isRetry
-                ? `上一次返回的内容无法解析为合法JSON。请重新拆解章节【${chapter}】，只输出纯JSON数组，不要任何markdown标记或解释文字。`
-                : `请拆解章节：【${chapter}】`;
-            btn.textContent = isRetry ? `JSON解析失败，重试(${retryCount}/${maxRetries})...` : '拆解中...';
-            resultText = await callCloudAIStream(
-                promptText,
-                (chunk, full) => { btn.textContent = (isRetry ? `重试(${retryCount}/${maxRetries}) ` : '拆解中... ') + full.length + '字'; },
-                { systemPrompt: KNOWLEDGE_ATOMIZER_PROMPT, temperature: isRetry ? 0.3 : 0.5 }
-            );
-            parsed = safeParseJSON(resultText);
-            if (!parsed) {
-                console.warn(`[atomizeChapter] 第${retryCount + 1}次解析失败，AI返回前300字:`, resultText.substring(0, 300));
-                retryCount++;
+        if (mode === 'multimodal') {
+            let retryCount = 0;
+            const maxRetries = 2;
+            while (retryCount < maxRetries && !parsed) {
+                const isRetry = retryCount > 0;
+                const promptText = isRetry
+                    ? `上一次返回的内容无法解析为合法JSON。请重新拆解章节【${chapter}】，只输出纯JSON数组（含 diagram 字段），不要任何markdown标记或解释文字。`
+                    : `请拆解章节：【${chapter}】`;
+                btn.textContent = isRetry ? `JSON解析失败，重试(${retryCount}/${maxRetries})...` : '图文拆解中...';
+                const result = await callCloudAIMultimodal(promptText, {
+                    systemPrompt: KNOWLEDGE_ATOMIZER_PROMPT_MULTIMODAL,
+                    temperature: isRetry ? 0.3 : 0.5
+                });
+                const textToParse = result.text || '';
+                parsed = safeParseJSON(textToParse);
+                if (!parsed) {
+                    console.warn(`[atomizeChapter:multimodal] 第${retryCount + 1}次解析失败，AI返回前300字:`, textToParse.substring(0, 300));
+                    retryCount++;
+                }
+            }
+        } else {
+            let resultText = '';
+            let retryCount = 0;
+            const maxRetries = 3;
+            while (retryCount < maxRetries && !parsed) {
+                const isRetry = retryCount > 0;
+                const promptText = isRetry
+                    ? `上一次返回的内容无法解析为合法JSON。请重新拆解章节【${chapter}】，只输出纯JSON数组，不要任何markdown标记或解释文字。`
+                    : `请拆解章节：【${chapter}】`;
+                btn.textContent = isRetry ? `JSON解析失败，重试(${retryCount}/${maxRetries})...` : '拆解中...';
+                resultText = await callCloudAIStream(
+                    promptText,
+                    (chunk, full) => { btn.textContent = (isRetry ? `重试(${retryCount}/${maxRetries}) ` : '拆解中... ') + full.length + '字'; },
+                    { systemPrompt: KNOWLEDGE_ATOMIZER_PROMPT, temperature: isRetry ? 0.3 : 0.5 }
+                );
+                parsed = safeParseJSON(resultText);
+                if (!parsed) {
+                    console.warn(`[atomizeChapter] 第${retryCount + 1}次解析失败，AI返回前300字:`, resultText.substring(0, 300));
+                    retryCount++;
+                }
             }
         }
 
         if (!parsed || !Array.isArray(parsed)) {
-            console.error('[atomizeChapter] 最终解析失败，完整返回内容:', resultText);
-            throw new Error('AI返回的内容无法解析为JSON数组（已重试' + maxRetries + '次）');
+            throw new Error('AI返回的内容无法解析为JSON数组');
         }
 
         let created = 0;
+        let withDiagram = 0;
         for (const item of parsed) {
             if (!item.name) continue;
+            const diagram = item.diagram || '';
+            if (diagram) withDiagram++;
             const node = await dbCreateTeachingNode({
                 chapter,
                 subject: '物理',
                 name: item.name,
                 difficulty: item.difficulty || '基础',
-                key_concept: item.key_concept || ''
+                key_concept: item.key_concept || '',
+                diagram
             });
             await dbCreateVersion(node.id, { version_num: 1, status: 'PENDING', is_current: true });
             created++;
         }
 
-        showStatus(`已拆解出 ${created} 个知识点`, 'success');
+        const diagramInfo = withDiagram > 0 ? `，其中 ${withDiagram} 个带示意图` : '';
+        showStatus(`已拆解出 ${created} 个知识点${diagramInfo}`, 'success');
         await loadTeachingView();
     } catch (e) {
         showStatus('拆解失败: ' + e.message, 'error');
@@ -7969,11 +8049,20 @@ async function regenerateNode(nodeId) {
     const node = await dbGetTeachingNode(nodeId);
     if (!node) return;
     const provider = getCurrentProvider();
-    const newVer = await dbCreateVersion(nodeId, {
-        status: 'PENDING',
-        is_current: true,
-        model_name: provider ? provider.model : ''
-    });
+    const ver = await getCurrentVersion(node);
+    if (ver && ver.status === 'ERROR') {
+        await dbUpdateVersion(ver.id, {
+            status: 'PENDING',
+            error_msg: null,
+            model_name: provider ? provider.model : ver.model_name
+        });
+    } else {
+        await dbCreateVersion(nodeId, {
+            status: 'PENDING',
+            is_current: true,
+            model_name: provider ? provider.model : ''
+        });
+    }
     await renderTeachingStats();
     await renderTeachingNodeList();
     if (teachingQueue && teachingQueue.isRunning) {

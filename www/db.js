@@ -1829,6 +1829,7 @@ async function dbCreateTeachingNode(node) {
     name: node.name || '',
     difficulty: node.difficulty || '基础',
     key_concept: node.key_concept || '',
+    diagram: node.diagram || '',
     current_version_id: node.current_version_id || null,
     created_at: now,
     updated_at: now

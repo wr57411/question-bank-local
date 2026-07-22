@@ -26,6 +26,36 @@ const KNOWLEDGE_ATOMIZER_PROMPT = `你是高中物理知识点拆解专家。
 
 只输出 JSON 数组本身，不要有任何前缀或后缀文字。`;
 
+const KNOWLEDGE_ATOMIZER_PROMPT_MULTIMODAL = `你是高中物理知识点拆解专家，同时具备绘制物理示意图的能力。
+你的任务是根据用户输入的章节名称，拆解出该章节包含的所有核心"原子化知识点"，并为每个知识点绘制一幅简洁的示意图。
+
+拆解原则：
+1. 最小化原则：每个知识点应当是一个独立的、高考必考的最小模型（如："单体动态分析"、"连接体整体法"、"斜面模型"）。
+2. 高考导向：结合高考考纲，识别高频考点。
+3. 难度分级：对每个知识点标记难度（基础/进阶/挑战）。
+4. 完整覆盖：确保章节内所有重要知识点均被拆解，不遗漏。
+
+示意图要求：
+- 为每个知识点生成一幅简洁的物理示意图（受力分析图、运动轨迹图、电路图、光路图等）
+- 图片格式：SVG 代码（放在 diagram 字段中）
+- 风格：黑白线条为主，标注关键物理量（用 LaTeX 或文字），简洁清晰，适合教学
+- 尺寸：viewBox 建议 200x150 或 200x200
+
+输出要求：
+请务必输出合法的 JSON 数组，不要包含任何其他解释性文字或 markdown 代码块标记。
+格式如下：
+[
+  {
+    "id": "k001",
+    "name": "知识点名称",
+    "difficulty": "基础",
+    "key_concept": "核心概念简述（一句话）",
+    "diagram": "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 150'>...</svg>"
+  }
+]
+
+只输出 JSON 数组本身，不要有任何前缀或后缀文字。diagram 字段为完整的 SVG 字符串。`;
+
 const TEACHING_GENERATOR_PROMPT = `你是认知物理教学设计师，专注帮助基础薄弱学生掌握高中物理。
 核心理念：沉浸式重复、样例学习、降低认知负荷。
 
@@ -247,6 +277,91 @@ async function callCloudAIStream(prompt, onChunk, options = {}) {
     }
 }
 
+async function callCloudAIMultimodal(prompt, options = {}) {
+    const provider = _getCurrentProvider();
+    if (!provider) throw new Error("请先添加并选择一个模型服务商");
+
+    const baseUrl = provider.baseUrl || '';
+    const apiKey = provider.apiKey || '';
+    const model = provider.model;
+    const endpoint = provider.endpoint || '';
+    const authHeader = provider.authHeader || 'Authorization';
+    const authScheme = provider.authScheme != null ? provider.authScheme : 'Bearer';
+
+    let url;
+    if (endpoint) {
+        url = endpoint;
+    } else {
+        url = baseUrl.replace(/\/+$/, '') + "/chat/completions";
+    }
+
+    const headers = { "Content-Type": "application/json" };
+    if (apiKey) {
+        headers[authHeader] = authScheme ? (authScheme + " " + apiKey) : apiKey;
+    }
+    if (baseUrl.includes('openrouter')) {
+        headers["HTTP-Referer"] = "http://localhost";
+        headers["X-Title"] = "Question Bank Local";
+    }
+
+    const systemPrompt = options.systemPrompt || null;
+    const messages = [];
+    if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
+    messages.push({ role: "user", content: prompt });
+
+    const body = {
+        model,
+        messages,
+        temperature: options.temperature ?? 0.5
+    };
+
+    const controller = new AbortController();
+    const timeoutMs = options.timeout || 180000;
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+        const response = await fetch(url, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+            signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error("API 请求失败: " + response.status + " - " + errorText.substring(0, 200));
+        }
+
+        const data = await response.json();
+        const message = data.choices?.[0]?.message;
+        if (!message) return { text: '', images: [] };
+
+        let text = '';
+        let images = [];
+
+        if (typeof message.content === 'string') {
+            text = message.content;
+        } else if (Array.isArray(message.content)) {
+            for (const part of message.content) {
+                if (part.type === 'text') {
+                    text += part.text || '';
+                } else if (part.type === 'image_url' && part.image_url) {
+                    images.push(part.image_url.url || '');
+                } else if (part.type === 'image' && part.image) {
+                    images.push(part.image.url || part.image.data || '');
+                }
+            }
+        }
+
+        return { text, images };
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') throw new Error("API 请求超时（" + (timeoutMs / 1000) + "秒）");
+        throw error;
+    }
+}
+
 function safeParseJSON(text) {
     if (!text) return null;
     let cleaned = text.trim();
@@ -284,9 +399,11 @@ function safeParseJSON(text) {
 
 if (typeof window !== 'undefined') {
     window.KNOWLEDGE_ATOMIZER_PROMPT = KNOWLEDGE_ATOMIZER_PROMPT;
+    window.KNOWLEDGE_ATOMIZER_PROMPT_MULTIMODAL = KNOWLEDGE_ATOMIZER_PROMPT_MULTIMODAL;
     window.TEACHING_GENERATOR_PROMPT = TEACHING_GENERATOR_PROMPT;
     window.callCloudAI = callCloudAI;
     window.callCloudAIStream = callCloudAIStream;
+    window.callCloudAIMultimodal = callCloudAIMultimodal;
     window.safeParseJSON = safeParseJSON;
     window.setProviderGetter = setProviderGetter;
 }
