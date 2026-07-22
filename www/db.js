@@ -1172,7 +1172,7 @@ async function dbBuildSyncPayload() {
       question_image_url: question.question_image_url,
       answer_image_url: question.answer_image_url,
       layout_type: question.layout_type || 0,
-      versions: question.versions || [],
+      versions: (() => { let v = question.versions; if (typeof v === 'string') { try { v = JSON.parse(v); } catch(e) { v = []; } } return Array.isArray(v) ? v : []; })(),
       created_at: question.created_at || question.updated_at || _nowIso(),
       updated_at: question.updated_at || question.created_at || _nowIso(),
       deleted_at: question.deleted_at || null,
@@ -1355,9 +1355,14 @@ async function dbApplyRemoteSnapshot(snapshot) {
       question_image_url: qImg,
       answer_image_url: aImg,
       layout_type: question.layout_type || 0,
-      versions: (question.versions && question.versions.length > 0)
-        ? question.versions
-        : (localQuestion ? localQuestion.versions || [] : []),
+      versions: (() => {
+        let v = question.versions;
+        if (typeof v === 'string') { try { v = JSON.parse(v); } catch(e) { v = []; } }
+        if (!Array.isArray(v)) v = [];
+        if (v.length > 0) return v;
+        const local = localQuestion ? localQuestion.versions : null;
+        return (Array.isArray(local) && local.length > 0) ? local : [];
+      })(),
       created_at: question.created_at || question.updated_at || _nowIso(),
       updated_at: question.updated_at || question.created_at || _nowIso(),
       deleted_at: question.deleted_at || null,
