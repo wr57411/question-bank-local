@@ -7105,6 +7105,8 @@ async function runSync({ forceFullPull = false, skipPush = false, silent = false
 
         const pullResp = await apiCall('/api/sync/pull');
         await dbApplyRemoteSnapshot(pullResp);
+        cloudProviders = JSON.parse(localStorage.getItem('cloud_providers') || '[]');
+        currentProviderId = localStorage.getItem('current_provider_id') || '';
         await refreshAll();
 
         const syncTime = pullResp.now || new Date().toISOString();

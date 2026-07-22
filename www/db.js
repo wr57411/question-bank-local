@@ -1354,7 +1354,7 @@ async function dbApplyRemoteSnapshot(snapshot) {
       question_image_url: qImg,
       answer_image_url: aImg,
       layout_type: question.layout_type || 0,
-      versions: question.versions !== undefined
+      versions: (question.versions && question.versions.length > 0)
         ? question.versions
         : (localQuestion ? localQuestion.versions || [] : []),
       created_at: question.created_at || question.updated_at || _nowIso(),
