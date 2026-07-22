@@ -1268,7 +1268,8 @@ async function dbBuildSyncPayload() {
 
   const settings = {
     cloud_providers: JSON.parse(localStorage.getItem('cloud_providers') || '[]'),
-    current_provider_id: localStorage.getItem('current_provider_id') || ''
+    current_provider_id: localStorage.getItem('current_provider_id') || '',
+    appVersions: JSON.parse(localStorage.getItem('appVersions') || '[]')
   };
 
   return { tags, questions: questionPayload, papers: paperPayload, similar_links: similarLinks, pending_link_list, topics: topicPayload, question_notes: questionNotes, teaching_nodes: teachingNodes, teaching_versions: teachingVersions, node_questions: nodeQuestions, settings };
@@ -1488,6 +1489,10 @@ async function dbApplyRemoteSnapshot(snapshot) {
       if (snapshot.settings.current_provider_id) {
         localStorage.setItem('current_provider_id', snapshot.settings.current_provider_id);
       }
+    }
+    const localVersions = JSON.parse(localStorage.getItem('appVersions') || '[]');
+    if (localVersions.length < (snapshot.settings.appVersions || []).length) {
+      localStorage.setItem('appVersions', JSON.stringify(snapshot.settings.appVersions));
     }
   }
 
