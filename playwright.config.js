@@ -56,7 +56,7 @@ module.exports = defineConfig({
     ...resolveChromeConfig(),
   },
   webServer: {
-    command: "npx serve www -l 3000",
+    command: "npx vite --port 3000",
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
     timeout: 30_000,

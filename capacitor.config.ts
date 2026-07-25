@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.questionbank.local',
   appName: '本地题库',
-  webDir: 'www',
+  webDir: 'dist',
   server: {
     androidScheme: 'http',
     iosScheme: 'http'

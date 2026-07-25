@@ -1,4 +1,5 @@
 node_modules/
+dist/
 ios/
 .DS_Store
 **/.DS_Store
