@@ -73,12 +73,7 @@ fi
 echo "- **$TIMESTAMP** - $DESCRIPTION ($APK_NAME)" >> "$MEMORY_FILE"
 echo ">>> PROJECT_MEMORY.md 已更新"
 
-# 7. 运行 UI 健康检测
-echo ">>> 运行 UI 健康检测..."
-cd "$PROJECT_DIR"
-npx playwright test tests/ui-health.spec.js --reporter=list 2>&1 || echo "⚠️ 部分测试未通过，请检查"
-
-# 8. 显示手动验证清单提示
+# 7. 显示手动验证清单提示
 echo ""
 echo ">>> 手动验证清单: $PROJECT_DIR/MANUAL_TEST_CHECKLIST.md"
 echo ">>> 请打开清单文件，逐项验证核心功能"

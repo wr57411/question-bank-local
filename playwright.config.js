@@ -56,9 +56,9 @@ module.exports = defineConfig({
     ...resolveChromeConfig(),
   },
   webServer: {
-    command: "npx vite --port 3000",
+    command: "./node_modules/.bin/vite --port 3000 --host 127.0.0.1",
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
+    timeout: 120_000,
   },
 });

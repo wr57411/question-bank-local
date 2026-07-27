@@ -20,6 +20,12 @@
 
 - [ ] 生成开发文档（存入 `docs/` 目录，模板见 `~/.qoder-cn/skills/large-codebase-ai-dev/doc-templates.md`）
 - [ ] 更新本文件的「开发文档索引」部分
+- [ ] 执行本地 CI/CD 验证循环（按顺序全部通过）：
+  - [ ] `npm run typecheck`（TypeScript 类型检查）
+  - [ ] `npm run vitest run`（单元测试）
+  - [ ] `npm run build`（生产构建）
+  - [ ] `npx playwright test tests/ui-health.spec.js`（E2E 测试）
+  - 发现问题立即修复，修复后重跑，全部通过才告知用户可手动测试
 - [ ] 执行 ship 打包验证
 
 **违反检查清单 = 产出不可信。**
@@ -32,12 +38,26 @@
 
 ## 技术栈
 
-- 前端：HTML + JavaScript（无框架）
+### 客户端（本项目）
+
+- 语言：TypeScript（已全盘迁移，无 JS 源码）
+- 架构：模块化（src/data, src/services, src/ui, src/types 四层，各层 index.ts 统一导出，main.ts 挂载到 window）
 - 本地存储：IndexedDB（localForage）
 - 图片处理：Cropper.js + Canvas
 - PDF 生成：jsPDF
+- 备份：增量备份（format='incremental_v1'，基于 changelog）
 - 原生打包：Capacitor 6
-- 插件：@capacitor/camera, @capacitor/filesystem
+- 插件：@capacitor/camera, @capacitor/filesystem, @hotend/capacitor-file-picker, @capacitor-community/file-opener
+
+### 服务端（/Users/john/question-bank-server）
+
+- 语言：JavaScript（CommonJS，尚未迁移 TypeScript）
+- 框架：Express 5
+- 数据库：better-sqlite3（WAL 模式）
+- 认证：JWT（Bearer Token）
+- 文件上传：multer
+- 路由：routes/ 目录（questions, tags, papers, sync, version, recovery）
+- 同步模式：push/pull 全量对比
 
 ## 适配清单
 
@@ -53,10 +73,17 @@
 
 ## 代码规范
 
+### 客户端
 - 不添加注释（除非用户要求）
+- 所有源码必须为 TypeScript（.ts）
+- 新增功能必须按模块化结构放入对应层（data/services/ui/types）
 - CSS 内联到 HTML
-- JS 内联到 HTML 底部
-- 单文件结构，方便维护
+- UI 逻辑在 src/ui/ 中，通过 main.ts 导出到 window
+
+### 服务端
+- 不添加注释（除非用户要求）
+- 当前为 JavaScript（CommonJS），新增路由放 routes/ 目录
+- 遵循现有 upsert + authMiddleware 模式
 
 ## Git 提交规则
 
@@ -83,6 +110,11 @@
 | 修复版本勾选框点击不灵敏 | label包裹checkbox导致Android WebView双触发 | docs/fix-version-checkbox-double-toggle.md | 2026-07-13 | 版本勾选, 添加题目表单, 题目详情 |
 | 修复版本勾选同步缺陷 | versions字段在同步时被丢弃，新设备无法获取版本信息 | docs/fix-version-sync-missing.md | 2026-07-16 | 同步, dbBuildSyncPayload, dbApplyRemoteSnapshot |
 | 同步数据丢弃检测与UI风险提醒机制 | 数据指纹检测+版本信息丢弃检测+警告弹窗 | docs/sync-data-integrity-detection.md | 2026-07-16 | 同步, 数据完整性, UI警告 |
+| 修复 PDF 书库同步、试读与下载问题 | 同步错误 JSON 化、浏览器试读回退与 Blob 下载 | docs/fix-pdf-library-three-issues.md | 2026-07-26 | 同步, PDF 书库, 服务端, UI |
+| 修复 PDF 预览 Invalid PDF structure | Capacitor readFile 返回 base64 字符串被误作 ArrayBuffer 导致 Blob 构造错误 | docs/fix-pdf-preview-invalid-structure.md | 2026-07-26 | PDF 预览, Capacitor 文件系统 |
+| 补齐 pdf-library 缺失的 topic 函数 | main.ts 引用了 showAddTopicModal 等 5 个函数但 pdf-library.ts 未实现 | docs/fix-pdf-preview-invalid-structure.md | 2026-07-26 | PDF 书库, 专题管理 |
+| 本地 CI/CD 测试体系 | 代码修改后立即跑 typecheck+build+E2E，对齐 GitHub CI | docs/local-cicd-pre-push-testing.md | 2026-07-26 | CI/CD, 测试流程 |
+| 服务端数据库迁移恢复 | 旧服务端数据安全合并到统一仓库服务端 | docs/server-database-migration-recovery.md | 2026-07-26 | 服务端, SQLite, 账号, PDF书库 |
 
 ### 功能设计文档
 
@@ -90,3 +122,4 @@
 |---------|------|---------|---------|--------|
 | AI测试基础设施E2E扩展与加固 | 教学内容关联题库 + Web E2E测试 + Seed Fixture + CI模板 | docs/ai-test-harness-e2e-extension.md | 2026-07-16 | AI管线, 题库关联, E2E测试, Playwright |
 | 可视化同步状态与操作模块（修订版） | 顶部状态条 + 复用已有接口 + 失败状态追踪 + 修复showSyncStatus缺失 | docs/visual-sync-status-module.md | 2026-07-19 | 同步, UI, 状态显示 |
+| PDF云书库全栈实现 | 服务端TS迁移+模块化 + PDF上传/试读/下载 + 双维度类目 + 标签复用 + sync集成 | docs/pdf-cloud-library.md | 2026-07-25 | 服务端, PDF书库, 同步, UI |
