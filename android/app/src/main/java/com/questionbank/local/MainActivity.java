@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
     protected void onCreate(android.os.Bundle savedInstanceState) {
         registerPlugin(SmartCapturePlugin.class);
         registerPlugin(Gemma4Plugin.class);
+        registerPlugin(MediaGalleryPlugin.class);
         super.onCreate(savedInstanceState);
         handlePendingPhotosIntent(getIntent());
     }

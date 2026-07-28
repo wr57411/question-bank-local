@@ -193,6 +193,13 @@
                             导入时不裁剪
                         </label>
                     </div>
+                    <div id="question-gallery-thumb-strip" style="display:none;margin-bottom:12px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                            <span style="font-size:12px;color:var(--text-secondary);font-weight:500">📷 题目相册</span>
+                            <button type="button" onclick="loadGalleryThumbnails('question')" style="padding:2px 8px;font-size:11px;background:var(--surface-dim);color:var(--text-secondary);border:none;border-radius:var(--radius-sm);cursor:pointer">🔄 刷新</button>
+                        </div>
+                        <div id="question-gallery-thumb-container" style="display:flex;gap:8px;overflow-x:auto;padding:4px 0;scrollbar-width:none;-webkit-overflow-scrolling:touch"></div>
+                    </div>
                     <div class="form-group">
                         <label id="question-image-label">题目图片（笔记）*</label>
                         <div class="upload-buttons">
@@ -211,6 +218,13 @@
                     </div>
                     <div class="form-group">
                         <label>答案图片（可选）</label>
+                        <div id="answer-gallery-thumb-strip" style="display:none;margin-bottom:12px">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                                <span style="font-size:12px;color:var(--text-secondary);font-weight:500">📷 答案相册</span>
+                                <button type="button" onclick="loadGalleryThumbnails('answer')" style="padding:2px 8px;font-size:11px;background:var(--surface-dim);color:var(--text-secondary);border:none;border-radius:var(--radius-sm);cursor:pointer">🔄 刷新</button>
+                            </div>
+                            <div id="answer-gallery-thumb-container" style="display:flex;gap:8px;overflow-x:auto;padding:4px 0;scrollbar-width:none;-webkit-overflow-scrolling:touch"></div>
+                        </div>
                         <div class="upload-buttons">
                             <button type="button" class="upload-btn camera" onclick="takePhoto('answer')">📷 拍照</button>
                             <button type="button" class="upload-btn" onclick="pickFromGallery('answer')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
