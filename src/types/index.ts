@@ -5,3 +5,4 @@ export * from './topic';
 export * from './teaching';
 export * from './sync';
 export * from './backup';
+export * from './pdf-doc';

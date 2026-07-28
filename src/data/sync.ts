@@ -2,6 +2,7 @@ import {
   dbQuestions, dbTags, dbQuestionTags, dbPapers, dbPaperQuestions,
   dbSimilarQuestionLinks, dbTopics, dbTopicQuestions, dbQuestionNotes,
   dbTeachingNodes, dbTeachingVersions, dbNodeQuestions,
+  dbPdfBooks, dbPdfChapters, dbPdfTopics, dbPdfDocs, dbPdfCategories,
   nowIso
 } from './stores';
 import type { SyncPayload, DataFingerprint } from '../types';
@@ -55,6 +56,7 @@ export async function dbBuildSyncPayload(): Promise<SyncPayload> {
     questions: [], tags: [], question_tags: [], papers: [], paper_questions: [],
     similar_question_links: [], topics: [], topic_questions: [], question_notes: [],
     teaching_nodes: [], teaching_versions: [], node_questions: [],
+    pdf_books: [], pdf_chapters: [], pdf_topics: [], pdf_docs: [], pdf_categories: [],
   };
   await dbQuestions.iterate((v: unknown) => { if (v) payload.questions.push(v); });
   await dbTags.iterate((v: unknown) => { if (v) payload.tags.push(v); });
@@ -68,6 +70,11 @@ export async function dbBuildSyncPayload(): Promise<SyncPayload> {
   await dbTeachingNodes.iterate((v: unknown) => { if (v) payload.teaching_nodes.push(v); });
   await dbTeachingVersions.iterate((v: unknown) => { if (v) payload.teaching_versions.push(v); });
   await dbNodeQuestions.iterate((v: unknown) => { if (v) payload.node_questions.push(v); });
+  await dbPdfBooks.iterate((v: unknown) => { if (v) payload.pdf_books.push(v); });
+  await dbPdfChapters.iterate((v: unknown) => { if (v) payload.pdf_chapters.push(v); });
+  await dbPdfTopics.iterate((v: unknown) => { if (v) payload.pdf_topics.push(v); });
+  await dbPdfDocs.iterate((v: unknown) => { if (v) payload.pdf_docs.push(v); });
+  await dbPdfCategories.iterate((v: unknown) => { if (v) payload.pdf_categories.push(v); });
   return payload;
 }
 

@@ -17,6 +17,11 @@ export interface SyncPayload {
   teaching_nodes: unknown[];
   teaching_versions: unknown[];
   node_questions: unknown[];
+  pdf_books: unknown[];
+  pdf_chapters: unknown[];
+  pdf_topics: unknown[];
+  pdf_docs: unknown[];
+  pdf_categories: unknown[];
 }
 
 export interface DataFingerprint {

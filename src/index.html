@@ -52,6 +52,7 @@
         <button class="tab" onclick="showPendingBlankList()" id="pending-blank-tab">📷 待补拍<span id="pending-blank-count" class="badge" style="display:none;margin-left:4px;background:#ef4444;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
         <button class="tab" onclick="showPendingPhotosTab()" id="pending-photos-tab">📸 待处理<span id="pending-photos-count" class="badge" style="display:none;margin-left:4px;background:#8B5CF6;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
         <button class="tab" onclick="showTab('teaching',this);loadTeachingView()">🎓 AI教学</button>
+        <button class="tab" onclick="showTab('pdf-library',this);renderPdfLibrary()">📚 书库</button>
     </div>
 
     <!-- 题目管理 -->
@@ -496,6 +497,36 @@
             <p style="font-size:12px;color:var(--text-secondary);margin-top:8px">已校验的教学内容可在课堂投屏展示，支持滑动切换。建议横屏使用。</p>
         </div>
     </div>
+</div>
+
+<!-- PDF 书库 -->
+<div id="pdf-library-tab" class="hidden">
+    <div class="card">
+        <h2>📚 PDF 书库</h2>
+        <div id="pdf-library-content"></div>
+    </div>
+</div>
+
+<!-- PDF 操作弹窗 -->
+<div id="pdf-action-modal" class="modal" onclick="if(event.target===this)closePdfActionModal()">
+    <div class="modal-content" style="max-width:600px;max-height:90dvh;overflow-y:auto" id="pdf-action-content"></div>
+</div>
+
+<!-- PDF 试读弹窗 -->
+<div id="pdf-preview-modal" class="modal" onclick="if(event.target===this)closePdfPreview()">
+    <div class="modal-content" style="max-width:700px;max-height:90dvh;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span id="pdf-preview-progress" style="font-size:13px;color:var(--text-secondary)"></span>
+            <span style="cursor:pointer;font-size:24px;color:#999" onclick="closePdfPreview()">×</span>
+        </div>
+        <div id="pdf-preview-pages" style="flex:1;overflow-y:auto"></div>
+        <button onclick="doDownloadPdf(window._previewPdfId)" style="margin-top:8px;padding:12px;background:var(--warning);box-shadow:0 3px 0 #B07A08;width:100%">⬇️ 下载全文</button>
+    </div>
+</div>
+
+<!-- PDF 管理弹窗 -->
+<div id="pdf-manage-modal" class="modal" onclick="if(event.target===this)closePdfManageModal()">
+    <div class="modal-content" style="max-width:450px" id="pdf-manage-content"></div>
 </div>
 
 <!-- 校验弹窗 -->

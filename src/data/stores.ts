@@ -14,6 +14,12 @@ export const dbTeachingNodes = localforage.createInstance({ name: 'questionBank'
 export const dbTeachingVersions = localforage.createInstance({ name: 'questionBank', storeName: 'teaching_versions' });
 export const dbNodeQuestions = localforage.createInstance({ name: 'questionBank', storeName: 'node_questions' });
 export const dbChangelog = localforage.createInstance({ name: 'questionBank', storeName: 'changelog' });
+export const dbPdfBooks = localforage.createInstance({ name: 'questionBank', storeName: 'pdf_books' });
+export const dbPdfChapters = localforage.createInstance({ name: 'questionBank', storeName: 'pdf_chapters' });
+export const dbPdfTopics = localforage.createInstance({ name: 'questionBank', storeName: 'pdf_topics' });
+export const dbPdfDocs = localforage.createInstance({ name: 'questionBank', storeName: 'pdf_docs' });
+export const dbPdfDocTags = localforage.createInstance({ name: 'questionBank', storeName: 'pdf_doc_tags' });
+export const dbPdfCategories = localforage.createInstance({ name: 'questionBank', storeName: 'pdf_categories' });
 
 export function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {

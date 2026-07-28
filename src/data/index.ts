@@ -10,3 +10,4 @@ export * from './similar-links';
 export * from './backup';
 export * from './sync';
 export * from './pdf';
+export * from './pdf-docs';
