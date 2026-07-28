@@ -1,6 +1,12 @@
 node_modules/
 dist/
-ios/
+
+# iOS：保留工程源码，仅忽略构建产物
+ios/App/Pods/
+ios/App/build/
+ios/App/DerivedData/
+ios/App/*.xcworkspace/xcuserdata/
+ios/App/Podfile.lock
 .DS_Store
 **/.DS_Store
 *.log
@@ -12,6 +18,12 @@ android/.idea/
 android/local.properties
 android/*.iml
 *.apk
+
+# 服务端
+server/data.db*
+server/.migration-backups/
+server/uploads/
+server/node_modules/
 
 # AI Test Harness
 .env

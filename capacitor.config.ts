@@ -9,7 +9,7 @@ const config: CapacitorConfig = {
     iosScheme: 'http'
   },
   ios: {
-    contentInset: 'automatic',
+    contentInset: 'never',
     allowsLinkPreview: false,
     scrollEnabled: true
   },

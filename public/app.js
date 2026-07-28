@@ -42,7 +42,9 @@ if (!window.Capacitor.Plugins.Gemma4) {
 }
 
 const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+const isIOS = isNative && window.Capacitor.getPlatform() === 'ios';
 const Camera = isNative ? window.Capacitor.Plugins.Camera : null;
+const MediaPlugin = isNative ? (window.Capacitor.Plugins.MediaGallery || window.Capacitor.Plugins.Media || null) : null;
 const APP_VERSION_CODE = 2;
 const APP_VERSION_NAME = '1.1';
 
@@ -197,6 +199,29 @@ function renderVersionSwitcher() {
     }
 }
 
+// ========== 平台专属 UI 降级 ==========
+// 悬浮窗 / 待补拍 / 待处理 依赖 Android 原生插件（FloatingWindow / QuickCapture），iOS 不可用。
+// 端侧 AI（Gemma4）首版 iOS 不做，隐藏其入口，保留"云端 API 服务商"可用。
+function hideEl(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+}
+function applyPlatformUI() {
+    const platform = (window.Capacitor && window.Capacitor.getPlatform) ? window.Capacitor.getPlatform() : 'web';
+    if (platform === 'android') return; // Android 全功能
+    // 下列为 Android 独占能力，iOS / Web 隐藏入口
+    hideEl('floating-toggle-btn');
+    hideEl('pending-blank-tab');
+    hideEl('pending-photos-tab');
+    // 端侧 AI 引擎（Gemma4）首版 iOS 不支持：隐藏加载/批量按钮，给出明确提示
+    const aiLabel = document.getElementById('ai-status-label');
+    const aiDesc = document.getElementById('ai-status-desc');
+    hideEl('ai-load-btn');
+    hideEl('ai-batch-btn');
+    if (aiLabel) { aiLabel.textContent = '暂不支持'; aiLabel.style.background = 'var(--text-tertiary)'; }
+    if (aiDesc) aiDesc.textContent = 'iOS 版暂不支持端侧 AI（Gemma4），可使用下方"模型服务商管理"接入云端 API。';
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
     // 初始化版本皮肤
     applyVersionTheme(getCurrentVersionId());
@@ -223,6 +248,13 @@ document.addEventListener("DOMContentLoaded", async () => {
     updateSyncBar();
     setInterval(checkServerConnection, 60000);
     checkAppUpdate();
+
+    // 平台专属 UI 降级（iOS / Android 差异）
+    applyPlatformUI();
+    if (isNative && MediaPlugin) {
+        loadGalleryThumbnails('question');
+        loadGalleryThumbnails('answer');
+    }
 });
 
 async function refreshAll() {
@@ -503,6 +535,99 @@ function removeImage(target) {
         if (copyBtn) copyBtn.style.display = "none";
     }
     if (target === 'question') isFormDirty = false;
+}
+
+async function loadGalleryThumbnails(target) {
+    if (!isNative || !MediaPlugin) {
+        console.warn('[Gallery] not native or no MediaPlugin');
+        return;
+    }
+    const stripId = target === 'answer' ? 'answer-gallery-thumb-strip' : 'question-gallery-thumb-strip';
+    const containerId = target === 'answer' ? 'answer-gallery-thumb-container' : 'question-gallery-thumb-container';
+    const container = document.getElementById(containerId);
+    const strip = document.getElementById(stripId);
+    if (!container || !strip) return;
+    strip.style.display = '';
+    container.innerHTML = '<span style="font-size:12px;color:var(--text-secondary);padding:8px">加载中...</span>';
+    try {
+        console.log('[Gallery] calling getMedias for ' + target + '...');
+        const result = await MediaPlugin.getMedias({
+            quantity: 20,
+            thumbnailWidth: 240,
+            thumbnailHeight: 240,
+            thumbnailQuality: 85,
+            types: 'photos'
+        });
+        console.log('[Gallery] getMedias result:', result ? 'ok' : 'null', 'medias:', result?.medias?.length);
+        if (!result || !result.medias || result.medias.length === 0) {
+            container.innerHTML = '<span style="font-size:12px;color:var(--text-secondary);padding:8px">相册无照片</span>';
+            return;
+        }
+        container.innerHTML = '';
+        for (const media of result.medias) {
+            const div = document.createElement('div');
+            div.style.cssText = 'flex-shrink:0;width:120px;height:120px;border-radius:8px;overflow:hidden;cursor:pointer;border:2px solid var(--border);position:relative';
+            const img = document.createElement('img');
+            const dataUrl = media.data.startsWith('data:') ? media.data : 'data:image/jpeg;base64,' + media.data;
+            img.src = dataUrl;
+            img.style.cssText = 'width:100%;height:100%;object-fit:cover';
+            img.loading = 'lazy';
+            div.appendChild(img);
+            div.onclick = () => galleryThumbClick(media.identifier, target);
+            container.appendChild(div);
+        }
+    } catch (e) {
+        console.error('[Gallery] load failed:', e);
+        const msg = e.message || String(e);
+        container.innerHTML = '<span style="font-size:12px;color:var(--text-secondary);padding:8px">加载失败: ' + msg + '</span>';
+    }
+}
+
+async function galleryThumbClick(identifier, target) {
+    if (!target) {
+        let determinedTarget = 'question';
+        if (croppedImages['question']) determinedTarget = 'answer';
+        target = determinedTarget;
+    }
+    const label = target === 'question' ? '题目' : '答案';
+    showStatus('正在加载' + label + '图片...', 'success');
+    try {
+        console.log('[Gallery] loading full image for identifier:', identifier, 'target:', target);
+        let dataUrl;
+        if (typeof MediaPlugin.getFullImage === 'function' && (identifier.startsWith('content://') || identifier.startsWith('file://') || (!identifier.startsWith('/') && !identifier.match(/^[A-Z]:\\/)))) {
+            const result = await MediaPlugin.getFullImage({ identifier: identifier });
+            const mime = result.mimeType || 'image/jpeg';
+            dataUrl = 'data:' + mime + ';base64,' + result.data;
+        } else if (window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform() === 'ios' && MediaPlugin.getMediaByIdentifier) {
+            const pathResult = await MediaPlugin.getMediaByIdentifier({ identifier: identifier });
+            const FS = window.Capacitor?.Plugins?.Filesystem;
+            if (FS) {
+                const fileResult = await FS.readFile({ path: pathResult.path });
+                let data = fileResult.data;
+                if (!data.startsWith('data:')) dataUrl = 'data:image/jpeg;base64,' + data;
+                else dataUrl = data;
+            } else {
+                showStatus('文件系统不可用', 'error');
+                return;
+            }
+        } else {
+            const FS = window.Capacitor?.Plugins?.Filesystem;
+            if (FS) {
+                const fileResult = await FS.readFile({ path: identifier });
+                let data = fileResult.data;
+                if (!data.startsWith('data:')) dataUrl = 'data:image/jpeg;base64,' + data;
+                else dataUrl = data;
+            } else {
+                showStatus('文件系统不可用', 'error');
+                return;
+            }
+        }
+        _handleImageReady(target, dataUrl);
+        showStatus('已导入' + label + '图片', 'success');
+    } catch (e) {
+        console.error('[Gallery] load full image failed:', e);
+        showStatus('图片加载失败: ' + e.message, 'error');
+    }
 }
 
 // ========== 悬浮窗截图 ==========
@@ -1567,6 +1692,10 @@ function switchAddMode(mode) {
         photoBtn.style.color = '#fff';
         photoBtn.style.boxShadow = '0 3px 0 var(--primary-dark)';
         questionLabel.textContent = '题目图片（笔记）*';
+        if (isNative && MediaPlugin) {
+            loadGalleryThumbnails('question');
+            loadGalleryThumbnails('answer');
+        }
     } else if (mode === 'text') {
         photoSection.style.display = 'none';
         batchSection.style.display = 'none';
@@ -3967,8 +4096,8 @@ async function handleLoadModel() {
 // ========== 云端 API 配置 ==========
 async function pasteTo(inputId) {
     try {
-        const text = await Capacitor.Plugins.Clipboard.read();
-        document.getElementById(inputId).value = text || "";
+        const res = await Capacitor.Plugins.Clipboard.read();
+        document.getElementById(inputId).value = (res && res.value) || res || '';
     } catch (e) {
         showStatus("粘贴失败: " + e.message, "error");
     }
@@ -5305,7 +5434,14 @@ async function apiCall(path, method = 'GET', body = null) {
     const opts = { method, headers: apiHeaders() };
     if (body) opts.body = JSON.stringify(body);
     const resp = await fetch(serverUrl + path, opts);
-    const data = await resp.json();
+    const raw = await resp.text();
+    let data;
+    try {
+        data = JSON.parse(raw);
+    } catch {
+        const snippet = raw.substring(0, 100).replace(/\n/g, ' ');
+        throw new Error(`服务器返回非JSON (${resp.status}): ${snippet}`);
+    }
     if (!resp.ok) throw new Error(data.error || '请求失败');
     return data;
 }
@@ -5484,6 +5620,42 @@ function switchToBackupServer() {
     restartSyncPolling();
     showStatus('已切换到备用服务器', 'success');
     document.getElementById('server-url').value = url;
+}
+
+async function syncFromPrimaryServer() {
+    if (!confirm('从主服务器拉取最新数据到本地备用服务器。\n\n确定继续？')) return;
+    try {
+        showStatus('正在从主服务器拉取数据...', 'info');
+        const resp = await apiCall('/api/recovery/sync-from-primary', 'POST');
+        if (resp.error) { showStatus('同步失败: ' + resp.error, 'error'); return; }
+        showStatus(resp.message || '📥 主服务器数据拉取已启动', 'success');
+    } catch (e) {
+        showStatus('同步失败: ' + e.message, 'error');
+    }
+}
+
+async function updateServerSyncStatus() {
+    const el = document.getElementById('server-sync-status');
+    if (!el) return;
+    try {
+        const resp = await apiCall('/api/recovery/server-sync-status', 'GET');
+        if (!resp.server_sync_enabled) {
+            el.textContent = '未配置（需设置 PRIMARY_SERVER_URL）';
+            el.style.color = '#888';
+        } else if (resp.sync_in_progress) {
+            el.textContent = '正在同步中...';
+            el.style.color = '#2563eb';
+        } else if (resp.last_result && !resp.last_result.error) {
+            el.textContent = '✅ 上次同步: ' + (resp.last_sync_at || '--');
+            el.style.color = '#16a34a';
+        } else {
+            el.textContent = resp.last_result?.error ? '❌ ' + resp.last_result.error : '待同步';
+            el.style.color = '#f59e0b';
+        }
+    } catch (e) {
+        el.textContent = '❌ 无法获取状态';
+        el.style.color = '#ef4444';
+    }
 }
 
 function stopSyncPolling() {

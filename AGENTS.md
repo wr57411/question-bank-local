@@ -61,10 +61,15 @@
 
 ## 适配清单
 
-### iOS
-- Info.plist 权限：Camera, PhotoLibrary, PhotoLibraryAdd
-- 备份目录：Documents（iCloud 自动同步）
-- CocoaPods 依赖管理
+### iOS（Universal：iPhone + iPad）
+- 工程：`ios/`（Capacitor 生成，已纳入 git；仅忽略 Pods/build/DerivedData）
+- Info.plist 权限：Camera, PhotoLibrary, PhotoLibraryAdd（见 `scripts/ios-plist-patch.sh`，`cap sync` 后自动补）
+- 方向：iPhone 竖屏+横屏；iPad 四向（含 UpsideDown）
+- 备份目录：Documents（iCloud 自动同步）；备份文案按平台显示
+- 端侧 AI（Gemma4）/ 悬浮窗 / 快捷拍摄：iOS 首版不支持，已在 Web 层隐藏入口并给出提示
+- Clipboard 插件版本与 Capacitor 6 对齐（`^6.0.1`，原 ^8 与核心不兼容已降级）
+- iPad 布局：见 `docs/ipad-ios-adaptation.md`
+- 依赖 Xcode + CocoaPods：`pod install` 与 Archive 在装好 Xcode 后执行
 
 ### Android
 - AndroidManifest.xml 权限：Camera, Storage, Media
@@ -123,3 +128,5 @@
 | AI测试基础设施E2E扩展与加固 | 教学内容关联题库 + Web E2E测试 + Seed Fixture + CI模板 | docs/ai-test-harness-e2e-extension.md | 2026-07-16 | AI管线, 题库关联, E2E测试, Playwright |
 | 可视化同步状态与操作模块（修订版） | 顶部状态条 + 复用已有接口 + 失败状态追踪 + 修复showSyncStatus缺失 | docs/visual-sync-status-module.md | 2026-07-19 | 同步, UI, 状态显示 |
 | PDF云书库全栈实现 | 服务端TS迁移+模块化 + PDF上传/试读/下载 + 双维度类目 + 标签复用 + sync集成 | docs/pdf-cloud-library.md | 2026-07-25 | 服务端, PDF书库, 同步, UI |
+| iPad/iPhone(Universal) iOS 版本开发 | iOS 骨架+Web降级+iPad布局+依赖Xcode说明 | docs/ipad-ios-adaptation.md | 2026-07-19 | iOS工程, 平台降级, iPad适配 |
+| Windows备用服务器 | 服务器间同步 + PM2常驻 + canvas可选化 + 客户端切换UI | docs/windows-backup-server.md | 2026-07-27 | 服务端, Windows, 同步, 客户端 |

@@ -31,6 +31,7 @@
             --space-xl: 32px;
         }
         *{margin:0;padding:0;box-sizing:border-box}
+        html{height:100%}
         body{font-family:'Noto Sans SC',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#F8F9FA;color:var(--text);min-height:100vh;min-height:100dvh;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);line-height:1.5;-webkit-font-smoothing:antialiased}
         .container{max-width:800px;margin:0 auto;padding:var(--space-md)}
 
@@ -254,7 +255,27 @@
             .card{padding:var(--space-lg)}
             .modal-content{max-width:600px}
         }
-        @media(min-width:1024px){.container{max-width:1000px}.question-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr))}}
+        /* iPad / 大屏适配（阶段3） */
+        @media(min-width:768px){
+            .container{max-width:900px}
+            .question-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
+            .toolbar{gap:12px}
+            .tabs{flex-wrap:wrap;overflow-x:visible}
+        }
+        @media(min-width:1024px){
+            .container{max-width:1100px}
+            .question-grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
+            .modal-content{max-width:720px}
+            .card{max-width:1100px;margin-left:auto;margin-right:auto}
+        }
+        /* 横屏：弹层与阅读区不顶满、不拉伸 */
+        @media(orientation:landscape) and (min-width:768px){
+            .modal-content{max-height:88dvh;max-width:760px}
+            .ai-summary-wrap,.teaching-content,.markdown-body{max-width:900px;margin-left:auto;margin-right:auto}
+        }
+        /* 触控友好：保证可点区域最小 44px（iPad 指针/触摸通用） */
+        .tab,.btn-group button{min-height:44px}
+        .crop-icon:active{transform:scale(1.3)}
         
         /* Mode Toggle */
         #mode-photo-btn, #mode-text-btn {
