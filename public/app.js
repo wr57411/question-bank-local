@@ -5501,16 +5501,31 @@ function closeSyncWarning() {
     document.getElementById('sync-warning-modal').classList.remove('active');
 }
 
+function handleAuthError(e) {
+    const msg = e.message || '';
+    if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('ERR_CONNECTION_REFUSED')) {
+        showLoginError('服务器不可达，请确认：1) 服务端已启动 2) 地址正确');
+    } else {
+        showLoginError('连接失败: ' + msg);
+    }
+}
+
 async function doLogin() {
     const url = document.getElementById('server-url').value.trim().replace(/\/$/, '');
     const phone = document.getElementById('login-phone').value.trim();
     const password = document.getElementById('login-password').value;
     if (!url || !phone || !password) { showLoginError('请填写完整信息'); return; }
     try {
-        const data = await fetch(url + '/api/login', {
+        const resp = await fetch(url + '/api/login', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone, password })
-        }).then(r => r.json());
+        });
+        if (!resp.ok) {
+            const data = await resp.json().catch(() => ({}));
+            showLoginError(data.error || '服务器错误 (' + resp.status + ')');
+            return;
+        }
+        const data = await resp.json();
         if (data.error) { showLoginError(data.error); return; }
         serverUrl = url; apiToken = data.token; currentUser = data;
         localStorage.setItem('serverUrl', url);
@@ -5524,7 +5539,7 @@ async function doLogin() {
         if (autoSyncEnabled && syncEnabled) queueAutoSync(true);
         startSupabaseAutoSync();
         showStatus('登录成功', 'success');
-    } catch (e) { showLoginError('连接失败: ' + e.message); }
+    } catch (e) { handleAuthError(e); }
 }
 
 async function doRegister() {
@@ -5533,10 +5548,16 @@ async function doRegister() {
     const password = document.getElementById('login-password').value;
     if (!url || !phone || !password) { showLoginError('请填写完整信息'); return; }
     try {
-        const data = await fetch(url + '/api/register', {
+        const resp = await fetch(url + '/api/register', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone, password })
-        }).then(r => r.json());
+        });
+        if (!resp.ok) {
+            const data = await resp.json().catch(() => ({}));
+            showLoginError(data.error || '服务器错误 (' + resp.status + ')');
+            return;
+        }
+        const data = await resp.json();
         if (data.error) { showLoginError(data.error); return; }
         serverUrl = url; apiToken = data.token; currentUser = data;
         localStorage.setItem('serverUrl', url);
@@ -5550,7 +5571,7 @@ async function doRegister() {
         if (autoSyncEnabled && syncEnabled) queueAutoSync(true);
         startSupabaseAutoSync();
         showStatus('注册成功', 'success');
-    } catch (e) { showLoginError('连接失败: ' + e.message); }
+    } catch (e) { handleAuthError(e); }
 }
 
 function showLoginError(msg) {
