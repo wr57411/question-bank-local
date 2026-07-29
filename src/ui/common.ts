@@ -10,7 +10,7 @@ export function showStatus(msg: string, type: 'success' | 'error' | 'info'): voi
 }
 
 export function escapeHtml(s: string | null | undefined): string {
-  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 export function openModal(id: string): void {

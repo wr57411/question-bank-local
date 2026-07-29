@@ -1,4 +1,5 @@
 import { escapeHtml } from './common';
+import DOMPurify from 'dompurify';
 
 declare const marked: { parse: (text: string) => string };
 declare function renderMathInElement(el: HTMLElement, options: Record<string, unknown>): void;
@@ -24,7 +25,10 @@ export function renderMarkdown(mdText: string, containerEl: HTMLElement, options
       return buildDrawHTML(id, desc.trim(), drawings, readOnly);
     });
 
-    containerEl.innerHTML = html;
+    containerEl.innerHTML = DOMPurify.sanitize(html, {
+      ADD_TAGS: ['math', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac'],
+      ADD_ATTR: ['xmlns', 'display', 'class']
+    });
 
     if (typeof renderMathInElement === 'function') {
       renderMathInElement(containerEl, {
