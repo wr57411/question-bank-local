@@ -221,7 +221,7 @@ export async function callCloudAIStream(prompt: string, onChunk?: (delta: string
                 const data = JSON.parse(dataStr);
                 const delta = data.choices?.[0]?.delta?.content || data.choices?.[0]?.text || '';
                 if (delta) { fullText += delta; onChunk?.(delta, fullText); }
-              } catch { /* skip */ }
+              } catch (e) { console.warn('SSE JSON 解析失败:', e); }
             }
           }
         }
@@ -239,7 +239,7 @@ export async function callCloudAIStream(prompt: string, onChunk?: (delta: string
           const data = JSON.parse(dataStr);
           const delta = data.choices?.[0]?.delta?.content || data.choices?.[0]?.text || '';
           if (delta) { fullText += delta; onChunk?.(delta, fullText); }
-        } catch { /* skip */ }
+        } catch (e) { console.warn('SSE JSON 解析失败:', e); }
       }
     }
     return fullText;

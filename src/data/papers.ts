@@ -15,12 +15,13 @@ export async function dbGetAllPapers(): Promise<Paper[]> {
     };
     if (!paper.deleted_at) papers.push(paper);
   });
+  const countMap = new Map<string, number>();
+  await dbPaperQuestions.iterate((pq: unknown) => {
+    const pid = (pq as PaperQuestion).paper_id;
+    if (pid) countMap.set(pid, (countMap.get(pid) || 0) + 1);
+  });
   for (const paper of papers) {
-    let count = 0;
-    await dbPaperQuestions.iterate((pq: unknown) => {
-      if ((pq as PaperQuestion).paper_id === paper.id) count++;
-    });
-    (paper as unknown as Record<string, unknown>).question_count = count;
+    (paper as Paper & { question_count?: number }).question_count = countMap.get(paper.id) || 0;
   }
   return papers.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }

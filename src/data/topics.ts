@@ -16,10 +16,13 @@ export async function dbGetAllTopics(): Promise<Topic[]> {
     };
     if (!topic.deleted_at) topics.push(topic);
   });
+  const countMap = new Map<string, number>();
+  await dbTopicQuestions.iterate((tq: unknown) => {
+    const tid = (tq as TopicQuestion).topic_id;
+    if (tid) countMap.set(tid, (countMap.get(tid) || 0) + 1);
+  });
   for (const t of topics) {
-    let count = 0;
-    await dbTopicQuestions.iterate((tq: unknown) => { if ((tq as TopicQuestion).topic_id === t.id) count++; });
-    t.question_count = count;
+    t.question_count = countMap.get(t.id) || 0;
   }
   return topics.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }

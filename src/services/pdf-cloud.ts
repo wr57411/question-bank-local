@@ -38,7 +38,7 @@ export async function uploadPdfToServer(file: File, filename: string, categoryId
   try {
     const cachePath = await downloadPdfToLocal(doc.id);
     doc.local_cache_path = cachePath;
-  } catch { /* non-fatal */ }
+  } catch (e) { console.warn('PDF 缓存下载失败:', e); }
 
   return doc;
 }

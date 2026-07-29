@@ -46,7 +46,8 @@ export async function generatePDF(questions: Question[], options: PDFOptions = {
 
         doc.addImage(imgUrl, 'JPEG', margin, y, imgWidth, imgHeight);
         y += imgHeight + spacing;
-      } catch {
+      } catch (e) {
+        console.warn('PDF 生成中图片添加失败:', e);
         continue;
       }
     }

@@ -18,7 +18,8 @@ export async function checkForUpdate(serverUrl: string): Promise<AppUpdateInfo |
     const data = await response.json() as AppUpdateInfo;
     if (data.version_code > APP_VERSION_CODE) return data;
     return null;
-  } catch {
+  } catch (e) {
+    console.warn('版本检查失败:', e);
     return null;
   }
 }
