@@ -34,6 +34,7 @@ function normalizeQuestionRecord(question: Record<string, unknown>, key: string)
   if (!next.book_name) next.book_name = '';
   if (!next.page_number) next.page_number = '';
   if (!next.question_number) next.question_number = '';
+  if (typeof next.id !== 'string' || typeof next.created_at !== 'string') return null;
   return next as unknown as Question;
 }
 

@@ -14,6 +14,37 @@ function assignIfMissing(exports: Record<string, unknown>): void {
   }
 }
 
+declare const __TEST_PHONE__: string;
+declare const __TEST_PASSWORD__: string;
+
+function setupAutoLogin(): void {
+  if (!import.meta.env.DEV) return;
+  const phone = __TEST_PHONE__;
+  const password = __TEST_PASSWORD__;
+  if (!phone || !password) return;
+
+  document.addEventListener('DOMContentLoaded', () => {
+    function attemptLogin(retries: number): void {
+      if (localStorage.getItem('apiToken')) return;
+      const serverInput = document.getElementById('server-url') as HTMLInputElement | null;
+      const phoneInput = document.getElementById('login-phone') as HTMLInputElement | null;
+      const passInput = document.getElementById('login-password') as HTMLInputElement | null;
+      const doLoginFn = w['doLogin'] as (() => Promise<void>) | undefined;
+      if (!doLoginFn || !serverInput || !phoneInput || !passInput) {
+        if (retries > 0) setTimeout(() => attemptLogin(retries - 1), 200);
+        return;
+      }
+      serverInput.value = window.location.origin;
+      phoneInput.value = phone;
+      passInput.value = password;
+      doLoginFn();
+    }
+    attemptLogin(10);
+  });
+}
+
+setupAutoLogin();
+
 assignIfMissing({
   // data layer
   dbGetAllQuestions: data.dbGetAllQuestions,

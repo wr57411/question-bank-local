@@ -19,6 +19,7 @@ function normalizeTagRecord(tag: Record<string, unknown>, key: string): Tag | nu
   if (next.updatedAt && !next.updated_at) next.updated_at = next.updatedAt;
   if (next.deletedAt && !next.deleted_at) next.deleted_at = next.deletedAt;
   if (!next.color) next.color = '#3B82F6';
+  if (typeof next.id !== 'string' || typeof next.name !== 'string') return null;
   return next as unknown as Tag;
 }
 
