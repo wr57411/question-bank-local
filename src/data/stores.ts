@@ -20,6 +20,10 @@ export const dbPdfTopics = localforage.createInstance({ name: 'questionBank', st
 export const dbPdfDocs = localforage.createInstance({ name: 'questionBank', storeName: 'pdf_docs' });
 export const dbPdfDocTags = localforage.createInstance({ name: 'questionBank', storeName: 'pdf_doc_tags' });
 export const dbPdfCategories = localforage.createInstance({ name: 'questionBank', storeName: 'pdf_categories' });
+export const dbWikiPages = localforage.createInstance({ name: 'questionBank', storeName: 'wiki_pages' });
+export const dbWikiLinks = localforage.createInstance({ name: 'questionBank', storeName: 'wiki_links' });
+export const dbCompileJobs = localforage.createInstance({ name: 'questionBank', storeName: 'compile_jobs' });
+export const dbWikiLog = localforage.createInstance({ name: 'questionBank', storeName: 'wiki_log' });
 
 export function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {

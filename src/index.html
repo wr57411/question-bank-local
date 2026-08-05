@@ -23,24 +23,24 @@
                 <h1 id="header-title">📚 本地题库</h1>
                 <p id="user-status">数据存储在本地，无需联网</p>
             </div>
-            <button id="login-btn" onclick="showLoginModal()" style="padding:8px 16px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:var(--radius-xl);font-size:13px;backdrop-filter:blur(4px);box-shadow:none;font-weight:500">👤 登录</button>
+            <button id="login-btn" onclick="showLoginModal()" class="header-login-btn">👤 登录</button>
         </div>
     </header>
-    <div id="sync-bar" style="display:flex;align-items:center;justify-content:space-between;padding:6px 16px;margin:0 -12px var(--space-sm);background:var(--surface);border-bottom:1px solid var(--border-light);font-size:12px;color:var(--text-secondary)">
+    <div id="sync-bar" class="sync-bar">
         <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
             <span id="sync-bar-server">⚪ 未登录</span>
             <span style="color:var(--border)">|</span>
             <span id="sync-bar-state">同步: --</span>
             <span id="sync-bar-time" style="color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
         </div>
-        <button id="sync-bar-btn" onclick="handleSyncBarClick()" style="padding:4px 10px;font-size:11px;flex-shrink:0" disabled>🔄 同步</button>
+        <button id="sync-bar-btn" onclick="handleSyncBarClick()" class="btn-mini" disabled>🔄 同步</button>
     </div>
     <div class="toolbar">
         <button class="success" onclick="exportAllData()">📤 导出</button>
-        <button style="background:var(--warning);box-shadow:0 4px 0 #B07A08" onclick="showBackupModal()">☁️ 备份</button>
+        <button class="btn-warn" onclick="showBackupModal()">☁️ 备份</button>
         <button class="secondary" onclick="document.getElementById('import-file').click()">📥 导入</button>
         <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
-        <button id="floating-toggle-btn" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0" onclick="console.log('[Floating] Button clicked!');toggleFloatingWindow()">📋 悬浮窗</button>
+        <button id="floating-toggle-btn" class="btn-grape" onclick="console.log('[Floating] Button clicked!');toggleFloatingWindow()">📋 悬浮窗</button>
     </div>
     <div class="tabs">
         <button class="tab active" onclick="showTab('questions',this)">题目管理</button>
@@ -48,16 +48,17 @@
         <button class="tab" onclick="showTab('papers',this)">试卷管理</button>
         <button class="tab" onclick="showTab('topics',this);loadTopics();renderTopicQuestionPicker()">📚 专题</button>
         <button class="tab" onclick="showTab('trash',this);loadTrashed()">🗑️ 垃圾篓</button>
-        <button class="tab" onclick="showTab('pending-link',this);renderPendingLinkList()">🔗 待关联<span id="pending-link-count" class="badge" style="display:none;margin-left:4px;background:#f59e0b;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
-        <button class="tab" onclick="showPendingBlankList()" id="pending-blank-tab">📷 待补拍<span id="pending-blank-count" class="badge" style="display:none;margin-left:4px;background:#ef4444;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
-        <button class="tab" onclick="showPendingPhotosTab()" id="pending-photos-tab">📸 待处理<span id="pending-photos-count" class="badge" style="display:none;margin-left:4px;background:#8B5CF6;color:#fff;border-radius:10px;padding:2px 6px;font-size:11px">0</span></button>
+        <button class="tab" onclick="showTab('pending-link',this);renderPendingLinkList()">🔗 待关联<span id="pending-link-count" class="badge tab-badge badge-warn" style="display:none">0</span></button>
+        <button class="tab" onclick="showPendingBlankList()" id="pending-blank-tab">📷 待补拍<span id="pending-blank-count" class="badge tab-badge badge-danger" style="display:none">0</span></button>
+        <button class="tab" onclick="showPendingPhotosTab()" id="pending-photos-tab">📸 待处理<span id="pending-photos-count" class="badge tab-badge badge-grape" style="display:none">0</span></button>
         <button class="tab" onclick="showTab('teaching',this);loadTeachingView()">🎓 AI教学</button>
         <button class="tab" onclick="showTab('pdf-library',this);renderPdfLibrary()">📚 书库</button>
+        <button class="tab" onclick="showWikiTabMvp(this)">📖 Wiki</button>
     </div>
 
     <!-- 题目管理 -->
     <div id="questions-tab">
-        <div class="card" style="border:1px solid var(--accent);background:var(--accent-light)">
+        <div class="card" class="ai-card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
                 <h3 style="margin:0;color:var(--accent);font-size:16px;font-weight:700">🤖 AI 引擎管理</h3>
                 <span id="ai-status-label" class="ai-badge" style="background:var(--danger)">未就绪</span>
@@ -71,12 +72,12 @@
                     <span id="ai-progress-percent">0%</span>
                 </div>
                 <div style="width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
-                    <div id="ai-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--accent),#6366f1);transition:width .3s;border-radius:3px"></div>
+                    <div id="ai-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-dark));transition:width .3s;border-radius:3px"></div>
                 </div>
             </div>
 
             <div class="btn-group">
-                <button id="ai-load-btn" onclick="handleLoadModel()" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0;font-size:13px">🧠 加载模型</button>
+                <button id="ai-load-btn" onclick="handleLoadModel()" class="btn-grape" style="font-size:13px">🧠 加载模型</button>
                 <button id="ai-batch-btn" onclick="handleBatchAnalyze()" class="secondary" style="font-size:13px;display:none">📊 批量分析</button>
             </div>
 
@@ -88,7 +89,7 @@
                     <div id="provider-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
                         <!-- 动态填充 -->
                     </div>
-                    <button onclick="showAddProviderModal()" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0;color:#fff;border:none;border-radius:var(--radius-sm);padding:8px 14px;font-size:12px;cursor:pointer;font-weight:600">➕ 添加服务商</button>
+                    <button onclick="showAddProviderModal()" class="btn-grape" style="padding:8px 14px;font-size:12px">➕ 添加服务商</button>
                     <span id="current-provider-name" style="font-size:11px;color:var(--text-tertiary);margin-left:8px"></span>
                 </div>
             </details>
@@ -106,25 +107,25 @@
                     <label>Base URL</label>
                     <div style="display:flex;gap:6px">
                         <input id="provider-base-url" type="text" placeholder="https://api.openrouter.ai/v1" style="flex:1" />
-                        <button onclick="pasteTo('provider-base-url')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋</button>
+                        <button onclick="pasteTo('provider-base-url')" class="btn-paste">📋</button>
                     </div>
                 </div>
                 <div class="form-group">
                     <label>API Key</label>
                     <div style="display:flex;gap:6px">
                         <input id="provider-api-key" type="password" placeholder="sk-..." style="flex:1" />
-                        <button onclick="pasteTo('provider-api-key')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋</button>
+                        <button onclick="pasteTo('provider-api-key')" class="btn-paste">📋</button>
                     </div>
                 </div>
                 <div class="form-group">
                     <label>模型名称</label>
                     <div style="display:flex;gap:6px">
                         <input id="provider-model" type="text" placeholder="google/gemma-7b-it" style="flex:1" />
-                        <button onclick="pasteTo('provider-model')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋</button>
+                        <button onclick="pasteTo('provider-model')" class="btn-paste">📋</button>
                     </div>
                 </div>
                 <details style="margin-top:4px">
-                    <summary style="font-size:12px;color:#9ca3af;cursor:pointer">高级设置</summary>
+                    <summary style="font-size:12px;color:var(--text-tertiary);cursor:pointer">高级设置</summary>
                     <div style="margin-top:8px">
                         <div class="form-group">
                             <label>认证头名称</label>
@@ -132,7 +133,7 @@
                         </div>
                         <div class="form-group">
                             <label>认证方案</label>
-                            <select id="provider-auth-scheme" style="font-size:13px;padding:8px;border:1px solid #d1d5db;border-radius:6px;width:100%;background:#fff">
+                            <select id="provider-auth-scheme" style="font-size:13px;padding:8px;border:1px solid var(--border);border-radius:6px;width:100%;background:var(--surface)">
                                 <option value="Bearer">Bearer（默认）</option>
                                 <option value="X-API-Key">X-API-Key</option>
                                 <option value="">无前缀（直接用 Key 值）</option>
@@ -142,7 +143,7 @@
                             <label>自定义端点（覆盖默认路径）</label>
                             <div style="display:flex;gap:6px">
                                 <input id="provider-endpoint" type="text" placeholder="留空则自动拼接 baseUrl + /chat/completions" style="flex:1" />
-                                <button onclick="pasteTo('provider-endpoint')" style="font-size:11px;padding:4px 8px;background:#e5e7eb;border:none;border-radius:4px;cursor:pointer">📋</button>
+                                <button onclick="pasteTo('provider-endpoint')" class="btn-paste">📋</button>
                             </div>
                         </div>
                     </div>
@@ -162,9 +163,9 @@
                 <div class="form-group">
                     <label>添加方式</label>
                     <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
-                        <button type="button" id="mode-photo-btn" onclick="switchAddMode('photo')" style="flex:1;padding:10px;font-size:13px;background:var(--primary);box-shadow:0 3px 0 var(--primary-dark)">📸 拍照添加</button>
-                        <button type="button" id="mode-text-btn" onclick="switchAddMode('text')" style="flex:1;padding:10px;font-size:13px;background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">✏️ 纯文字记录</button>
-                        <button type="button" id="mode-batch-btn" onclick="switchAddMode('batch')" style="flex:1;padding:10px;font-size:13px;background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">📋 批量录入</button>
+                        <button type="button" id="mode-photo-btn" onclick="switchAddMode('photo')" style="flex:1;padding:10px;font-size:13px">📸 拍照添加</button>
+                        <button type="button" id="mode-text-btn" onclick="switchAddMode('text')" class="btn-ghost" style="flex:1;padding:10px;font-size:13px">✏️ 纯文字记录</button>
+                        <button type="button" id="mode-batch-btn" onclick="switchAddMode('batch')" class="btn-ghost" style="flex:1;padding:10px;font-size:13px">📋 批量录入</button>
                     </div>
                 </div>
                 <div id="book-info-section" class="form-group">
@@ -184,7 +185,7 @@
                     <div class="form-group">
                         <label>📋 题目列表（页码 + 题号）</label>
                         <div id="batch-rows"></div>
-                        <button type="button" onclick="addBatchRow()" style="margin-top:8px;padding:8px 16px;font-size:13px;background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 2px 0 var(--border)">➕ 添加一行</button>
+                        <button type="button" onclick="addBatchRow()" class="btn-ghost" style="margin-top:8px;padding:8px 16px;font-size:13px">➕ 添加一行</button>
                     </div>
                 </div>
                 <div id="photo-section">
@@ -197,7 +198,7 @@
                     <div id="question-gallery-thumb-strip" style="display:none;margin-bottom:12px">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
                             <span style="font-size:12px;color:var(--text-secondary);font-weight:500">📷 题目相册</span>
-                            <button type="button" onclick="loadGalleryThumbnails('question')" style="padding:2px 8px;font-size:11px;background:var(--surface-dim);color:var(--text-secondary);border:none;border-radius:var(--radius-sm);cursor:pointer">🔄 刷新</button>
+                            <button type="button" onclick="loadGalleryThumbnails('question')" class="btn-paste">🔄 刷新</button>
                         </div>
                         <div id="question-gallery-thumb-container" style="display:flex;gap:8px;overflow-x:auto;padding:4px 0;scrollbar-width:none;-webkit-overflow-scrolling:touch"></div>
                     </div>
@@ -205,16 +206,16 @@
                         <label id="question-image-label">题目图片（笔记）*</label>
                         <div class="upload-buttons">
                             <button type="button" class="upload-btn camera" onclick="takePhoto('question')">📷 拍照</button>
-                            <button type="button" class="upload-btn" onclick="pickFromGallery('question')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
-                            <button type="button" class="upload-btn" style="background:var(--accent);box-shadow:0 3px 0 #5A3DC0" onclick="crossPageShoot('question')">📸 跨页</button>
-                            <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('question')">📋 悬浮窗</button>
+                            <button type="button" class="upload-btn" onclick="pickFromGallery('question')" class="btn-ghost">🖼️ 相册</button>
+                            <button type="button" class="upload-btn" class="btn-grape" onclick="crossPageShoot('question')">📸 跨页</button>
+                            <button type="button" class="upload-btn" class="btn-sky" onclick="pickFromFloating('question')">📋 悬浮窗</button>
                         </div>
                         <div class="preview-wrap" id="question-preview-wrap" style="display:none">
                             <span class="preview-delete" onclick="removeImage('question')">×</span>
                             <img id="question-preview" class="preview-image" />
                         </div>
                         <div id="question-preview-label" class="preview-label hidden">✓ 题目图片已选择 <span class="crop-icon" onclick="startCrop('question')" title="裁剪图片">✂️</span></div>
-                        <button type="button" onclick="addExtraNoteVersion()" style="margin-top:8px;padding:6px 14px;font-size:12px;background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 2px 0 var(--border)">+ 添加另一版本</button>
+                        <button type="button" onclick="addExtraNoteVersion()" class="btn-ghost" style="margin-top:8px;padding:6px 14px;font-size:12px">+ 添加另一版本</button>
                         <div id="extra-note-versions"></div>
                     </div>
                     <div class="form-group">
@@ -222,16 +223,16 @@
                         <div id="answer-gallery-thumb-strip" style="display:none;margin-bottom:12px">
                             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
                                 <span style="font-size:12px;color:var(--text-secondary);font-weight:500">📷 答案相册</span>
-                                <button type="button" onclick="loadGalleryThumbnails('answer')" style="padding:2px 8px;font-size:11px;background:var(--surface-dim);color:var(--text-secondary);border:none;border-radius:var(--radius-sm);cursor:pointer">🔄 刷新</button>
+                                <button type="button" onclick="loadGalleryThumbnails('answer')" class="btn-paste">🔄 刷新</button>
                             </div>
                             <div id="answer-gallery-thumb-container" style="display:flex;gap:8px;overflow-x:auto;padding:4px 0;scrollbar-width:none;-webkit-overflow-scrolling:touch"></div>
                         </div>
                         <div class="upload-buttons">
                             <button type="button" class="upload-btn camera" onclick="takePhoto('answer')">📷 拍照</button>
-                            <button type="button" class="upload-btn" onclick="pickFromGallery('answer')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
-                            <button type="button" class="upload-btn" style="background:var(--accent);box-shadow:0 3px 0 #5A3DC0" onclick="crossPageShoot('answer')">📸 跨页</button>
-                            <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('answer')">📋 悬浮窗</button>
-                            <button type="button" id="copy-q-to-a-btn" class="upload-btn" onclick="copyQuestionToAnswer()" style="background:#10b981;box-shadow:0 3px 0 #059669;display:none">📋 复制题目</button>
+                            <button type="button" class="upload-btn" onclick="pickFromGallery('answer')" class="btn-ghost">🖼️ 相册</button>
+                            <button type="button" class="upload-btn" class="btn-grape" onclick="crossPageShoot('answer')">📸 跨页</button>
+                            <button type="button" class="upload-btn" class="btn-sky" onclick="pickFromFloating('answer')">📋 悬浮窗</button>
+                            <button type="button" id="copy-q-to-a-btn" class="upload-btn" onclick="copyQuestionToAnswer()" class="btn-mint" style="display:none">📋 复制题目</button>
                         </div>
                         <div class="preview-wrap" id="answer-preview-wrap" style="display:none">
                             <span class="preview-delete" onclick="removeImage('answer')">×</span>
@@ -242,13 +243,13 @@
                     <div class="form-group">
                         <label>空白版图片（可选，学生用）</label>
                         <div class="upload-buttons">
-                            <button type="button" class="upload-btn" style="background:var(--warning);box-shadow:0 3px 0 #B07A08" onclick="takePhoto('blank')">📷 拍空白版</button>
-                            <button type="button" class="upload-btn" onclick="pickFromGallery('blank')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
-                            <button type="button" class="upload-btn" style="background:#0EA5E9;box-shadow:0 3px 0 #0284C7" onclick="pickFromFloating('blank')">📋 悬浮窗</button>
+                            <button type="button" class="upload-btn" class="btn-warn" onclick="takePhoto('blank')">📷 拍空白版</button>
+                            <button type="button" class="upload-btn" onclick="pickFromGallery('blank')" class="btn-ghost">🖼️ 相册</button>
+                            <button type="button" class="upload-btn" class="btn-sky" onclick="pickFromFloating('blank')">📋 悬浮窗</button>
                         </div>
                         <div class="preview-wrap" id="blank-preview-wrap" style="display:none">
                             <span class="preview-delete" onclick="removeImage('blank')">×</span>
-                            <img id="blank-preview" class="preview-image" style="border-color:#f59e0b" />
+                            <img id="blank-preview" class="preview-image" style="border-color:var(--warning)" />
                         </div>
                         <div id="blank-preview-label" class="preview-label hidden" style="color:var(--warning)">✓ 空白版图片已选择 <span class="crop-icon" onclick="startCrop('blank')" title="裁剪图片">✂️</span></div>
                     </div>
@@ -256,32 +257,32 @@
                 <div class="form-group">
                     <label>排版适用性 *</label>
                     <div style="display:flex;gap:12px;margin-top:6px">
-                        <label class="layout-option" onclick="selectLayout(this,0)"><input type="radio" name="layout_type" value="0" required style="accent-color:#3B82F6"><span>📐 仅适合单栏</span></label>
-                        <label class="layout-option" onclick="selectLayout(this,1)"><input type="radio" name="layout_type" value="1" style="accent-color:#3B82F6"><span>📏 单双栏均可</span></label>
+                        <label class="layout-option" onclick="selectLayout(this,0)"><input type="radio" name="layout_type" value="0" required style="accent-color:var(--sky)"><span>📐 仅适合单栏</span></label>
+                        <label class="layout-option" onclick="selectLayout(this,1)"><input type="radio" name="layout_type" value="1" style="accent-color:var(--sky)"><span>📏 单双栏均可</span></label>
                     </div>
                 </div>
                 <div class="form-group">
                     <label>适用版本</label>
                     <div id="version-checkboxes" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px"></div>
-                    <small style="color:#888;font-size:12px">不勾选则所有版本均可见（标记为未分配）</small>
+                    <small style="color:var(--text-secondary);font-size:12px">不勾选则所有版本均可见（标记为未分配）</small>
                 </div>
                 <div class="form-group">
-                    <label>选择标签 <span style="cursor:pointer;color:#3b82f6" onclick="showNewTagModal('form')" title="新建标签">＋</span></label>
+                    <label>选择标签 <span style="cursor:pointer;color:var(--sky-dark)" onclick="showNewTagModal('form')" title="新建标签">＋</span></label>
                     <div id="form-tag-section" style="border:1.5px solid var(--border);border-radius:var(--radius-md);padding:8px;background:var(--surface)">
                         <div style="display:flex;gap:6px;margin-bottom:6px">
                             <input id="form-tag-search" type="text" placeholder="🔍 搜索标签..." oninput="onFormTagSearch()" onkeydown="onFormTagKeydown(event)" onfocus="_startFormTagPoll()" onblur="_stopFormTagPoll()" style="flex:1;padding:6px 8px;font-size:13px;border:1px solid var(--border-light);border-radius:var(--radius-sm)" />
-                            <button type="button" id="form-tag-create-btn" onclick="createTagFromSearch()" style="padding:6px 10px;font-size:12px;border:1px solid var(--accent);background:var(--accent-light);color:var(--accent);border-radius:var(--radius-sm);cursor:pointer;white-space:nowrap;font-weight:600">＋ 创建</button>
+                            <button type="button" id="form-tag-create-btn" onclick="createTagFromSearch()" class="btn-grape-soft">＋ 创建</button>
                         </div>
                         <div id="form-tag-results" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;max-height:100px;overflow-y:auto"></div>
                         <div id="form-tag-selected" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px"></div>
                     </div>
-                    <small style="color:#888;font-size:12px">搜索并点击标签添加，已选标签显示在下方</small>
+                    <small style="color:var(--text-secondary);font-size:12px">搜索并点击标签添加，已选标签显示在下方</small>
                 </div>
                 <div class="form-group">
                     <label>📝 评价生成标签（可选）</label>
                     <div style="display:flex;gap:6px">
-                        <input id="form-comment" type="text" placeholder="输入评价（如：典型勾股定理题）" style="flex:1;padding:8px 10px;font-size:13px;border:1px solid #FCD34D;border-radius:var(--radius-sm)" />
-                        <button type="button" onclick="generateFormTagsFromComment()" style="background:var(--warning);color:#fff;border:none;border-radius:var(--radius-sm);padding:6px 12px;font-size:12px;cursor:pointer;box-shadow:0 2px 0 #B07A08;font-weight:600;white-space:nowrap">🤖 AI 生成</button>
+                        <input id="form-comment" type="text" placeholder="输入评价（如：典型勾股定理题）" style="flex:1;padding:8px 10px;font-size:13px;border:1px solid var(--sun);border-radius:var(--radius-sm)" />
+                        <button type="button" onclick="generateFormTagsFromComment()" class="btn-warn" style="padding:6px 12px;font-size:12px;white-space:nowrap">🤖 AI 生成</button>
                     </div>
                     <div id="form-generated-tags" style="margin-top:6px;display:none">
                         <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
@@ -332,7 +333,7 @@
             <h2>添加标签</h2>
             <form id="tag-form">
                 <div class="form-group"><label>标签名称 *</label><input type="text" id="tag-name" required placeholder="例如：数学、第一章" /></div>
-                <div class="form-group"><label>标签颜色</label><input type="color" id="tag-color" value="#1B7A4E" /></div>
+                <div class="form-group"><label>标签颜色</label><input type="color" id="tag-color" value="#FF7847" /></div>
                 <button type="submit" style="width:100%;padding:14px;border-radius:var(--radius-lg)">➕ 添加标签</button>
             </form>
         </div>
@@ -341,7 +342,7 @@
 
     <!-- 试卷管理 -->
     <div id="papers-tab" class="hidden">
-        <div class="card" style="border:1px solid var(--accent);background:var(--accent-light)">
+        <div class="card" class="ai-card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
                 <h2 style="margin:0;color:var(--accent)">✨ AI 智能推荐组卷</h2>
                 <span class="ai-badge">Gemma 4</span>
@@ -350,16 +351,16 @@
                 <label style="color:var(--accent)">告诉 AI 你的组卷需求</label>
                 <textarea id="ai-paper-requirement" placeholder="例如：想要 3 道很难的几何题..." rows="3" style="resize:none;margin-top:4px"></textarea>
             </div>
-            <button style="width:100%;background:var(--accent);box-shadow:0 4px 0 #5A3DC0;padding:14px;font-size:15px" onclick="startAIPaperGeneration()">🚀 开始 AI 智能推荐</button>
+            <button class="btn-grape" style="width:100%;padding:14px;font-size:15px" onclick="startAIPaperGeneration()">🚀 开始 AI 智能推荐</button>
         </div>
 
         <div class="card">
             <h2>创建试卷</h2>
             <form id="paper-form">
                 <div class="form-group"><label>试卷名称 *</label><input type="text" id="paper-name" required placeholder="例如：2026年4月错题巩固" /></div>
-                <div class="form-group"><label>按标签选题 <span style="cursor:pointer;color:#3b82f6" onclick="showNewTagModal('paper')" title="新建标签">＋</span></label>
+                <div class="form-group"><label>按标签选题 <span style="cursor:pointer;color:var(--sky-dark)" onclick="showNewTagModal('paper')" title="新建标签">＋</span></label>
                     <select id="paper-tag-select" multiple style="height:90px"></select>
-                    <small style="color:#888;font-size:12px">选择标签后，将自动添加包含这些标签的题目</small>
+                    <small style="color:var(--text-secondary);font-size:12px">选择标签后，将自动添加包含这些标签的题目</small>
                 </div>
                 <button type="submit" style="width:100%;padding:14px;border-radius:var(--radius-lg)">📝 手动创建试卷</button>
             </form>
@@ -394,7 +395,7 @@
             <div id="ai-recommend-list" class="question-grid" style="grid-template-columns:repeat(2,1fr)"></div>
             <div class="btn-group" style="margin-top:var(--space-lg)">
                 <button class="secondary" onclick="closeAIRecommendModal()">重新调整要求</button>
-                <button id="ai-create-paper-btn" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0;padding:12px 20px">🚀 一键生成此试卷</button>
+                <button id="ai-create-paper-btn" class="btn-grape" style="padding:12px 20px">🚀 一键生成此试卷</button>
             </div>
         </div>
     </div>
@@ -428,7 +429,7 @@
 
     <!-- AI教学内容生产 -->
     <div id="teaching-tab" class="hidden">
-        <div class="card" style="border:1px solid var(--accent);background:var(--accent-light)">
+        <div class="card" class="ai-card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
                 <h2 style="margin:0;color:var(--accent);font-size:17px;font-weight:700">🎓 AI教学内容生产</h2>
             </div>
@@ -438,7 +439,7 @@
                 <label>章节名称</label>
                 <div style="display:flex;gap:6px">
                     <input id="teaching-chapter-input" type="text" placeholder="例如：必修一 第三章 相互作用" style="flex:1" onkeydown="if(event.key==='Enter')atomizeChapter()" />
-                    <button onclick="atomizeChapter()" id="atomize-btn" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0">🔍 拆解</button>
+                    <button onclick="atomizeChapter()" id="atomize-btn" class="btn-grape">🔍 拆解</button>
                 </div>
                 <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
                     <span style="font-size:11px;color:var(--text-tertiary)">拆解模式</span>
@@ -465,7 +466,7 @@
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
                 <h2 style="margin:0;font-size:17px;font-weight:700">生产队列</h2>
                 <div style="display:flex;gap:6px;flex-wrap:wrap">
-                    <button id="batch-start-btn" onclick="startSelectedGeneration()" style="background:var(--primary);font-size:13px">▶ 生成选中</button>
+                    <button id="batch-start-btn" onclick="startSelectedGeneration()" style="font-size:13px">▶ 生成选中</button>
                     <button onclick="startAllGeneration()" class="secondary" style="font-size:13px">▶ 全部生成</button>
                     <button id="batch-pause-btn" onclick="pauseBatchGeneration()" class="secondary" style="font-size:13px;display:none">⏸ 暂停</button>
                     <button onclick="selectAllPending()" class="secondary" style="font-size:13px">☑ 全选</button>
@@ -492,7 +493,7 @@
         <div class="card" id="teaching-project-entry" style="display:none">
             <div style="display:flex;justify-content:space-between;align-items:center">
                 <h2 style="margin:0;font-size:17px;font-weight:700">🖥️ 投屏模式</h2>
-                <button onclick="enterProjectionMode()" style="background:var(--primary);font-size:13px">🖥️ 进入投屏</button>
+                <button onclick="enterProjectionMode()" style="font-size:13px">🖥️ 进入投屏</button>
             </div>
             <p style="font-size:12px;color:var(--text-secondary);margin-top:8px">已校验的教学内容可在课堂投屏展示，支持滑动切换。建议横屏使用。</p>
         </div>
@@ -507,6 +508,10 @@
     </div>
 </div>
 
+<div id="wiki-tab" class="hidden">
+    <div id="wiki-content"></div>
+</div>
+
 <!-- PDF 操作弹窗 -->
 <div id="pdf-action-modal" class="modal" onclick="if(event.target===this)closePdfActionModal()">
     <div class="modal-content" style="max-width:600px;max-height:90dvh;overflow-y:auto" id="pdf-action-content"></div>
@@ -517,10 +522,10 @@
     <div class="modal-content" style="max-width:700px;max-height:90dvh;display:flex;flex-direction:column">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
             <span id="pdf-preview-progress" style="font-size:13px;color:var(--text-secondary)"></span>
-            <span style="cursor:pointer;font-size:24px;color:#999" onclick="closePdfPreview()">×</span>
+            <span style="cursor:pointer;font-size:24px;color:var(--text-tertiary)" onclick="closePdfPreview()">×</span>
         </div>
         <div id="pdf-preview-pages" style="flex:1;overflow-y:auto"></div>
-        <button onclick="doDownloadPdf(window._previewPdfId)" style="margin-top:8px;padding:12px;background:var(--warning);box-shadow:0 3px 0 #B07A08;width:100%">⬇️ 下载全文</button>
+        <button onclick="doDownloadPdf(window._previewPdfId)" class="btn-warn" style="margin-top:8px;padding:12px;width:100%">⬇️ 下载全文</button>
     </div>
 </div>
 
@@ -538,7 +543,7 @@
                 <h2 style="margin:0;font-size:16px;font-weight:700" id="verify-title">校验教学内容</h2>
                 <button id="verify-next-btn" onclick="verifyNext()" class="secondary" style="font-size:13px;padding:6px 12px">下一个 →</button>
             </div>
-            <span style="cursor:pointer;font-size:28px;color:#999" onclick="closeVerifyModal()">×</span>
+            <span style="cursor:pointer;font-size:28px;color:var(--text-tertiary)" onclick="closeVerifyModal()">×</span>
         </div>
         <div id="verify-content" class="teaching-content-render" style="flex:1;overflow-y:auto;outline:none"></div>
         <div id="verify-edit-toolbar" style="display:none;padding:8px 0;flex-shrink:0;border-top:2px solid var(--primary)">
@@ -566,7 +571,7 @@
     <div class="modal-content" style="max-width:600px;max-height:80dvh;display:flex;flex-direction:column">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
             <h2 style="margin:0;font-size:16px;font-weight:700">关联题库题目</h2>
-            <span style="cursor:pointer;font-size:24px;color:#999" onclick="closeNodeQuestionPicker()">×</span>
+            <span style="cursor:pointer;font-size:24px;color:var(--text-tertiary)" onclick="closeNodeQuestionPicker()">×</span>
         </div>
         <div style="margin-bottom:8px">
             <select id="nq-module-select" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-md);font-size:13px">
@@ -622,10 +627,10 @@
         </div>
         <div id="crop-container" style="flex:1 1 0;background:#000;min-height:0;position:relative;overflow:hidden"><img id="crop-image" style="display:block" /></div>
         <div style="display:flex;gap:8px;justify-content:center;padding:8px 12px 4px;flex-shrink:0">
-            <button onclick="rotateCrop(-5)" style="padding:10px 16px;font-size:14px;border-radius:var(--radius-xl);background:rgba(255,255,255,.15);color:#fff;box-shadow:none">↺ 5°</button>
-            <button onclick="rotateCrop(-1)" style="padding:10px 16px;font-size:14px;border-radius:var(--radius-xl);background:rgba(255,255,255,.15);color:#fff;box-shadow:none">← 1°</button>
-            <button onclick="rotateCrop(1)" style="padding:10px 16px;font-size:14px;border-radius:var(--radius-xl);background:rgba(255,255,255,.15);color:#fff;box-shadow:none">1° →</button>
-            <button onclick="rotateCrop(5)" style="padding:10px 16px;font-size:14px;border-radius:var(--radius-xl);background:rgba(255,255,255,.15);color:#fff;box-shadow:none">5° ↻</button>
+            <button onclick="rotateCrop(-5)" class="crop-rotate-btn">↺ 5°</button>
+            <button onclick="rotateCrop(-1)" class="crop-rotate-btn">← 1°</button>
+            <button onclick="rotateCrop(1)" class="crop-rotate-btn">1° →</button>
+            <button onclick="rotateCrop(5)" class="crop-rotate-btn">5° ↻</button>
         </div>
         <div style="display:flex;gap:10px;justify-content:center;padding:10px 12px max(12px,env(safe-area-inset-bottom));flex-shrink:0">
             <button onclick="confirmCrop()" style="flex:1;max-width:200px;padding:14px;font-size:15px;border-radius:var(--radius-md)">✅ 确认裁剪</button>
@@ -638,11 +643,11 @@
 <div id="question-modal" class="modal" onclick="if(event.target===this)closeModal()">
     <div class="modal-content" id="question-detail-content" style="max-width:600px;position:relative;padding-top:48px">
         <div style="position:absolute;top:12px;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:0 24px;z-index:10">
-            <span id="detail-nav-info" style="font-size:13px;color:#888"></span>
+            <span id="detail-nav-info" style="font-size:13px;color:var(--text-secondary)"></span>
             <div style="display:flex;gap:8px;align-items:center">
                 <button id="detail-pending-link-btn" onclick="togglePendingLinkInDetail()" style="width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.15);background:rgba(255,255,255,.9)">🔗</button>
                 <button id="detail-basket-btn" onclick="toggleBasketInDetail()" style="width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.15);background:rgba(255,255,255,.9)">🧺</button>
-                <span style="cursor:pointer;font-size:28px;color:#999" onclick="closeModal()">×</span>
+                <span style="cursor:pointer;font-size:28px;color:var(--text-tertiary)" onclick="closeModal()">×</span>
             </div>
         </div>
         <div id="modal-note-version-bar" style="display:flex;align-items:center;gap:8px;padding:8px 0;margin-bottom:8px;border-bottom:1px solid var(--border-light)">
@@ -661,15 +666,15 @@
         <div id="modal-similar-questions" style="margin-top:12px"></div>
         <!-- 用户评价生成标签 -->
         <div style="margin-top:12px;padding:12px;background:var(--warning-light);border-radius:var(--radius-md);border-left:3px solid var(--warning)">
-            <div style="font-size:12px;color:#92400e;font-weight:600;margin-bottom:8px">📝 基于评价生成标签</div>
+            <div style="font-size:12px;color:var(--warning-dark);font-weight:600;margin-bottom:8px">📝 基于评价生成标签</div>
             <div style="display:flex;gap:6px">
-                <input id="user-comment" type="text" placeholder="输入您对题目的评价（如：典型勾股定理题）" style="flex:1;font-size:12px;padding:8px 10px;border:1px solid #FCD34D;border-radius:var(--radius-sm)" />
-                <button onclick="generateTagsFromComment()" style="background:var(--warning);color:#fff;border:none;border-radius:var(--radius-sm);padding:6px 12px;font-size:12px;cursor:pointer;box-shadow:0 2px 0 #B07A08;font-weight:600">生成</button>
+                <input id="user-comment" type="text" placeholder="输入您对题目的评价（如：典型勾股定理题）" style="flex:1;font-size:12px;padding:8px 10px;border:1px solid var(--sun);border-radius:var(--radius-sm)" />
+                <button onclick="generateTagsFromComment()" class="btn-warn" style="padding:6px 12px;font-size:12px">生成</button>
             </div>
             <div id="generated-tags" style="margin-top:8px;display:none">
                 <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-                    <span style="font-size:11px;color:#92400e">生成的标签（点击添加，绿色=已添加）：</span>
-                    <button onclick="clearGeneratedTags()" style="font-size:10px;color:#92400e;background:none;border:1px solid #fcd34d;border-radius:4px;padding:2px 6px;cursor:pointer">清除</button>
+                    <span style="font-size:11px;color:var(--warning-dark)">生成的标签（点击添加，绿色=已添加）：</span>
+                    <button onclick="clearGeneratedTags()" style="font-size:10px;color:var(--warning-dark);background:none;border:1px solid var(--sun);border-radius:4px;padding:2px 6px;cursor:pointer">清除</button>
                 </div>
                 <div id="generated-tags-list" style="display:flex;flex-wrap:wrap;gap:4px"></div>
             </div>
@@ -681,16 +686,16 @@
             </div>
             <div id="modal-ai-text" style="font-size:13px;color:var(--text-secondary);line-height:1.6"></div>
         </div>
-        <div style="margin-top:16px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;align-items:center;justify-content:center;gap:8px">
-            <span style="font-size:12px;color:#6b7280">分析方式:</span>
-            <select id="analyze-mode" style="font-size:12px;padding:4px 8px;border:1px solid #d1d5db;border-radius:6px;background:#fff">
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;gap:8px">
+            <span style="font-size:12px;color:var(--text-secondary)">分析方式:</span>
+            <select id="analyze-mode" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface)">
                 <option value="cloud" selected>☁️ 云端 API</option>
                 <option value="local">🤖 本地模型</option>
             </select>
         </div>
         <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border-light);display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
             <button onclick="navigateDetail(-1)" id="btn-prev" style="padding:10px 18px;font-size:13px;border-radius:var(--radius-md)">← 上一题</button>
-            <button onclick="analyzeSingleQuestion()" style="padding:10px 18px;font-size:13px;background:var(--accent);box-shadow:0 4px 0 #5A3DC0;border-radius:var(--radius-md)">🧠 分析此题</button>
+            <button onclick="analyzeSingleQuestion()" class="btn-grape" style="padding:10px 18px;font-size:13px">🧠 分析此题</button>
             <button class="danger" onclick="deleteQuestion()" style="border-radius:var(--radius-md)">移至垃圾篓</button>
             <button onclick="navigateDetail(1)" id="btn-next" style="padding:10px 18px;font-size:13px;border-radius:var(--radius-md)">下一题 →</button>
         </div>
@@ -710,8 +715,8 @@
         </div>
         <div class="btn-group" style="margin-bottom:var(--space-md)">
             <button onclick="renderSimilarCandidates()">按标签筛选</button>
-            <button onclick="loadPendingLinkCandidates()" id="btn-pending-similar" style="background:var(--warning);box-shadow:0 4px 0 #B07A08">📌 待关联 (<span id="btn-pending-similar-count">0</span>)</button>
-            <button onclick="recommendSimilarWithAI()" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0">🤖 AI 推荐</button>
+            <button onclick="loadPendingLinkCandidates()" id="btn-pending-similar" class="btn-warn">📌 待关联 (<span id="btn-pending-similar-count">0</span>)</button>
+            <button onclick="recommendSimilarWithAI()" class="btn-grape">🤖 AI 推荐</button>
         </div>
         <div id="similar-ai-reason" class="ai-summary-wrap" style="display:none;border-left-color:var(--primary)"></div>
         <div id="similar-candidate-list"></div>
@@ -766,7 +771,7 @@
             <div style="display:flex;gap:8px;align-items:center">
                 <button onclick="previewExportPDF()" style="padding:12px 18px">👁️ 预览</button>
                 <button onclick="doExportPDF()" style="padding:12px 18px">📄 导出 PDF</button>
-                <button onclick="doExportImagesFromBasket()" style="background:var(--warning);box-shadow:0 4px 0 #B07A08;padding:12px 18px">📁 导出图片</button>
+                <button onclick="doExportImagesFromBasket()" class="btn-warn" style="padding:12px 18px">📁 导出图片</button>
                 <button id="export-img-mode-btn" onclick="toggleExportImgMode()" style="padding:6px 8px;font-size:11px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);border-radius:var(--radius-sm);cursor:pointer" title="切换导出模式"></button>
             </div>
         </div>
@@ -778,7 +783,7 @@
     <div class="modal-content" style="max-width:400px">
         <h3>✨ 新建标签</h3>
         <div class="form-group"><label>标签名称</label><input type="text" id="new-tag-name" placeholder="输入标签名称" onkeydown="if(event.key==='Enter'){event.preventDefault();submitNewTag()}" /></div>
-        <div class="form-group"><label>标签颜色</label><input type="color" id="new-tag-color" value="#1B7A4E" /></div>
+        <div class="form-group"><label>标签颜色</label><input type="color" id="new-tag-color" value="#FF7847" /></div>
         <div class="btn-group"><button class="secondary" onclick="closeNewTagModal()">取消</button><button onclick="submitNewTag()" style="padding:12px 20px">创建</button></div>
     </div>
 </div>
@@ -804,7 +809,7 @@
             <button class="secondary" onclick="closePaperModal()">关闭</button>
             <div style="display:flex;gap:8px">
                 <button onclick="exportPaperAsPDF()" style="padding:12px 18px">📄 导出 PDF</button>
-                <button onclick="exportPaperAsImages()" style="background:var(--warning);box-shadow:0 4px 0 #B07A08;padding:12px 18px">📁 导出图片</button>
+                <button onclick="exportPaperAsImages()" class="btn-warn" style="padding:12px 18px">📁 导出图片</button>
             </div>
         </div>
     </div>
@@ -835,7 +840,7 @@
             <label>题目图片 *</label>
             <div class="upload-buttons">
                 <button type="button" class="upload-btn camera" onclick="takePhotoForNoteVersion('question')">📷 拍照</button>
-                <button type="button" class="upload-btn" onclick="pickFromGalleryForNoteVersion('question')" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 3px 0 var(--border)">🖼️ 相册</button>
+                <button type="button" class="upload-btn" onclick="pickFromGalleryForNoteVersion('question')" class="btn-ghost">🖼️ 相册</button>
             </div>
             <div class="preview-wrap" id="note-version-preview-wrap" style="display:none">
                 <span class="preview-delete" onclick="removeNoteVersionImage()">×</span>
@@ -888,7 +893,7 @@
         </div>
         <div class="btn-group">
             <button class="secondary" onclick="closeExportImagesModal()">取消</button>
-            <button onclick="_doExportImagesModalConfirm()" style="background:var(--warning);box-shadow:0 4px 0 #B07A08;padding:12px 20px">确认导出</button>
+            <button onclick="_doExportImagesModalConfirm()" class="btn-warn" style="padding:12px 20px">确认导出</button>
         </div>
     </div>
 </div>
@@ -898,7 +903,7 @@
 <div id="pending-blank-modal" class="modal" onclick="if(event.target===this)closePendingBlankModal()">
     <div class="modal-content" style="max-width:500px">
         <h3>📷 待补拍空白题</h3>
-        <div style="font-size:13px;color:#888;margin-bottom:14px">以下题目缺少空白版，点击可补拍</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">以下题目缺少空白版，点击可补拍</div>
         <div id="pending-blank-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px">
             <!-- 动态填充 -->
         </div>
@@ -1020,13 +1025,13 @@
 <div id="update-modal" class="modal">
     <div class="modal-content" style="max-width:400px;text-align:center">
         <h3 style="margin-bottom:8px">🎉 发现新版本</h3>
-        <p id="update-version-name" style="font-size:18px;font-weight:600;color:#3b82f6;margin-bottom:12px"></p>
-        <div id="update-release-notes" style="text-align:left;background:#f8f9fa;padding:12px;border-radius:8px;margin-bottom:16px;font-size:14px;color:#555;max-height:200px;overflow-y:auto"></div>
+        <p id="update-version-name" style="font-size:18px;font-weight:600;color:var(--sky-dark);margin-bottom:12px"></p>
+        <div id="update-release-notes" style="text-align:left;background:var(--surface-dim);padding:12px;border-radius:8px;margin-bottom:16px;font-size:14px;color:var(--text-secondary);max-height:200px;overflow-y:auto"></div>
         <div id="update-progress" style="display:none;margin-bottom:12px">
-            <div style="background:#e5e7eb;border-radius:8px;height:8px;overflow:hidden">
-                <div id="update-progress-bar" style="background:#3b82f6;height:100%;width:0%;transition:width .3s;border-radius:8px"></div>
+            <div style="background:var(--surface-dim);border-radius:8px;height:8px;overflow:hidden">
+                <div id="update-progress-bar" style="background:var(--sky);height:100%;width:0%;transition:width .3s;border-radius:8px"></div>
             </div>
-            <p id="update-progress-text" style="font-size:12px;color:#888;margin-top:4px">下载中...</p>
+            <p id="update-progress-text" style="font-size:12px;color:var(--text-secondary);margin-top:4px">下载中...</p>
         </div>
         <div class="btn-group" style="justify-content:center">
             <button id="update-btn" onclick="downloadAndInstall()" style="flex:1">下载更新</button>
@@ -1045,20 +1050,20 @@
                 <input type="checkbox" id="auto-backup-toggle" style="width:auto" onchange="toggleAutoBackup(this.checked)">
                 <span style="font-size:14px">每次修改数据后自动备份到设备</span>
             </div>
-            <small style="color:#888;font-size:12px">iOS 同步到 iCloud，Android 可自定义备份位置</small>
+            <small style="color:var(--text-secondary);font-size:12px">iOS 同步到 iCloud，Android 可自定义备份位置</small>
         </div>
-        <div id="backup-path-info" style="font-size:13px;color:#888;margin-bottom:10px">
+        <div id="backup-path-info" style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">
             文件将保存在 <b>Download/question-bank-backup.json</b>
         </div>
         <div class="form-group">
             <button onclick="saveBackupToDevice()" style="width:100%">💾 保存备份到设备</button>
         </div>
-        <div id="backup-status" style="font-size:13px;color:#888;margin:8px 0"></div>
+        <div id="backup-status" style="font-size:13px;color:var(--text-secondary);margin:8px 0"></div>
 
         <!-- 百度网盘 -->
-        <div style="border-top:1px solid #e5e7eb;padding-top:14px;margin-top:14px">
+        <div style="border-top:1px solid var(--border-light);padding-top:14px;margin-top:14px">
             <label style="font-weight:600;font-size:14px;margin-bottom:10px;display:block">百度网盘</label>
-            <div id="baidu-status" style="font-size:13px;color:#888;margin-bottom:10px"></div>
+            <div id="baidu-status" style="font-size:13px;color:var(--text-secondary);margin-bottom:10px"></div>
             <div id="baidu-bind-area"></div>
             <div id="baidu-actions" class="hidden">
                 <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
@@ -1066,46 +1071,46 @@
                     <span style="font-size:14px">数据变更时自动上传到百度网盘</span>
                 </div>
                 <div style="display:flex;gap:8px;margin-top:8px">
-                    <button onclick="uploadToBaidu()" style="flex:1;background:#2563eb;font-size:13px;padding:10px">☁️ 上传备份</button>
-                    <button onclick="downloadFromBaidu()" style="flex:1;background:#f59e0b;font-size:13px;padding:10px">📥 下载备份</button>
+                    <button onclick="uploadToBaidu()" style="flex:1;background:var(--sky);font-size:13px;padding:10px">☁️ 上传备份</button>
+                    <button onclick="downloadFromBaidu()" style="flex:1;background:var(--warning);font-size:13px;padding:10px">📥 下载备份</button>
                 </div>
                 <button onclick="unbindBaidu()" class="secondary" style="width:100%;margin-top:8px;font-size:13px;padding:8px">解除绑定</button>
             </div>
         </div>
 
         <!-- 版本皮肤切换 -->
-        <div style="border-top:1px solid #e5e7eb;padding-top:14px;margin-top:14px">
+        <div style="border-top:1px solid var(--border-light);padding-top:14px;margin-top:14px">
             <label style="font-weight:600;font-size:14px;margin-bottom:10px;display:block">🎨 题库版本</label>
             <div id="version-switcher" style="display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap"></div>
-            <small style="color:#999;font-size:12px;display:block;margin-bottom:8px">切换版本改变界面风格和题目筛选，点击版本名称可编辑</small>
+            <small style="color:var(--text-tertiary);font-size:12px;display:block;margin-bottom:8px">切换版本改变界面风格和题目筛选，点击版本名称可编辑</small>
         </div>
 
         <!-- 系统密码 -->
-        <div style="border-top:1px solid #e5e7eb;padding-top:14px;margin-top:14px">
+        <div style="border-top:1px solid var(--border-light);padding-top:14px;margin-top:14px">
             <label style="font-weight:600;font-size:14px;margin-bottom:10px;display:block">🔐 系统密码</label>
             <div style="display:flex;align-items:center;justify-content:space-between">
-                <span style="font-size:13px;color:#666">用于删除版本等敏感操作</span>
+                <span style="font-size:13px;color:var(--text-secondary)">用于删除版本等敏感操作</span>
                 <button onclick="showSystemPasswordModal()" style="padding:8px 16px;font-size:13px" id="system-password-btn">设置密码</button>
             </div>
-            <div id="system-password-status" style="font-size:13px;color:#888;margin-top:8px"></div>
+            <div id="system-password-status" style="font-size:13px;color:var(--text-secondary);margin-top:8px"></div>
         </div>
 
         <details style="margin-top:16px">
-            <summary style="color:#999;font-size:13px;cursor:pointer">高级：从设备加载备份</summary>
+            <summary style="color:var(--text-tertiary);font-size:13px;cursor:pointer">高级：从设备加载备份</summary>
             <div style="margin-top:10px">
-                <small style="color:#888;font-size:12px;display:block;margin-bottom:8px">从之前保存的备份文件恢复数据。已有数据时会提示确认。</small>
-                <button onclick="loadBackupFromDevice()" style="width:100%;background:#f59e0b;font-size:13px;padding:10px">📂 加载备份</button>
+                <small style="color:var(--text-secondary);font-size:12px;display:block;margin-bottom:8px">从之前保存的备份文件恢复数据。已有数据时会提示确认。</small>
+                <button onclick="loadBackupFromDevice()" style="width:100%;background:var(--warning);font-size:13px;padding:10px">📂 加载备份</button>
             </div>
         </details>
 
         <!-- APP 更新 -->
-        <div style="border-top:1px solid #e5e7eb;padding-top:14px;margin-top:14px">
+        <div style="border-top:1px solid var(--border-light);padding-top:14px;margin-top:14px">
             <label style="font-weight:600;font-size:14px;margin-bottom:10px;display:block">📱 APP 版本</label>
             <div style="display:flex;align-items:center;justify-content:space-between">
-                <span style="font-size:13px;color:#666">当前版本: <b id="current-version-display"></b></span>
+                <span style="font-size:13px;color:var(--text-secondary)">当前版本: <b id="current-version-display"></b></span>
                 <button onclick="manualCheckUpdate()" style="padding:8px 16px;font-size:13px" id="check-update-btn">检查更新</button>
             </div>
-            <div id="check-update-status" style="font-size:13px;color:#888;margin-top:8px"></div>
+            <div id="check-update-status" style="font-size:13px;color:var(--text-secondary);margin-top:8px"></div>
         </div>
 
         <div class="btn-group" style="margin-top:16px">
@@ -1118,13 +1123,13 @@
 <div id="baidu-auth-modal" class="modal" onclick="if(event.target===this)closeBaiduAuthModal()">
     <div class="modal-content" style="max-width:450px">
         <h3>绑定百度网盘</h3>
-        <ol style="font-size:13px;color:#555;padding-left:20px;line-height:1.8">
+        <ol style="font-size:13px;color:var(--text-secondary);padding-left:20px;line-height:1.8">
             <li>点击下方按钮，在浏览器中打开百度授权页面</li>
             <li>登录百度账号并授权</li>
             <li>授权后页面地址栏会出现 <code>code=xxxxx</code></li>
             <li>复制 <code>code=</code> 后面的部分，粘贴到下方</li>
         </ol>
-        <button onclick="openBaiduAuth()" style="width:100%;margin:12px 0;background:#2563eb;padding:12px;font-size:15px">🔗 打开百度授权页面</button>
+        <button onclick="openBaiduAuth()" style="width:100%;margin:12px 0;background:var(--sky);padding:12px;font-size:15px">🔗 打开百度授权页面</button>
         <div class="form-group"><label>粘贴授权码</label><input type="text" id="baidu-auth-code" placeholder="粘贴从浏览器复制的 code" /></div>
         <div class="btn-group"><button class="secondary" onclick="closeBaiduAuthModal()">取消</button><button onclick="exchangeBaiduToken()">确认绑定</button></div>
     </div>
@@ -1137,7 +1142,7 @@
         <div class="form-group"><label>服务器地址</label><input type="text" id="server-url" placeholder="例如 http://192.168.1.100:3001" /></div>
         <div class="form-group"><label>手机号</label><input type="tel" id="login-phone" placeholder="输入手机号" /></div>
         <div class="form-group"><label>密码</label><input type="password" id="login-password" placeholder="输入密码" /></div>
-        <div id="login-error" style="color:#ef4444;font-size:13px;margin-bottom:10px;display:none"></div>
+        <div id="login-error" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
         <div class="btn-group">
             <button onclick="doLogin()" id="btn-do-login">登录</button>
             <button class="secondary" onclick="doRegister()" id="btn-do-register">注册</button>
@@ -1150,32 +1155,32 @@
 <div id="sync-modal" class="modal" onclick="if(event.target===this)closeSyncModal()">
     <div class="modal-content" style="max-width:400px">
         <h3>☁️ 云端同步</h3>
-        <div style="font-size:13px;color:#888;margin-bottom:14px">
-            已登录: <b id="sync-user-name" style="color:#333"></b>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">
+            已登录: <b id="sync-user-name" style="color:var(--text)"></b>
         </div>
         <div class="form-group">
             <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
                 <input type="checkbox" id="auto-sync-toggle" style="width:auto" onchange="toggleAutoSync(this.checked)">
                 <span style="font-size:14px">登录时自动同步</span>
             </div>
-            <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid #eee;margin-top:8px">
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--border-light);margin-top:8px">
                 <input type="checkbox" id="sync-toggle" style="width:auto" onchange="toggleSync(this.checked)">
                 <span style="font-size:14px">实时同步（每次操作自动推送）</span>
             </div>
         </div>
         <button onclick="doSync()" style="width:100%;margin-bottom:8px">🔄 立即同步</button>
-        <button onclick="doSyncDown()" style="width:100%;background:#f59e0b;margin-bottom:8px">📥 从云端下载</button>
-        <div id="sync-status" style="font-size:13px;color:#888;margin:8px 0"></div>
-        <details style="margin-top:12px;border-top:1px solid #eee;padding-top:12px">
-            <summary style="font-size:13px;color:#666;cursor:pointer">🛡️ 容灾设置</summary>
+        <button onclick="doSyncDown()" style="width:100%;background:var(--warning);margin-bottom:8px">📥 从云端下载</button>
+        <div id="sync-status" style="font-size:13px;color:var(--text-secondary);margin:8px 0"></div>
+        <details style="margin-top:12px;border-top:1px solid var(--border-light);padding-top:12px">
+            <summary style="font-size:13px;color:var(--text-secondary);cursor:pointer">🛡️ 容灾设置</summary>
             <div style="margin-top:10px">
-                <div id="recovery-status" style="font-size:13px;color:#888;margin-bottom:8px">检查中...</div>
+                <div id="recovery-status" style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">检查中...</div>
                 <button onclick="fullSyncToCloud()" style="width:100%;margin-bottom:8px;font-size:13px">☁️ 全量同步到云端</button>
                 <div class="form-group" style="margin-bottom:8px">
                     <label style="font-size:13px">备用服务器地址</label>
                     <input type="text" id="backup-server-url" placeholder="例如 http://192.168.1.100:3001" style="font-size:13px" />
                 </div>
-                <button onclick="switchToBackupServer()" style="width:100%;background:#8B5CF6;font-size:13px">🔄 切换到备用服务器</button>
+                <button onclick="switchToBackupServer()" style="width:100%;background:var(--accent);font-size:13px">🔄 切换到备用服务器</button>
             </div>
         </details>
         <div class="btn-group" style="margin-top:14px">
@@ -1189,7 +1194,7 @@
 <div id="floating-modal" class="modal" onclick="if(event.target===this)closeFloatingModal()">
     <div class="modal-content" style="max-width:500px">
         <h3>   悬浮窗截图</h3>
-        <div style="font-size:13px;color:#888;margin-bottom:14px">选择图片导入到当前题目</div>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">选择图片导入到当前题目</div>
         <div id="floating-image-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px"></div>
         <div class="btn-group">
             <button class="secondary" onclick="clearFloatingImages()">清空全部</button>
@@ -1205,17 +1210,17 @@
         <div class="form-group">
             <label>保存到第几题</label>
             <div style="display:flex;gap:8px;align-items:center">
-                <input type="number" id="floating-save-qnum" min="1" value="1" style="width:80px;padding:8px;border:1.5px solid #e0e0e0;border-radius:8px;font-size:16px;text-align:center" />
-                <span style="color:#888">题</span>
+                <input type="number" id="floating-save-qnum" min="1" value="1" style="width:80px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:16px;text-align:center" />
+                <span style="color:var(--text-secondary)">题</span>
             </div>
         </div>
         <div class="form-group">
             <label>保存类型</label>
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
                 <button type="button" class="upload-btn camera" onclick="confirmFloatingSave('question')">📖 题目</button>
-                <button type="button" class="upload-btn" style="background:#8b5cf6" onclick="confirmFloatingSave('answer')">📝 答案</button>
-                <button type="button" class="upload-btn" style="background:#f59e0b" onclick="confirmFloatingSave('blank')">📄 空白题</button>
-                <button type="button" class="upload-btn" style="background:#ec4899" onclick="confirmFloatingSave('cross-page')">📸 跨页</button>
+                <button type="button" class="upload-btn" style="background:var(--accent)" onclick="confirmFloatingSave('answer')">📝 答案</button>
+                <button type="button" class="upload-btn" style="background:var(--warning)" onclick="confirmFloatingSave('blank')">📄 空白题</button>
+                <button type="button" class="upload-btn" style="background:var(--danger)" onclick="confirmFloatingSave('cross-page')">📸 跨页</button>
             </div>
         </div>
         <div class="btn-group" style="margin-top:12px">

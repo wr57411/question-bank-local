@@ -54,7 +54,7 @@ async function showPdfUploadConfirm(file: File): Promise<void> {
   content.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <h3 style="margin:0;font-size:16px">📄 上传 PDF</h3>
-      <span style="cursor:pointer;font-size:22px;color:#999" onclick="closePdfUploadConfirm()">×</span>
+      <span style="cursor:pointer;font-size:22px;color:var(--text-tertiary)" onclick="closePdfUploadConfirm()">×</span>
     </div>
     <div style="padding:10px;background:var(--surface);border-radius:var(--radius-md);border:1px solid var(--border-light);margin-bottom:10px">
       <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(file.name)}</div>
@@ -67,10 +67,10 @@ async function showPdfUploadConfirm(file: File): Promise<void> {
     <div id="pdf-upload-preview" style="border:1px solid var(--border-light);border-radius:var(--radius-md);overflow-y:auto;margin-bottom:10px;height:35vh;padding:8px">
       <p style="text-align:center;color:var(--text-tertiary)">加载预览中...</p>
     </div>
-    ${serverReady ? '' : '<p style="font-size:12px;color:#ef4444;margin-bottom:10px">⚠️ 服务器未配置</p>'}
+    ${serverReady ? '' : '<p style="font-size:12px;color:var(--danger);margin-bottom:10px">⚠️ 服务器未配置</p>'}
     <div id="upload-progress-area" style="margin-bottom:10px"></div>
     <div style="display:flex;gap:8px">
-      <button id="confirm-upload-btn" onclick="doConfirmUpload()" style="flex:1;padding:12px;background:var(--accent);box-shadow:0 3px 0 #5A3DC0" ${serverReady ? '' : 'disabled'}>📤 确认上传</button>
+      <button id="confirm-upload-btn" onclick="doConfirmUpload()" style="flex:1;padding:12px;background:var(--accent);box-shadow:none" ${serverReady ? '' : 'disabled'}>📤 确认上传</button>
       <button onclick="closePdfUploadConfirm()" class="secondary" style="padding:12px">取消</button>
     </div>`;
   modal.style.display = 'flex';
@@ -105,7 +105,7 @@ export async function doConfirmUpload(): Promise<void> {
   try {
     const doc = await uploadPdfToServer(file, file.name, categoryId);
     if (progressArea) {
-      progressArea.innerHTML = `<div style="padding:10px;background:#ecfdf5;border-radius:var(--radius-md);text-align:center;font-size:13px;color:#059669">✅ 上传成功！${doc.page_count > 0 ? `共 ${doc.page_count} 页` : ''}</div>`;
+      progressArea.innerHTML = `<div style="padding:10px;background:var(--mint-light);border-radius:var(--radius-md);text-align:center;font-size:13px;color:var(--mint-dark)">✅ 上传成功！${doc.page_count > 0 ? `共 ${doc.page_count} 页` : ''}</div>`;
     }
     delete (window as unknown as Record<string, unknown>)._pendingPdfFile;
     setTimeout(async () => {
@@ -115,7 +115,7 @@ export async function doConfirmUpload(): Promise<void> {
   } catch (e) {
     if (btn) { btn.disabled = false; btn.textContent = '📤 确认上传'; }
     if (progressArea) {
-      progressArea.innerHTML = `<div style="padding:10px;background:#fef2f2;border-radius:var(--radius-md);font-size:13px;color:#dc2626">❌ 上传失败：${escapeHtml(e instanceof Error ? e.message : String(e))}</div>`;
+      progressArea.innerHTML = `<div style="padding:10px;background:var(--danger-light);border-radius:var(--radius-md);font-size:13px;color:var(--danger-dark)">❌ 上传失败：${escapeHtml(e instanceof Error ? e.message : String(e))}</div>`;
     }
   }
 }
@@ -137,9 +137,9 @@ export async function showPdfActions(pdfId: string): Promise<void> {
     <p style="font-size:12px;color:var(--text-tertiary);margin-bottom:4px">${doc.page_count}页 · ${(doc.file_size / 1024 / 1024).toFixed(1)}MB</p>
     ${catName ? `<p style="font-size:12px;color:var(--accent);margin-bottom:12px">📂 ${escapeHtml(catName)}</p>` : '<p style="font-size:12px;color:var(--text-tertiary);margin-bottom:12px">📂 未分类</p>'}
     <div style="display:flex;flex-direction:column;gap:10px">
-      <button onclick="startPdfPreview('${doc.id}')" style="padding:12px;background:var(--accent);box-shadow:0 3px 0 #5A3DC0">📖 试读</button>
-      <button onclick="showMovePdfModal('${doc.id}')" style="padding:12px;background:var(--warning);box-shadow:0 3px 0 #B07A08">📂 移动分类</button>
-      <button onclick="doDeletePdf('${doc.id}')" style="padding:12px;background:#ef4444;box-shadow:0 3px 0 #b91c1c;color:#fff">🗑 删除</button>
+      <button onclick="startPdfPreview('${doc.id}')" style="padding:12px;background:var(--accent);box-shadow:none">📖 试读</button>
+      <button onclick="showMovePdfModal('${doc.id}')" style="padding:12px;background:var(--warning);box-shadow:none">📂 移动分类</button>
+      <button onclick="doDeletePdf('${doc.id}')" style="padding:12px;background:var(--danger);box-shadow:none;color:#fff">🗑 删除</button>
       <button onclick="closePdfActionModal()" class="secondary" style="padding:12px">取消</button>
     </div>`;
   modal.style.display = 'flex';
@@ -171,7 +171,7 @@ export async function showMovePdfModal(pdfId: string): Promise<void> {
     <h3 style="margin:0 0 12px 0;font-size:16px">📂 移动分类</h3>
     <select id="move-category-select" style="width:100%;padding:10px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-md);margin-bottom:12px">${options}</select>
     <div style="display:flex;gap:8px">
-      <button onclick="confirmMovePdf('${pdfId}')" style="flex:1;padding:12px;background:var(--accent);box-shadow:0 3px 0 #5A3DC0">✔️ 确认</button>
+      <button onclick="confirmMovePdf('${pdfId}')" style="flex:1;padding:12px;background:var(--accent);box-shadow:none">✔️ 确认</button>
       <button onclick="closePdfActionModal()" class="secondary" style="padding:12px">取消</button>
     </div>`;
   modal.style.display = 'flex';

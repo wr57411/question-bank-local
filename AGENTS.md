@@ -22,7 +22,7 @@
 - [ ] 更新本文件的「开发文档索引」部分
 - [ ] 执行本地 CI/CD 验证循环（按顺序全部通过）：
   - [ ] `npm run typecheck`（TypeScript 类型检查）
-  - [ ] `npm run vitest run`（单元测试）
+  - [ ] `npm run test`（单元测试）
   - [ ] `npm run build`（生产构建）
   - [ ] `npx playwright test tests/ui-health.spec.js`（E2E 测试）
   - 发现问题立即修复，修复后重跑，全部通过才告知用户可手动测试
@@ -32,7 +32,7 @@
 
 ## 项目信息
 
-- **项目路径**: `/Users/john/question-bank-local`
+- **项目路径**: `/Users/john/.codex/worktrees/f640/question-bank-local`（当前 worktree）
 - **类型**: 本地题库 App（iOS + Android，基于 Capacitor）
 - **原项目参考**: `/Users/john/question-bank-app`
 
@@ -49,9 +49,9 @@
 - 原生打包：Capacitor 6
 - 插件：@capacitor/camera, @capacitor/filesystem, @hotend/capacitor-file-picker, @capacitor-community/file-opener
 
-### 服务端（/Users/john/question-bank-server）
+### 服务端（server/，位于本仓库内）
 
-- 语言：JavaScript（CommonJS，尚未迁移 TypeScript）
+- 语言：TypeScript（ESM，`tsx` 直运，启动命令 `npx tsx src/index.ts`）
 - 框架：Express 5
 - 数据库：better-sqlite3（WAL 模式）
 - 认证：JWT（Bearer Token）
@@ -87,7 +87,7 @@
 
 ### 服务端
 - 不添加注释（除非用户要求）
-- 当前为 JavaScript（CommonJS），新增路由放 routes/ 目录
+- 当前为 TypeScript（ESM，`tsx` 直运），新增路由放 server/src/routes/ 目录
 - 遵循现有 upsert + authMiddleware 模式
 
 ## Git 提交规则
@@ -120,6 +120,7 @@
 | 补齐 pdf-library 缺失的 topic 函数 | main.ts 引用了 showAddTopicModal 等 5 个函数但 pdf-library.ts 未实现 | docs/fix-pdf-preview-invalid-structure.md | 2026-07-26 | PDF 书库, 专题管理 |
 | 本地 CI/CD 测试体系 | 代码修改后立即跑 typecheck+build+E2E，对齐 GitHub CI | docs/local-cicd-pre-push-testing.md | 2026-07-26 | CI/CD, 测试流程 |
 | 服务端数据库迁移恢复 | 旧服务端数据安全合并到统一仓库服务端 | docs/server-database-migration-recovery.md | 2026-07-26 | 服务端, SQLite, 账号, PDF书库 |
+| 修复 LLM Wiki 知识编译流水线 | UI编译入口未接通+接口割裂+links不持久化+预算/队列死代码+实体去重失真+图谱随机连线+JSON静默失败+服务端无CRDT等12项 | docs/fix-llm-wiki-pipeline.md | 2026-07-31 | LLM Wiki, 编译流水线, 视觉OCR, 实体对齐, 服务端合并 |
 
 ### 功能设计文档
 
@@ -130,3 +131,6 @@
 | PDF云书库全栈实现 | 服务端TS迁移+模块化 + PDF上传/试读/下载 + 双维度类目 + 标签复用 + sync集成 | docs/pdf-cloud-library.md | 2026-07-25 | 服务端, PDF书库, 同步, UI |
 | iPad/iPhone(Universal) iOS 版本开发 | iOS 骨架+Web降级+iPad布局+依赖Xcode说明 | docs/ipad-ios-adaptation.md | 2026-07-19 | iOS工程, 平台降级, iPad适配 |
 | Windows备用服务器 | 服务器间同步 + PM2常驻 + canvas可选化 + 客户端切换UI | docs/windows-backup-server.md | 2026-07-27 | 服务端, Windows, 同步, 客户端 |
+| Wiki最小MVP（重新构建） | 选题目→OpenRouter视觉模型→卡帕西原则结构化知识，旧wiki保留未动 | docs/wiki-mvp-design.md | 2026-08-01 | Wiki MVP, OpenRouter, 视觉模型, 知识结构 |
+| 本地OCR服务备选方案 | PaddleOCR+UniMERNet本地识别文字/公式 → 免费纯文本LLM提取，与视觉模型模式并存 | docs/local-ocr-service.md | 2026-08-01 | OCR, PaddleOCR, UniMERNet, 纯文本LLM, 本地服务 |
+| UI 整体迁移至明亮友好型风格 | DESIGN.md 契约+token 重写+组件层重构+42 个 TS 文件硬编码清理 | docs/ui-migration-bright-friendly.md | 2026-08-03 | UI, 设计系统, 视觉语言, 设计债 |

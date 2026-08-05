@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>方向 C · 纸质笔记型</title>
+<style>
+:root{
+  --paper:#F7F1E3;
+  --paper-deep:#EFE5CE;
+  --card:#FFFCF2;
+  --ink:#423528;
+  --ink-2:#7A6A56;
+  --ink-3:#A99A82;
+  --red:#C24C3D;
+  --red-soft:#F9E7E0;
+  --leaf:#5E7C4F;
+  --leaf-soft:#EDF0E0;
+  --blue:#41638E;
+  --blue-soft:#E5EBF2;
+  --mustard:#B98A2F;
+  --mustard-soft:#F7EED6;
+  --line:#E3D8C0;
+  --stitch:#C9B896;
+  --r-card:12px;
+  --shadow:0 2px 0 rgba(66,53,40,.06),0 8px 20px rgba(66,53,40,.10);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:"PingFang SC",-apple-system,"Noto Sans SC",sans-serif;background:#E7DCC4;min-height:100vh;padding:40px 20px;display:flex;flex-direction:column;align-items:center}
+.page-title{font-size:22px;font-weight:700;color:#423528;font-family:Georgia,"Songti SC",serif}
+.page-sub{font-size:13px;color:#8A7A60;margin:4px 0 28px}
+.row{display:flex;gap:48px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+.col{display:flex;flex-direction:column;align-items:center;gap:10px}
+.col .cap{font-size:13px;color:#8A7A60;font-style:italic}
+.phone{width:375px;height:780px;background:var(--paper);border-radius:44px;box-shadow:0 26px 60px rgba(66,53,40,.3),0 0 0 9px #574A3A;overflow:hidden;display:flex;flex-direction:column;position:relative}
+.phone::before{content:'';position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 27px,rgba(66,53,40,.028) 27px 28px);pointer-events:none;z-index:0}
+.status{display:flex;justify-content:space-between;padding:14px 26px 6px;font-size:12px;font-weight:600;color:var(--ink);flex-shrink:0;position:relative;z-index:1}
+.content{flex:1;overflow-y:auto;padding:0 18px 100px;position:relative;z-index:1}
+.content::-webkit-scrollbar{display:none}
+
+.cover-head{padding:12px 2px 2px;display:flex;align-items:flex-end;justify-content:space-between}
+.cover-head h1{font-family:Georgia,"Songti SC",serif;font-size:26px;color:var(--ink);font-weight:700}
+.cover-head .vol{font-size:11px;color:var(--ink-3);text-align:right;line-height:1.5}
+.inkline{height:2.5px;background:var(--red);width:56px;border-radius:2px;margin:8px 0 14px;transform:rotate(-.6deg)}
+
+.tabs-book{display:flex;gap:2px;margin-bottom:16px}
+.btab{padding:8px 13px 9px;font-size:12px;font-weight:600;color:var(--ink-2);background:var(--paper-deep);border-radius:8px 8px 0 0;border:1px solid var(--line);border-bottom:none}
+.btab.on{background:var(--card);color:var(--red);box-shadow:0 -2px 6px rgba(66,53,40,.06)}
+
+.search{display:flex;gap:8px;margin-bottom:14px}
+.search .box{flex:1;display:flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--stitch);border-radius:10px;padding:11px 13px;box-shadow:var(--shadow)}
+.search .box span{font-size:13px;color:var(--ink-3)}
+.search .filter{width:42px;height:42px;border-radius:10px;background:var(--mustard-soft);border:1px solid var(--stitch);display:flex;align-items:center;justify-content:center;font-size:15px}
+
+.index-label{display:flex;align-items:center;gap:8px;margin:2px 2px 10px;font-size:12px;color:var(--ink-2);font-weight:600}
+.index-label::after{content:'';flex:1;border-top:1px dashed var(--stitch)}
+.index-label .sync{color:var(--leaf);font-size:11px;font-weight:500}
+
+.note{background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow);padding:14px 15px;margin-bottom:12px;position:relative}
+.note::before{content:'';position:absolute;top:-7px;left:50%;transform:translateX(-50%) rotate(-2deg);width:64px;height:15px;background:rgba(185,138,47,.35);border-radius:2px}
+.note .row1{display:flex;align-items:center;gap:7px;margin-bottom:7px}
+.tabmark{font-size:10px;font-weight:700;padding:2.5px 9px;border-radius:4px 10px 10px 4px}
+.tabmark.red{background:var(--red-soft);color:var(--red)}
+.tabmark.blue{background:var(--blue-soft);color:var(--blue)}
+.tabmark.leaf{background:var(--leaf-soft);color:var(--leaf)}
+.note .src{font-size:10.5px;color:var(--ink-3);margin-left:auto}
+.note .txt{font-size:13.5px;line-height:1.75;color:var(--ink)}
+.note .foot{display:flex;gap:10px;margin-top:8px;font-size:11px;color:var(--ink-3)}
+.note .foot .stamp{margin-left:auto;color:var(--leaf);font-weight:700;border:1.5px solid var(--leaf);border-radius:6px;padding:1px 7px;font-size:10px;transform:rotate(-2deg)}
+.note .foot .stamp.todo{color:var(--red);border-color:var(--red)}
+
+.fab{position:absolute;right:18px;bottom:98px;width:56px;height:56px;border-radius:50%;background:var(--red);color:#FFFCF2;font-size:25px;display:flex;align-items:center;justify-content:center;box-shadow:0 10px 22px rgba(194,76,61,.4);border:2px solid #FFFCF2;z-index:2}
+.tabbar{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-top:1.5px solid var(--line);display:flex;padding:8px 6px 20px;z-index:2}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:19px;color:var(--ink-3)}
+.tab span{font-size:10px}
+.tab.on{color:var(--red)}
+.tab.on span{color:var(--red);font-weight:700}
+
+.back-row{display:flex;align-items:center;gap:10px;padding:10px 0 12px}
+.backbtn{width:36px;height:36px;border-radius:50%;background:var(--card);border:1px solid var(--stitch);display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:var(--shadow)}
+.back-row h2{font-family:Georgia,"Songti SC",serif;font-size:17px;color:var(--ink)}
+.back-row .no{margin-left:auto;font-size:11px;color:var(--ink-3)}
+
+.postit{display:inline-block;background:var(--mustard-soft);padding:6px 14px 7px;font-size:11.5px;font-weight:700;color:#7A5A14;transform:rotate(-1.4deg);border-radius:2px;box-shadow:1px 2px 4px rgba(66,53,40,.12);margin-bottom:12px}
+
+.dcard{background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow);padding:17px 18px;margin-bottom:13px}
+.dcard .qtext{font-size:14px;line-height:2;color:var(--ink)}
+.dcard .qtext .redword{color:var(--red);font-weight:700;text-decoration:underline wavy rgba(194,76,61,.4) 1px}
+.formula{margin-top:12px;padding:10px 12px;border:1px dashed var(--stitch);border-radius:8px;font-family:Georgia,serif;font-style:italic;font-size:13.5px;color:var(--ink-2);text-align:center;background:var(--paper)}
+
+.anscard{background:var(--card);border:1px solid var(--line);border-radius:var(--r-card);box-shadow:var(--shadow);padding:17px 18px;margin-bottom:13px}
+.ans-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:11px}
+.ans-head h4{font-family:Georgia,"Songti SC",serif;font-size:14px;color:var(--ink)}
+.reveal{background:var(--leaf-soft);color:var(--leaf);font-size:11px;font-weight:700;padding:6px 13px;border-radius:999px}
+.ans-body{font-size:14px;font-weight:700;color:var(--red);padding:9px 12px;background:var(--red-soft);border-radius:8px;display:inline-block;transform:rotate(-.5deg)}
+.ans-steps{font-size:12.5px;color:var(--ink-2);line-height:2;margin-top:11px}
+.ans-steps b{color:var(--ink)}
+.ans-steps .marg{color:var(--blue);font-size:11.5px;font-style:italic}
+
+.tipcard{background:var(--blue-soft);border-radius:2px;padding:14px 16px;transform:rotate(.7deg);box-shadow:2px 3px 8px rgba(66,53,40,.12);margin-bottom:12px;position:relative}
+.tipcard::before{content:'📌';position:absolute;top:-11px;left:14px;font-size:15px}
+.tipcard h4{font-size:12px;color:var(--blue);font-weight:700;margin-bottom:5px}
+.tipcard p{font-size:12px;line-height:1.9;color:#33507A}
+.tipcard p b{color:#1E3A63}
+
+.actbar{position:absolute;left:0;right:0;bottom:0;background:var(--card);border-top:1.5px solid var(--line);padding:11px 16px 23px;display:flex;gap:9px;z-index:2}
+.act{flex:1;padding:12px;border-radius:10px;font-size:12.5px;font-weight:700;text-align:center}
+.act.p{background:var(--red);color:#FFFCF2;box-shadow:0 6px 14px rgba(194,76,61,.3)}
+.act.s{border:1px solid var(--stitch);color:var(--ink-2);background:var(--paper)}
+</style>
+</head>
+<body>
+<div class="page-title">方向 C · 纸质笔记型</div>
+<div class="page-sub">暖纸底色 + 索引标签 + 便签/图钉隐喻 + 衬线标题 · 气质：私人错题笔记本</div>
+<div class="row">
+
+  <div class="col">
+  <div class="phone">
+    <div class="status"><span>9:41</span><span>● ● ● ● ▮ 91%</span></div>
+    <div class="content">
+      <div class="cover-head">
+        <h1>我的题库本</h1>
+        <div class="vol">第 342 页<br>2026 · 高三</div>
+      </div>
+      <div class="inkline"></div>
+      <div class="tabs-book">
+        <div class="btab on">全部</div>
+        <div class="btab">数学</div>
+        <div class="btab">物理</div>
+        <div class="btab">化学</div>
+        <div class="btab">错题</div>
+      </div>
+      <div class="search">
+        <div class="box"><span>🔍 翻找题目、标签…</span></div>
+        <div class="filter">✎</div>
+      </div>
+      <div class="index-label">最近收进本子的 <span class="sync">✓ 已同步</span></div>
+      <div class="note">
+        <div class="row1"><span class="tabmark red">导数</span><span class="tabmark blue">压轴</span><span class="src">2023 新高考Ⅰ</span></div>
+        <div class="txt">已知函数 f(x) = x·ln x − ax²，讨论单调性；若有两个极值点 x₁、x₂，证明 x₁ + x₂ &gt; 2。</div>
+        <div class="foot"><span>3 张图</span><span>贴于 8 月 1 日</span><span class="stamp todo">待复习</span></div>
+      </div>
+      <div class="note">
+        <div class="row1"><span class="tabmark leaf">电磁感应</span><span class="src">校本 P41</span></div>
+        <div class="txt">光滑平行导轨间距 L = 0.5 m，导体棒以 v = 4 m/s 匀速运动，求感应电动势与安培力。</div>
+        <div class="foot"><span>1 张图</span><span>贴于 7 月 28 日</span><span class="stamp">已掌握</span></div>
+      </div>
+      <div class="note">
+        <div class="row1"><span class="tabmark blue">化学平衡</span><span class="src">2022 全国乙</span></div>
+        <div class="txt">2 L 恒容容器中充入 1 mol N₂ 与 3 mol H₂，平衡时 NH₃ 体积分数 25%，求转化率。</div>
+        <div class="foot"><span>2 张图</span><span>贴于 7 月 26 日</span><span class="stamp todo">待关联</span></div>
+      </div>
+    </div>
+    <div class="fab">＋</div>
+    <div class="tabbar">
+      <div class="tab on">📖<span>题库本</span></div>
+      <div class="tab">🗄<span>书库</span></div>
+      <div class="tab">🧩<span>知识卡</span></div>
+      <div class="tab">🖋<span>我的</span></div>
+    </div>
+  </div>
+  <div class="cap">首页 · 题目列表</div>
+  </div>
+
+  <div class="col">
+  <div class="phone">
+    <div class="status"><span>9:42</span><span>● ● ● ● ▮ 90%</span></div>
+    <div class="content">
+      <div class="back-row">
+        <div class="backbtn">‹</div>
+        <h2>这一页</h2>
+        <div class="no">No. 128</div>
+      </div>
+      <div class="postit">导数 · 极值点偏移</div>
+      <div class="dcard">
+        <div class="qtext">已知函数 f(x) = x·ln x − ax²（a ∈ R）。<br>（1）讨论 f(x) 的单调性；<br>（2）若 f(x) 有两个极值点 x₁、x₂，<span class="redword">证明 x₁ + x₂ &gt; 2</span>。</div>
+        <div class="formula">f ′(x) = ln x + 1 − 2ax</div>
+      </div>
+      <div class="anscard">
+        <div class="ans-head"><h4>我的答案</h4><div class="reveal">展开笔记</div></div>
+        <div class="ans-body">a ∈ (0, ½)</div>
+        <div class="ans-steps"><b>① 分离参数</b>：2a = (ln x + 1)/x 有两根 <span class="marg">← 老师说的固定入口</span><br><b>② 画图</b>：g(x) = (ln x+1)/x 在 x = 1 取极大值 1<br><b>③ 对称化</b>：构造 φ(t) = g(t) − g(2−t)</div>
+      </div>
+      <div class="tipcard">
+        <h4>知识便签 · 为什么总考这个？</h4>
+        <p>近五年新高考的导数压轴几乎都是<b>双极值点 + 不等式证明</b>。记住口诀：<b>先分离、再画图、后对称化</b>，不要在原函数上硬导。</p>
+      </div>
+    </div>
+    <div class="actbar">
+      <div class="act s">盖个章 ✓</div>
+      <div class="act s">贴知识卡</div>
+      <div class="act p">下一页 →</div>
+    </div>
+  </div>
+  <div class="cap">题目详情 · 笔记页</div>
+  </div>
+
+</div>
+</body>
+</html>

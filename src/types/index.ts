@@ -6,3 +6,6 @@ export * from './teaching';
 export * from './sync';
 export * from './backup';
 export * from './pdf-doc';
+export * from './wiki';
+export * from './wiki-mvp';
+export * from './local-ocr';

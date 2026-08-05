@@ -17,7 +17,7 @@ export async function showAddTopicModal(parentId?: string): Promise<void> {
     <h3 style="margin:0 0 12px 0;font-size:16px">${title}</h3>
     <input id="topic-name-input" placeholder="专题名称" style="width:100%;padding:10px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-md);margin-bottom:12px" />
     <div style="display:flex;gap:8px">
-      <button onclick="confirmAddTopic('${parentId || ''}')" style="flex:1;padding:10px;background:var(--accent);box-shadow:0 3px 0 #5A3DC0;font-size:13px">✔️ 创建</button>
+      <button onclick="confirmAddTopic('${parentId || ''}')" style="flex:1;padding:10px;background:var(--accent);box-shadow:none;font-size:13px">✔️ 创建</button>
       <button onclick="closePdfManageModal()" class="secondary" style="padding:10px;font-size:13px">取消</button>
     </div>`;
   modal.style.display = 'flex';
@@ -51,9 +51,9 @@ export async function showPdfTopicMenu(topicId: string): Promise<void> {
   content.innerHTML = `
     <h3 style="margin:0 0 12px 0;font-size:16px">🏷 ${escapeHtml(topic.name)}</h3>
     <div style="display:flex;flex-direction:column;gap:10px">
-      <button onclick="closePdfManageModal();showAddTopicModal('${topicId}')" style="padding:10px;background:var(--accent);box-shadow:0 3px 0 #5A3DC0;font-size:13px">➕ 添加子专题</button>
-      <button onclick="renamePdfTopic('${topicId}')" style="padding:10px;background:var(--warning);box-shadow:0 3px 0 #B07A08;font-size:13px">✏️ 重命名</button>
-      <button onclick="deletePdfTopic('${topicId}')" style="padding:10px;background:#ef4444;box-shadow:0 3px 0 #b91c1c;color:#fff;font-size:13px">🗑 删除专题</button>
+      <button onclick="closePdfManageModal();showAddTopicModal('${topicId}')" style="padding:10px;background:var(--accent);box-shadow:none;font-size:13px">➕ 添加子专题</button>
+      <button onclick="renamePdfTopic('${topicId}')" style="padding:10px;background:var(--warning);box-shadow:none;font-size:13px">✏️ 重命名</button>
+      <button onclick="deletePdfTopic('${topicId}')" style="padding:10px;background:var(--danger);box-shadow:none;color:#fff;font-size:13px">🗑 删除专题</button>
       <button onclick="closePdfManageModal()" class="secondary" style="padding:10px;font-size:13px">取消</button>
     </div>`;
   modal.style.display = 'flex';

@@ -24,12 +24,9 @@ export function closeModal(id: string): void {
 }
 
 export function showTab(tabName: string, btn?: HTMLElement): void {
-  document.querySelectorAll('.tab-content').forEach(el => {
-    (el as HTMLElement).style.display = 'none';
-  });
-  const target = document.getElementById('tab-' + tabName);
-  if (target) target.style.display = 'block';
-
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('div[id$="-tab"]').forEach(t => t.classList.add('hidden'));
   if (btn) btn.classList.add('active');
+  const target = document.getElementById(tabName + '-tab');
+  if (target) target.classList.remove('hidden');
 }

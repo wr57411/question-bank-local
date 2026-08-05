@@ -25,6 +25,15 @@ server/.migration-backups/
 server/uploads/
 server/node_modules/
 
+# 本地 OCR 服务（Python）
+ocr-server/.venv/
+ocr-server/models/
+ocr-server/.unimer-src/
+ocr-server/output/
+ocr-server/.ocr-test*
+**/__pycache__/
+*.pyc
+
 # AI Test Harness
 .env
 .env.local
@@ -41,3 +50,4 @@ server/node_modules/
 .claude/**/.DS_Store
 .Codex/**/.DS_Store
 .agents/**/.DS_Store
+server/.env_副本

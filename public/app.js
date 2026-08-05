@@ -1467,6 +1467,7 @@ async function loadTags() {
     allTags = await dbGetAllTags();
     activeFilterTags = activeFilterTags.filter(id => allTags.some(t => t.id === id));
     renderTags(); updateTagSelects(); renderFilterTags();
+    if (document.getElementById('form-tag-results')) onFormTagSearch();
 }
 function renderTags() {
     const c = document.getElementById("tags-list"); c.replaceChildren();
@@ -1505,7 +1506,7 @@ function onFormTagSearch() {
     const query = input.value.trim().toLowerCase();
     let matches = allTags.filter(t => !formSelectedTagIds.includes(t.id));
     if (query) matches = matches.filter(t => t.name.toLowerCase().includes(query));
-    matches = matches.slice(0, 15);
+    matches = matches.slice(0, 50);
     resultsDiv.innerHTML = '';
     if (matches.length === 0 && query) {
         const btn = document.createElement("span");

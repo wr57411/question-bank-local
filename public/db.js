@@ -2188,3 +2188,110 @@ async function dbGetPendingReviews() {
   result.sort((a, b) => (a.review_next_date || '').localeCompare(b.review_next_date || ''));
   return result;
 }
+
+// ========== Wiki 知识库 ==========
+
+const dbWikiPages = localforage.createInstance({ name: 'questionBank', storeName: 'wiki_pages' });
+const dbWikiLinks = localforage.createInstance({ name: 'questionBank', storeName: 'wiki_links' });
+const dbWikiLog = localforage.createInstance({ name: 'questionBank', storeName: 'wiki_log' });
+
+async function dbWikiGetAllPages() {
+  const pages = [];
+  await dbWikiPages.iterate((v) => {
+    const p = v;
+    if (p && !p.deleted_at) pages.push(p);
+  });
+  return pages.sort((a, b) => (a.canonical_title || '').localeCompare(b.canonical_title || ''));
+}
+
+async function dbWikiGetPage(id) {
+  return (await dbWikiPages.getItem(id)) || null;
+}
+
+async function dbWikiPutPage(page) {
+  await dbWikiPages.setItem(page.id, page);
+}
+
+async function dbWikiDeletePage(id) {
+  const page = await dbWikiGetPage(id);
+  if (page) {
+    page.deleted_at = new Date().toISOString();
+    page.updated_at = new Date().toISOString();
+    await dbWikiPages.setItem(id, page);
+  }
+}
+
+async function dbWikiGetLinks() {
+  const links = [];
+  await dbWikiLinks.iterate((v) => {
+    const l = v;
+    if (l && !l.deleted_at) links.push(l);
+  });
+  return links;
+}
+
+async function dbWikiPutLink(link) {
+  await dbWikiLinks.setItem(link.id, link);
+}
+
+async function dbWikiGetLog(limit = 50) {
+  const entries = [];
+  await dbWikiLog.iterate((v) => entries.push(v));
+  return entries.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || '')).slice(0, limit);
+}
+
+async function dbWikiLogAppend(entry) {
+  const logEntry = { ...entry, id: generateId(), timestamp: new Date().toISOString() };
+  await dbWikiLog.setItem(logEntry.id, logEntry);
+}
+
+async function dbWikiGetIndex() {
+  const pages = await dbWikiGetAllPages();
+  const by_type = { concept: [], method: [], model: [], fallacy: [] };
+  for (const p of pages) {
+    if (by_type[p.type]) {
+      by_type[p.type].push({ id: p.id, title: p.title, type: p.type, summary: (p.summary || '').slice(0, 80), source_count: (p.source_ids || []).length, updated_at: p.updated_at });
+    }
+  }
+  for (const t of Object.keys(by_type)) {
+    by_type[t].sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  }
+  return { generated_at: new Date().toISOString(), total: pages.length, by_type };
+}
+
+async function dbWikiSmartUpsertPage(page, sourceId, snippet) {
+  // Check for existing similar page
+  const allPages = await dbWikiGetAllPages();
+  const existing = allPages.find(p => p.canonical_title === page.canonical_title || p.title === page.title);
+  
+  if (existing) {
+    const newSourceIds = new Set([...(existing.source_ids || []), sourceId]);
+    existing.source_ids = [...newSourceIds];
+    existing.updated_at = new Date().toISOString();
+    existing.version = (existing.version || 1) + 1;
+    if (snippet && !(existing.source_snippets || []).includes(snippet)) {
+      existing.source_snippets = [...(existing.source_snippets || []), snippet];
+    }
+    await dbWikiPutPage(existing);
+    return { action: 'updated', pageId: existing.id };
+  }
+  
+  await dbWikiPutPage(page);
+  return { action: 'created', pageId: page.id };
+}
+
+async function dbWikiLint() {
+  const allPages = await dbWikiGetAllPages();
+  const allLinks = await dbWikiGetLinks();
+  const pageIds = new Set(allPages.map(p => p.id));
+  
+  const inboundLinks = new Set();
+  for (const link of allLinks) inboundLinks.add(link.target_page_id);
+  
+  const orphan_pages = allPages.filter(p => (!p.source_ids || p.source_ids.length === 0) && !inboundLinks.has(p.id)).map(p => p.id);
+  const conflict_pages = allPages.filter(p => p.review_status === 'needs_merge').map(p => p.id);
+  const broken_links = allLinks.filter(l => !pageIds.has(l.source_page_id) || !pageIds.has(l.target_page_id)).map(l => l.id);
+  const low_confidence = allPages.filter(p => (p.confidence || 0) < 0.6 && p.review_status === 'auto').map(p => p.id);
+  
+  return { orphan_pages, conflict_pages, broken_links, low_confidence, missing_refs: [], duplicate_candidates: [] };
+}

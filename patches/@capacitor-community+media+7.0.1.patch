@@ -1,0 +1,192 @@
+diff --git a/node_modules/@capacitor-community/media/android/build.gradle b/node_modules/@capacitor-community/media/android/build.gradle
+index 6f47a20..998e9f8 100644
+--- a/node_modules/@capacitor-community/media/android/build.gradle
++++ b/node_modules/@capacitor-community/media/android/build.gradle
+@@ -30,7 +30,7 @@ android {
+     buildTypes {
+         release {
+             minifyEnabled false
+-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
++            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+         }
+     }
+     lintOptions {
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml b/node_modules/@capacitor-community/media/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml
+new file mode 100644
+index 0000000..833699f
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.getcapacitor.community.media" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json b/node_modules/@capacitor-community/media/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json
+new file mode 100644
+index 0000000..8a760ce
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/aapt_friendly_merged_manifests/debug/processDebugManifest/aapt/output-metadata.json
+@@ -0,0 +1,18 @@
++{
++  "version": 3,
++  "artifactType": {
++    "type": "AAPT_FRIENDLY_MERGED_MANIFESTS",
++    "kind": "Directory"
++  },
++  "applicationId": "com.getcapacitor.community.media",
++  "variantName": "debug",
++  "elements": [
++    {
++      "type": "SINGLE",
++      "filters": [],
++      "attributes": [],
++      "outputFile": "AndroidManifest.xml"
++    }
++  ],
++  "elementType": "File"
++}
+\ No newline at end of file
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties b/node_modules/@capacitor-community/media/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
+new file mode 100644
+index 0000000..68ba633
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/aar_metadata/debug/writeDebugAarMetadata/aar-metadata.properties
+@@ -0,0 +1,6 @@
++aarFormatVersion=1.0
++aarMetadataVersion=1.0
++minCompileSdk=34
++minCompileSdkExtension=0
++minAndroidGradlePluginVersion=1.0.0
++coreLibraryDesugaringEnabled=false
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/android_res_source_set_path_map/debug/mapDebugSourceSetPaths/file-map.txt b/node_modules/@capacitor-community/media/android/build/intermediates/android_res_source_set_path_map/debug/mapDebugSourceSetPaths/file-map.txt
+new file mode 100644
+index 0000000..a0ec7e2
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/android_res_source_set_path_map/debug/mapDebugSourceSetPaths/file-map.txt
+@@ -0,0 +1,9 @@
++com.getcapacitor.community.media.capacitor-community-media-pngs-0 /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/build/generated/res/pngs/debug
++com.getcapacitor.community.media.capacitor-community-media-resValues-1 /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/build/generated/res/resValues/debug
++com.getcapacitor.community.media.capacitor-community-media-updated_navigation_xml-2 /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/build/generated/updated_navigation_xml/debug
++com.getcapacitor.community.media.capacitor-community-media-mergeDebugResources-3 /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/build/intermediates/incremental/debug/mergeDebugResources/merged.dir
++com.getcapacitor.community.media.capacitor-community-media-mergeDebugResources-4 /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/build/intermediates/incremental/debug/mergeDebugResources/stripped.dir
++com.getcapacitor.community.media.capacitor-community-media-debug-5 /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/build/intermediates/merged_res/debug/mergeDebugResources
++com.getcapacitor.community.media.capacitor-community-media-debug-6 /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/build/intermediates/packaged_res/debug/packageDebugResources
++com.getcapacitor.community.media.capacitor-community-media-debug-7 /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/debug/res
++com.getcapacitor.community.media.capacitor-community-media-main-8 /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/main/res
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json b/node_modules/@capacitor-community/media/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+new file mode 100644
+index 0000000..9e26dfe
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/annotation_processor_list/debug/javaPreCompileDebug/annotationProcessors.json
+@@ -0,0 +1 @@
++{}
+\ No newline at end of file
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar b/node_modules/@capacitor-community/media/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar
+new file mode 100644
+index 0000000..04c0539
+Binary files /dev/null and b/node_modules/@capacitor-community/media/android/build/intermediates/compile_r_class_jar/debug/generateDebugRFile/R.jar differ
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt b/node_modules/@capacitor-community/media/android/build/intermediates/compile_symbol_list/debug/generateDebugRFile/R.txt
+new file mode 100644
+index 0000000..e69de29
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties b/node_modules/@capacitor-community/media/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+new file mode 100644
+index 0000000..29cb427
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/incremental/debug/packageDebugResources/compile-file-map.properties
+@@ -0,0 +1 @@
++#Mon Jul 27 18:54:56 CST 2026
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml b/node_modules/@capacitor-community/media/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+new file mode 100644
+index 0000000..b2e597a
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/incremental/debug/packageDebugResources/merger.xml
+@@ -0,0 +1,2 @@
++<?xml version="1.0" encoding="utf-8"?>
++<merger version="3"><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="main" generated-set="main$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"><source path="/Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/main/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/debug/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="debug" generated-set="debug$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"><source path="/Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/debug/res"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated$Generated" generated="true" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~"><source path="/Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/build/generated/res/resValues/debug"/></dataSet><dataSet aapt-namespace="http://schemas.android.com/apk/res-auto" config="generated" generated-set="generated$Generated" ignore_pattern="!.svn:!.git:!.ds_store:!*.scc:.*:&lt;dir>_*:!CVS:!thumbs.db:!picasa.ini:!*~:!&lt;dir>navigation"><source path="/Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/build/generated/res/resValues/debug"/></dataSet><mergedItems/></merger>
+\ No newline at end of file
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt b/node_modules/@capacitor-community/media/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+new file mode 100644
+index 0000000..78ac5b8
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/local_only_symbol_list/debug/parseDebugLocalResources/R-def.txt
+@@ -0,0 +1,2 @@
++R_DEF: Internal format may change without notice
++local
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt b/node_modules/@capacitor-community/media/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt
+new file mode 100644
+index 0000000..d569b31
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/manifest_merge_blame_file/debug/processDebugManifest/manifest-merger-blame-debug-report.txt
+@@ -0,0 +1,9 @@
++1<?xml version="1.0" encoding="utf-8"?>
++2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++3    package="com.getcapacitor.community.media" >
++4
++5    <uses-sdk android:minSdkVersion="24" />
++5-->INJECTED
++5-->INJECTED
++6
++7</manifest>
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml b/node_modules/@capacitor-community/media/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml
+new file mode 100644
+index 0000000..833699f
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/merged_manifest/debug/processDebugManifest/AndroidManifest.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<manifest xmlns:android="http://schemas.android.com/apk/res/android"
++    package="com.getcapacitor.community.media" >
++
++    <uses-sdk android:minSdkVersion="24" />
++
++</manifest>
+\ No newline at end of file
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json b/node_modules/@capacitor-community/media/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json
+new file mode 100644
+index 0000000..0637a08
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/navigation_json/debug/extractDeepLinksDebug/navigation.json
+@@ -0,0 +1 @@
++[]
+\ No newline at end of file
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt b/node_modules/@capacitor-community/media/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+new file mode 100644
+index 0000000..08f4ebe
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/nested_resources_validation_report/debug/generateDebugResources/nestedResourcesValidationReport.txt
+@@ -0,0 +1 @@
++0 Warning/Error
+\ No newline at end of file
+diff --git a/node_modules/@capacitor-community/media/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt b/node_modules/@capacitor-community/media/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+new file mode 100644
+index 0000000..0daf637
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/intermediates/symbol_list_with_package_name/debug/generateDebugRFile/package-aware-r.txt
+@@ -0,0 +1 @@
++com.getcapacitor.community.media
+diff --git a/node_modules/@capacitor-community/media/android/build/outputs/logs/manifest-merger-debug-report.txt b/node_modules/@capacitor-community/media/android/build/outputs/logs/manifest-merger-debug-report.txt
+new file mode 100644
+index 0000000..14465c7
+--- /dev/null
++++ b/node_modules/@capacitor-community/media/android/build/outputs/logs/manifest-merger-debug-report.txt
+@@ -0,0 +1,16 @@
++-- Merging decision tree log ---
++manifest
++ADDED from /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/main/AndroidManifest.xml:2:3-4:14
++INJECTED from /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/main/AndroidManifest.xml:2:3-4:14
++	package
++		INJECTED from /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/main/AndroidManifest.xml
++	xmlns:android
++		ADDED from /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/main/AndroidManifest.xml:2:13-71
++uses-sdk
++INJECTED from /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/main/AndroidManifest.xml reason: use-sdk injection requested
++INJECTED from /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/main/AndroidManifest.xml
++INJECTED from /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/main/AndroidManifest.xml
++	android:targetSdkVersion
++		INJECTED from /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/main/AndroidManifest.xml
++	android:minSdkVersion
++		INJECTED from /Users/john/.codex/worktrees/f640/question-bank-local/node_modules/@capacitor-community/media/android/src/main/AndroidManifest.xml

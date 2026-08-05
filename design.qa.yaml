@@ -1,0 +1,28 @@
+project:
+  name: question-bank-local
+  baseUrl: http://localhost:5173
+  outputDir: .design-qa
+
+design:
+  designMd: DESIGN.md
+  screenSpec: SCREEN_SPEC.md
+
+code:
+  include:
+    - src/ui/**/*.{ts,css,html}
+    - src/styles/**/*.{ts,css,html}
+    - src/index.html
+  exclude:
+    - node_modules/**
+    - dist/**
+    - www/**
+    - .design-qa/**
+
+debt:
+  maxHardCodedColors: 0
+  maxArbitraryTailwindValues: 5
+  maxInlineStyles: 0
+  allowedColorValues:
+    - '#000'
+    - '#fff'
+    - transparent

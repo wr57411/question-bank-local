@@ -18,30 +18,13 @@ import recoveryRouter from './routes/recovery.js';
 import pdfsRouter from './routes/pdfs.js';
 import pdfBooksRouter from './routes/pdf-books.js';
 import pdfTopicsRouter from './routes/pdf-topics.js';
+import wikiRouter from './routes/wiki.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app = express();
 
-const ALLOWED_ORIGINS = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:3001',
-  'capacitor://localhost',
-  'ionic://localhost',
-];
-
-app.use(cors({
-  origin: (origin, callback) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('不允许的来源'));
-    }
-  },
-  credentials: true,
-}));
+app.use(cors({ credentials: true }));
 
 const isTest = process.env.NODE_ENV === 'test';
 
@@ -111,6 +94,7 @@ app.use('/api/recovery', recoveryRouter);
 app.use('/api/pdfs', pdfsRouter);
 app.use('/api/pdf-books', pdfBooksRouter);
 app.use('/api/pdf-topics', pdfTopicsRouter);
+app.use('/api/wiki', wikiRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

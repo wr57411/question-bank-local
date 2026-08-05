@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   dbQuestions, dbTags, dbQuestionTags, dbPapers, dbPaperQuestions,
   dbSimilarQuestionLinks, dbTopics, dbTopicQuestions, dbQuestionNotes,
@@ -90,4 +91,72 @@ export function checkSyncDataIntegrity(before: DataFingerprint, after: DataFinge
     warnings.push('版本信息可能被丢弃');
   }
   return warnings;
+}
+
+// ---------- Batch 6: sync data helpers ----------
+
+let _onSyncDataWarning: ((warnings: any[]) => void) | null = null;
+
+export function setOnSyncDataWarning(fn: (warnings: any[]) => void): void {
+  _onSyncDataWarning = fn;
+}
+
+export async function dbApplyRemoteSnapshot(snapshot: any): Promise<void> {
+  if (snapshot.questions) {
+    for (const q of snapshot.questions) {
+      const existing = await dbQuestions.getItem<any>(q.id);
+      if (!existing || new Date(q.updated_at) > new Date(existing.updated_at)) {
+        await dbQuestions.setItem(q.id, q);
+      }
+    }
+  }
+  if (snapshot.tags) {
+    for (const t of snapshot.tags) {
+      const existing = await dbTags.getItem(t.id);
+      if (!existing) await dbTags.setItem(t.id, t);
+    }
+  }
+  if (snapshot.papers) {
+    for (const p of snapshot.papers) { await dbPapers.setItem(p.id, p); }
+  }
+  if (snapshot.paper_questions) {
+    for (const pq of snapshot.paper_questions) { await dbPaperQuestions.setItem(pq.id || `${pq.paper_id}_${pq.question_id}`, pq); }
+  }
+  if (snapshot.topics) {
+    for (const t of snapshot.topics) { await dbTopics.setItem(t.id, t); }
+  }
+  if (snapshot.topic_questions) {
+    for (const tq of snapshot.topic_questions) { await dbTopicQuestions.setItem(tq.id || `${tq.topic_id}_${tq.question_id}`, tq); }
+  }
+  if (snapshot.similar_links) {
+    for (const sl of snapshot.similar_links) { await dbSimilarQuestionLinks.setItem(sl.id, sl); }
+  }
+  if (snapshot.question_notes) {
+    for (const n of snapshot.question_notes) { await dbQuestionNotes.setItem(n.id, n); }
+  }
+}
+
+export async function dbFinalizeSuccessfulSync(applied: any): Promise<void> {
+  if (applied && applied.questions) {
+    for (const id of applied.questions) {
+      const q = await dbQuestions.getItem<any>(id);
+      if (q) { q._dirty = false; await dbQuestions.setItem(id, q); }
+    }
+  }
+}
+
+export async function dbClearAllData(): Promise<void> {
+  await dbQuestions.clear();
+  await dbTags.clear();
+  await dbPapers.clear();
+  await dbPaperQuestions.clear();
+  await dbTopics.clear();
+  await dbTopicQuestions.clear();
+  await dbSimilarQuestionLinks.clear();
+  await dbQuestionNotes.clear();
+}
+
+export async function dbReplaceWithRemoteSnapshot(snapshot: any): Promise<void> {
+  await dbClearAllData();
+  await dbApplyRemoteSnapshot(snapshot);
 }

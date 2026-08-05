@@ -5,6 +5,7 @@ test.describe("UI 健康检测 - 存在性", () => {
     await page.addInitScript(() => {
       window.confirm = () => true;
       window.alert = () => {};
+      window.Capacitor = { getPlatform: () => 'android', Plugins: {} };
     });
     await page.goto("/");
   });
@@ -75,6 +76,7 @@ test.describe("UI 健康检测 - 功能性", () => {
     await page.addInitScript(() => {
       window.confirm = () => true;
       window.alert = () => {};
+      window.Capacitor = { getPlatform: () => 'android', Plugins: {} };
     });
     await page.goto("/");
   });
@@ -203,6 +205,7 @@ test.describe("UI 健康检测 - 扩展功能", () => {
     await page.addInitScript(() => {
       window.confirm = () => true;
       window.alert = () => {};
+      window.Capacitor = { getPlatform: () => 'android', Plugins: {} };
     });
     await page.goto("/");
   });

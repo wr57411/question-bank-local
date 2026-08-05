@@ -47,7 +47,7 @@ export async function renderPdfLibrary(): Promise<void> {
   }
 
   html += `<div style="display:flex;gap:8px;margin-top:16px">
-    <button onclick="handlePdfUpload()" style="flex:1;background:var(--accent);box-shadow:0 4px 0 #5A3DC0;padding:12px;font-size:14px">📤 上传 PDF</button>
+    <button onclick="handlePdfUpload()" style="flex:1;background:var(--accent);box-shadow:none;padding:12px;font-size:14px">📤 上传 PDF</button>
   </div>`;
 
   container.innerHTML = html;

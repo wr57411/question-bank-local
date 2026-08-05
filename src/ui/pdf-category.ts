@@ -25,9 +25,9 @@ export async function showPdfCategoryMenu(catId: string): Promise<void> {
     <h3 style="margin:0 0 12px 0;font-size:16px">${escapeHtml(cat.name)}</h3>
     <div style="display:flex;flex-direction:column;gap:10px">
       <input id="cat-sub-name" placeholder="子分类名称" style="width:100%;padding:10px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-md)" />
-      <button onclick="addPdfSubCategory('${catId}')" style="padding:10px;background:var(--accent);box-shadow:0 3px 0 #5A3DC0;font-size:13px">➕ 添加子分类</button>
-      <button onclick="renamePdfCategory('${catId}')" style="padding:10px;background:var(--warning);box-shadow:0 3px 0 #B07A08;font-size:13px">✏️ 重命名</button>
-      <button onclick="deletePdfCategory('${catId}')" style="padding:10px;background:#ef4444;box-shadow:0 3px 0 #b91c1c;color:#fff;font-size:13px">🗑 删除分类${children.length > 0 ? '（含子分类）' : ''}</button>
+      <button onclick="addPdfSubCategory('${catId}')" style="padding:10px;background:var(--accent);box-shadow:none;font-size:13px">➕ 添加子分类</button>
+      <button onclick="renamePdfCategory('${catId}')" style="padding:10px;background:var(--warning);box-shadow:none;font-size:13px">✏️ 重命名</button>
+      <button onclick="deletePdfCategory('${catId}')" style="padding:10px;background:var(--danger);box-shadow:none;color:#fff;font-size:13px">🗑 删除分类${children.length > 0 ? '（含子分类）' : ''}</button>
       <button onclick="closePdfManageModal()" class="secondary" style="padding:10px;font-size:13px">取消</button>
     </div>`;
   modal.style.display = 'flex';

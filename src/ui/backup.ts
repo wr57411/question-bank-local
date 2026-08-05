@@ -77,3 +77,10 @@ export async function restoreFromBackup(file: File): Promise<void> {
     showStatus('恢复失败: ' + (e instanceof Error ? e.message : String(e)), 'error');
   }
 }
+
+export function getBackupPath(): string {
+  const custom = localStorage.getItem('backupPath');
+  return custom ? custom + '/question-bank-backup.json' : 'question-bank-backup.json';
+}
+
+export function getBackupDir(): string { return 'DOCUMENTS'; }
