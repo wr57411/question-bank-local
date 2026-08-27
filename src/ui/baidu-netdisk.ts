@@ -58,7 +58,9 @@ export function openBaiduAuth(): void {
     '&redirect_uri=' + encodeURIComponent(BAIDU_REDIRECT) +
     '&scope=' + BAIDU_SCOPE +
     '&display=page';
-  if (w.isNative && w.Capacitor?.Plugins?.Browser) {
+  const cap = (window as any).Capacitor;
+  const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  if (isNative && cap?.Plugins?.Browser) {
     w.Capacitor.Plugins.Browser.open({ url });
   } else {
     window.open(url, '_blank');

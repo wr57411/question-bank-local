@@ -25,7 +25,10 @@ export function switchAddMode(mode: string): void {
     photoSection.style.display = ''; batchSection.style.display = 'none'; bookSection.style.display = '';
     photoBtn.style.background = 'var(--primary)'; photoBtn.style.color = '#fff'; photoBtn.style.boxShadow = '0 6px 16px rgba(255,120,71,.3)';
     questionLabel.textContent = '题目图片（笔记）*';
-    if (w.isNative && w.MediaPlugin) { w.loadGalleryThumbnails('question'); w.loadGalleryThumbnails('answer'); }
+    const cap = (window as any).Capacitor;
+    const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+    const MediaPlugin = isNative ? (cap?.Plugins?.MediaGallery ?? cap?.Plugins?.Media ?? null) : null;
+    if (isNative && MediaPlugin) { w.loadGalleryThumbnails('question'); w.loadGalleryThumbnails('answer'); }
   } else if (mode === 'text') {
     photoSection.style.display = 'none'; batchSection.style.display = 'none'; bookSection.style.display = '';
     textBtn.style.background = 'var(--primary)'; textBtn.style.color = '#fff'; textBtn.style.boxShadow = '0 6px 16px rgba(255,120,71,.3)';

@@ -7,7 +7,9 @@ let floatingActive = false;
 let floatingPollTimer: ReturnType<typeof setInterval> | null = null;
 
 function getFloatingWindow(): any {
-  return w.isNative ? w.Capacitor?.Plugins?.FloatingWindow : null;
+  const cap = (window as any).Capacitor;
+  const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  return isNative ? (cap?.Plugins?.FloatingWindow ?? null) : null;
 }
 
 export async function toggleFloatingWindow(): Promise<void> {
