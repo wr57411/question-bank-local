@@ -44,6 +44,14 @@ test.describe("UI 健康检测 - 存在性", () => {
     await expect(page.locator('button:has-text("导入")').first()).toBeVisible();
   });
 
+  test("initApp 已恢复：添加题目表单初始化", async ({ page }) => {
+    // 题目管理 Tab 默认激活，beforeEach 已 mock Capacitor=android 且 goto("/")
+    // 断言恢复 initApp 后关键表单元素已初始化并可见
+    await expect(page.locator('#book-name')).toBeVisible();
+    await expect(page.locator('#mode-photo-btn')).toBeVisible();
+    await expect(page.locator('#question-form button[type="submit"]')).toContainText('添加题目');
+  });
+
   test("标签管理页表单存在", async ({ page }) => {
     await page.locator('.tab:has-text("标签管理")').click();
     await expect(page.locator('#tag-name')).toBeVisible();
