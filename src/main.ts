@@ -544,6 +544,9 @@ assignToWindow({
   updateServerSyncStatus: ui.updateServerSyncStatus,
   stopSyncPolling: ui.stopSyncPolling,
   restartSyncPolling: ui.restartSyncPolling,
+  // Task: compose existing polling globals (removed app.js no longer provides these)
+  stopAllPolling: () => { ui.stopSyncPolling(); ui.stopFloatingPolling(); },
+  restartAllPolling: () => { ui.restartSyncPolling(); ui.restartFloatingPolling(); },
   queueAutoSync: ui.queueAutoSync,
   runSync: ui.runSync,
   doSync: ui.doSync,

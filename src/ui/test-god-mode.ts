@@ -24,7 +24,11 @@ export async function runFullAIAutomation(): Promise<void> {
 
   // 2. 自动发现并加载模型
   console.log('🛠️ [自动化] Step 2: 正在执行自动模型发现 handleDiscoverModel...');
-  await w.handleDiscoverModel();
+  if (typeof w.handleDiscoverModel === 'function') {
+    await w.handleDiscoverModel();
+  } else {
+    console.warn('🛠️ [自动化] handleDiscoverModel 未实现，跳过自动模型发现');
+  }
 
   // 3. 等待引擎就绪
   console.log('🛠️ [自动化] Step 3: 开始轮询检查 AI 引擎就绪状态...');

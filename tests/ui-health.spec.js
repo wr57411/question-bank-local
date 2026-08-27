@@ -84,9 +84,13 @@ test.describe("UI 健康检测 - 存在性", () => {
     const has = await page.evaluate(() => ({
       doAutoBackup: typeof window.doAutoBackup,
       buildBackupData: typeof window.buildBackupData,
+      stopAllPolling: typeof window.stopAllPolling,
+      restartAllPolling: typeof window.restartAllPolling,
     }));
     expect(has.doAutoBackup).toBe("function");
     expect(has.buildBackupData).toBe("function");
+    expect(has.stopAllPolling).toBe("function");
+    expect(has.restartAllPolling).toBe("function");
   });
 });
 
