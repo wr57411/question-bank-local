@@ -121,6 +121,7 @@
 | 本地 CI/CD 测试体系 | 代码修改后立即跑 typecheck+build+E2E，对齐 GitHub CI | docs/local-cicd-pre-push-testing.md | 2026-07-26 | CI/CD, 测试流程 |
 | 服务端数据库迁移恢复 | 旧服务端数据安全合并到统一仓库服务端 | docs/server-database-migration-recovery.md | 2026-07-26 | 服务端, SQLite, 账号, PDF书库 |
 | 修复 LLM Wiki 知识编译流水线 | UI编译入口未接通+接口割裂+links不持久化+预算/队列死代码+实体去重失真+图谱随机连线+JSON静默失败+服务端无CRDT等12项 | docs/fix-llm-wiki-pipeline.md | 2026-07-31 | LLM Wiki, 编译流水线, 视觉OCR, 实体对齐, 服务端合并 |
+| 修复 UI 迁移回归（相册缩略图+原生门控+双重初始化） | window原生标志未赋值+initApp被注释+app.js/main.ts双重绑定submit导致一次创建两条+Playwright数据污染，13个commit修复 | docs/fix-migration-native-gating-regression.md | 2026-08-27 | 相册缩略图, 原生门控, 双重初始化, app.js移除, Playwright隔离 |
 
 ### 功能设计文档
 
@@ -134,3 +135,4 @@
 | Wiki最小MVP（重新构建） | 选题目→OpenRouter视觉模型→卡帕西原则结构化知识，旧wiki保留未动 | docs/wiki-mvp-design.md | 2026-08-01 | Wiki MVP, OpenRouter, 视觉模型, 知识结构 |
 | 本地OCR服务备选方案 | PaddleOCR+UniMERNet本地识别文字/公式 → 免费纯文本LLM提取，与视觉模型模式并存 | docs/local-ocr-service.md | 2026-08-01 | OCR, PaddleOCR, UniMERNet, 纯文本LLM, 本地服务 |
 | UI 整体迁移至明亮友好型风格 | DESIGN.md 契约+token 重写+组件层重构+42 个 TS 文件硬编码清理 | docs/ui-migration-bright-friendly.md | 2026-08-03 | UI, 设计系统, 视觉语言, 设计债 |
+| 架构可视化模型（Architecture Visualization 插件） | C4 系统上下文/容器 DSL + 客户端四层依赖 DOT + 同步流程 Mermaid + 证据索引 | docs/architecture/artifact-summary.md | 2026-08-05 | 架构模型, C4, Graphviz, 证据索引 |
