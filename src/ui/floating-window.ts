@@ -13,9 +13,11 @@ function getFloatingWindow(): any {
 }
 
 export async function toggleFloatingWindow(): Promise<void> {
+  const cap = (window as any).Capacitor;
+  const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
   const FloatingWindow = getFloatingWindow();
-  console.log("[Floating] toggleFloatingWindow called! isNative=" + w.isNative + " FloatingWindow=" + !!FloatingWindow + " floatingActive=" + floatingActive);
-  if (!w.isNative || !FloatingWindow) {
+  console.log("[Floating] toggleFloatingWindow called! isNative=" + isNative + " FloatingWindow=" + !!FloatingWindow + " floatingActive=" + floatingActive);
+  if (!isNative || !FloatingWindow) {
     w.showStatus("悬浮窗仅在 Android 设备上可用", "error");
     return;
   }
@@ -41,9 +43,11 @@ export async function toggleFloatingWindow(): Promise<void> {
 }
 
 export async function pickFromFloating(target: string): Promise<void> {
+  const cap = (window as any).Capacitor;
+  const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
   const FloatingWindow = getFloatingWindow();
-  console.log("[Floating] pickFromFloating called, target=" + target + " isNative=" + w.isNative + " floatingActive=" + floatingActive);
-  if (!w.isNative || !FloatingWindow) {
+  console.log("[Floating] pickFromFloating called, target=" + target + " isNative=" + isNative + " floatingActive=" + floatingActive);
+  if (!isNative || !FloatingWindow) {
     console.log("[Floating] not native or no FloatingWindow");
     w.showStatus("悬浮窗仅在 Android 设备上可用", "error");
     return;
