@@ -58,7 +58,7 @@
 
     <!-- 题目管理 -->
     <div id="questions-tab">
-        <div class="card" class="ai-card">
+        <div class="card ai-card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
                 <h3 style="margin:0;color:var(--accent);font-size:16px;font-weight:700">🤖 AI 引擎管理</h3>
                 <span id="ai-status-label" class="ai-badge" style="background:var(--danger)">未就绪</span>
@@ -206,9 +206,9 @@
                         <label id="question-image-label">题目图片（笔记）*</label>
                         <div class="upload-buttons">
                             <button type="button" class="upload-btn camera" onclick="takePhoto('question')">📷 拍照</button>
-                            <button type="button" class="upload-btn" onclick="pickFromGallery('question')" class="btn-ghost">🖼️ 相册</button>
-                            <button type="button" class="upload-btn" class="btn-grape" onclick="crossPageShoot('question')">📸 跨页</button>
-                            <button type="button" class="upload-btn" class="btn-sky" onclick="pickFromFloating('question')">📋 悬浮窗</button>
+                            <button type="button" class="upload-btn btn-ghost" onclick="pickFromGallery('question')">🖼️ 相册</button>
+                            <button type="button" class="upload-btn btn-grape" onclick="crossPageShoot('question')">📸 跨页</button>
+                            <button type="button" class="upload-btn btn-sky" onclick="pickFromFloating('question')">📋 悬浮窗</button>
                         </div>
                         <div class="preview-wrap" id="question-preview-wrap" style="display:none">
                             <span class="preview-delete" onclick="removeImage('question')">×</span>
@@ -229,10 +229,10 @@
                         </div>
                         <div class="upload-buttons">
                             <button type="button" class="upload-btn camera" onclick="takePhoto('answer')">📷 拍照</button>
-                            <button type="button" class="upload-btn" onclick="pickFromGallery('answer')" class="btn-ghost">🖼️ 相册</button>
-                            <button type="button" class="upload-btn" class="btn-grape" onclick="crossPageShoot('answer')">📸 跨页</button>
-                            <button type="button" class="upload-btn" class="btn-sky" onclick="pickFromFloating('answer')">📋 悬浮窗</button>
-                            <button type="button" id="copy-q-to-a-btn" class="upload-btn" onclick="copyQuestionToAnswer()" class="btn-mint" style="display:none">📋 复制题目</button>
+                            <button type="button" class="upload-btn btn-ghost" onclick="pickFromGallery('answer')">🖼️ 相册</button>
+                            <button type="button" class="upload-btn btn-grape" onclick="crossPageShoot('answer')">📸 跨页</button>
+                            <button type="button" class="upload-btn btn-sky" onclick="pickFromFloating('answer')">📋 悬浮窗</button>
+                            <button type="button" id="copy-q-to-a-btn" class="upload-btn btn-mint" onclick="copyQuestionToAnswer()" style="display:none">📋 复制题目</button>
                         </div>
                         <div class="preview-wrap" id="answer-preview-wrap" style="display:none">
                             <span class="preview-delete" onclick="removeImage('answer')">×</span>
@@ -243,9 +243,9 @@
                     <div class="form-group">
                         <label>空白版图片（可选，学生用）</label>
                         <div class="upload-buttons">
-                            <button type="button" class="upload-btn" class="btn-warn" onclick="takePhoto('blank')">📷 拍空白版</button>
-                            <button type="button" class="upload-btn" onclick="pickFromGallery('blank')" class="btn-ghost">🖼️ 相册</button>
-                            <button type="button" class="upload-btn" class="btn-sky" onclick="pickFromFloating('blank')">📋 悬浮窗</button>
+                            <button type="button" class="upload-btn btn-warn" onclick="takePhoto('blank')">📷 拍空白版</button>
+                            <button type="button" class="upload-btn btn-ghost" onclick="pickFromGallery('blank')">🖼️ 相册</button>
+                            <button type="button" class="upload-btn btn-sky" onclick="pickFromFloating('blank')">📋 悬浮窗</button>
                         </div>
                         <div class="preview-wrap" id="blank-preview-wrap" style="display:none">
                             <span class="preview-delete" onclick="removeImage('blank')">×</span>
@@ -342,7 +342,7 @@
 
     <!-- 试卷管理 -->
     <div id="papers-tab" class="hidden">
-        <div class="card" class="ai-card">
+        <div class="card ai-card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
                 <h2 style="margin:0;color:var(--accent)">✨ AI 智能推荐组卷</h2>
                 <span class="ai-badge">Gemma 4</span>
@@ -429,7 +429,7 @@
 
     <!-- AI教学内容生产 -->
     <div id="teaching-tab" class="hidden">
-        <div class="card" class="ai-card">
+        <div class="card ai-card">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
                 <h2 style="margin:0;color:var(--accent);font-size:17px;font-weight:700">🎓 AI教学内容生产</h2>
             </div>
@@ -840,7 +840,7 @@
             <label>题目图片 *</label>
             <div class="upload-buttons">
                 <button type="button" class="upload-btn camera" onclick="takePhotoForNoteVersion('question')">📷 拍照</button>
-                <button type="button" class="upload-btn" onclick="pickFromGalleryForNoteVersion('question')" class="btn-ghost">🖼️ 相册</button>
+                <button type="button" class="upload-btn btn-ghost" onclick="pickFromGalleryForNoteVersion('question')">🖼️ 相册</button>
             </div>
             <div class="preview-wrap" id="note-version-preview-wrap" style="display:none">
                 <span class="preview-delete" onclick="removeNoteVersionImage()">×</span>
