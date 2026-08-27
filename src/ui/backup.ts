@@ -84,3 +84,92 @@ export function getBackupPath(): string {
 }
 
 export function getBackupDir(): string { return 'DOCUMENTS'; }
+
+export function showBackupModal(): void {
+  const toggle = document.getElementById('auto-backup-toggle') as HTMLInputElement | null;
+  const autoBackupEnabled = localStorage.getItem('autoBackup') === '1';
+  if (toggle) toggle.checked = autoBackupEnabled;
+  updateBackupStatusUI();
+  const info = document.getElementById('backup-path-info');
+  if (info) {
+    const custom = localStorage.getItem('backupPath');
+    info.innerHTML = custom ? '备份到 <b>' + custom + '/</b> 目录下' : '文件将保存在 <b>Documents/question-bank-backup.json</b>';
+  }
+  document.getElementById('backup-modal')!.classList.add('active');
+}
+
+export function closeBackupModal(): void {
+  document.getElementById('backup-modal')!.classList.remove('active');
+}
+
+export function toggleAutoBackup(enabled: boolean): void {
+  localStorage.setItem('autoBackup', enabled ? '1' : '0');
+  if (enabled) void doAutoBackup();
+}
+
+async function doAutoBackup(): Promise<void> {
+  const cap = (window as any).Capacitor;
+  const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  const Filesystem = isNative ? cap?.Plugins?.Filesystem : null;
+  if (localStorage.getItem('autoBackup') !== '1' || !isNative || !Filesystem) return;
+  try {
+    const data = await smartBackup();
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+    await Filesystem.writeFile({ path: getBackupPath(), data: content, directory: getBackupDir() });
+    localStorage.setItem('lastBackupTime', new Date().toISOString());
+  } catch (e) { console.error('自动备份失败:', e); }
+}
+
+export async function saveBackupToDevice(): Promise<void> {
+  const cap = (window as any).Capacitor;
+  const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  const Filesystem = isNative ? cap?.Plugins?.Filesystem : null;
+  try {
+    const data = await smartBackup();
+    if (isNative && Filesystem) {
+      const content = btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+      await Filesystem.writeFile({ path: getBackupPath(), data: content, directory: getBackupDir() });
+      localStorage.setItem('lastBackupTime', new Date().toISOString());
+      updateBackupStatusUI();
+      showStatus('备份已保存', 'success');
+    } else {
+      const blob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a') as HTMLAnchorElement;
+      a.href = url; a.download = 'question-bank-backup.json';
+      a.click(); URL.revokeObjectURL(url);
+      showStatus('备份已下载', 'success');
+    }
+  } catch (e) { showStatus('备份失败: ' + (e instanceof Error ? e.message : String(e)), 'error'); }
+}
+
+export async function loadBackupFromDevice(): Promise<void> {
+  const cap = (window as any).Capacitor;
+  const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  const Filesystem = isNative ? cap?.Plugins?.Filesystem : null;
+  const existingQS = await (window as any).dbGetAllQuestions?.() ?? [];
+  const existingCount = existingQS.length;
+  if (existingCount > 0 && !confirm('当前已有 ' + existingCount + ' 道题目，加载备份将覆盖同名数据。\n\n确定要继续吗？')) return;
+  try {
+    if (isNative && Filesystem) {
+      const result = await Filesystem.readFile({ path: 'question-bank-backup.json', directory: getBackupDir() });
+      const json = decodeURIComponent(escape(atob(result.data)));
+      const data = JSON.parse(json);
+      const backupCount = data.questions?.length || 0;
+      if (!confirm('备份包含 ' + backupCount + ' 道题目，确定导入？')) return;
+      await importBackupData(data);
+      await (window as any).refreshAll?.();
+      showStatus('备份恢复成功: ' + backupCount + ' 题', 'success');
+    } else {
+      const input = document.createElement('input');
+      input.type = 'file'; input.accept = '.json';
+      input.onchange = async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0]; if (!file) return;
+        const data = JSON.parse(await file.text());
+        await importBackupData(data); await (window as any).refreshAll?.();
+        showStatus('备份恢复成功: ' + (data.questions?.length || 0) + ' 题', 'success');
+      };
+      input.click();
+    }
+  } catch (e) { showStatus('恢复失败: ' + (e instanceof Error ? e.message : String(e)), 'error'); }
+}

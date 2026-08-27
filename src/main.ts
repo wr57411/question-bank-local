@@ -609,6 +609,12 @@ assignToWindow({
   _buildDrawHTML: ui._buildDrawHTML, initDrawCanvas: ui.initDrawCanvas,
   saveDrawing: ui.saveDrawing, cancelDraw: ui.cancelDraw,
   getBackupPath: ui.getBackupPath, getBackupDir: ui.getBackupDir,
+  // Task 7c: backup modal helpers (ported from app.js)
+  showBackupModal: ui.showBackupModal,
+  closeBackupModal: ui.closeBackupModal,
+  saveBackupToDevice: ui.saveBackupToDevice,
+  loadBackupFromDevice: ui.loadBackupFromDevice,
+  toggleAutoBackup: ui.toggleAutoBackup,
   stopFloatingPolling: ui.stopFloatingPolling, restartFloatingPolling: ui.restartFloatingPolling,
 });
 
