@@ -107,7 +107,7 @@ export function toggleAutoBackup(enabled: boolean): void {
   if (enabled) void doAutoBackup();
 }
 
-async function doAutoBackup(): Promise<void> {
+export async function doAutoBackup(): Promise<void> {
   const cap = (window as any).Capacitor;
   const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
   const Filesystem = isNative ? cap?.Plugins?.Filesystem : null;
@@ -118,6 +118,18 @@ async function doAutoBackup(): Promise<void> {
     await Filesystem.writeFile({ path: getBackupPath(), data: content, directory: getBackupDir() });
     localStorage.setItem('lastBackupTime', new Date().toISOString());
   } catch (e) { console.error('自动备份失败:', e); }
+}
+
+export async function buildBackupData(): Promise<{ questions: any[]; tags: any[]; question_tags: any[]; papers: any[]; paper_questions: any[]; similar_question_links: any[] }> {
+  const { dbQuestions, dbTags, dbQuestionTags, dbPapers, dbPaperQuestions, dbSimilarQuestionLinks } = await import('../data/stores');
+  const data: any = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [], similar_question_links: [] };
+  await dbQuestions.iterate((v: any) => data.questions.push(v));
+  await dbTags.iterate((v: any) => data.tags.push(v));
+  await dbQuestionTags.iterate((v: any) => data.question_tags.push(v));
+  await dbPapers.iterate((v: any) => data.papers.push(v));
+  await dbPaperQuestions.iterate((v: any) => data.paper_questions.push(v));
+  await dbSimilarQuestionLinks.iterate((v: any) => data.similar_question_links.push(v));
+  return data;
 }
 
 export async function saveBackupToDevice(): Promise<void> {

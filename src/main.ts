@@ -615,6 +615,8 @@ assignToWindow({
   saveBackupToDevice: ui.saveBackupToDevice,
   loadBackupFromDevice: ui.loadBackupFromDevice,
   toggleAutoBackup: ui.toggleAutoBackup,
+  doAutoBackup: ui.doAutoBackup,
+  buildBackupData: ui.buildBackupData,
   stopFloatingPolling: ui.stopFloatingPolling, restartFloatingPolling: ui.restartFloatingPolling,
 });
 

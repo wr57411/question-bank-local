@@ -77,6 +77,17 @@ test.describe("UI 健康检测 - 存在性", () => {
     await expect(page.locator('#version-switcher')).toBeVisible();
     await expect(page.locator('#version-switcher').locator('div').first()).toBeVisible();
   });
+
+  test("移除 app.js 后关键全局仍可用（回归）", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    const has = await page.evaluate(() => ({
+      doAutoBackup: typeof window.doAutoBackup,
+      buildBackupData: typeof window.buildBackupData,
+    }));
+    expect(has.doAutoBackup).toBe("function");
+    expect(has.buildBackupData).toBe("function");
+  });
 });
 
 test.describe("UI 健康检测 - 功能性", () => {
