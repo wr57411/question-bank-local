@@ -3,6 +3,7 @@ import './styles/main.css';
 import * as data from './data';
 import * as services from './services';
 import * as ui from './ui';
+import { initApp } from './init-app';
 
 const w = window as unknown as Record<string, unknown>;
 
@@ -78,6 +79,23 @@ for (const [key, value] of Object.entries(sharedDefaults)) {
     w[key] = value;
   }
 }
+
+// Native platform flags computed from window.Capacitor (classic-script top-level
+// `const` in public/app.js never became window properties, so recompute here).
+const cap = (window as any).Capacitor;
+const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+const isIOS = isNative && cap.getPlatform && cap.getPlatform() === 'ios';
+const Camera = isNative ? (cap?.Plugins?.Camera ?? null) : null;
+const MediaPlugin = isNative ? (cap?.Plugins?.MediaGallery ?? cap?.Plugins?.Media ?? null) : null;
+const FloatingWindow = isNative ? (cap?.Plugins?.FloatingWindow ?? null) : null;
+
+assignIfMissing({
+  isNative,
+  isIOS,
+  Camera,
+  MediaPlugin,
+  FloatingWindow,
+});
 
 assignIfMissing({
   // data layer
@@ -613,13 +631,11 @@ ui.initSyncUI();
 ui.initProjectionEvents();
 ui.initProviderList();
 
-// 收尾: initApp 已就绪，待 JS 脚本注释掉后启用
-// import { initApp } from './init-app';
-// if (document.readyState === 'loading') {
-//   document.addEventListener('DOMContentLoaded', initApp);
-// } else {
-//   initApp();
-// }
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initApp);
+} else {
+  initApp();
+}
 
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
