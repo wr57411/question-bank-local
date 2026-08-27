@@ -144,10 +144,8 @@ export async function saveDrawing(drawId: string, desc: string): Promise<void> {
     ver.drawings[drawId] = { data: dataUrl, desc, width: canvas.width, height: canvas.height };
     await w.dbUpdateVersion(ver.id, { drawings: ver.drawings });
     const contentEl = document.getElementById('verify-content');
-    const editPreviewEl = document.getElementById('verify-edit-preview');
     const projContentEl = document.getElementById('projection-content');
     if (contentEl && contentEl.style.display !== 'none') { w.renderMarkdown(ver.content_markdown, contentEl, { drawings: ver.drawings || {}, node: w.currentDrawNode }); }
-    if (editPreviewEl && editPreviewEl.style.display !== 'none') { w.renderMarkdown((document.getElementById('verify-edit-textarea') as HTMLTextAreaElement).value, editPreviewEl, { drawings: ver.drawings || {}, node: w.currentDrawNode }); }
     if (projContentEl && document.getElementById('projection-overlay')!.classList.contains('active')) { w.renderMarkdown(ver.content_markdown, projContentEl, { drawings: ver.drawings || {}, node: w.currentDrawNode, readOnly: true }); }
     w.showStatus('手绘图已保存', 'success');
   } catch (e: any) { console.error('saveDrawing failed:', e); w.showStatus('手绘图保存失败: ' + e.message, 'error'); }
