@@ -20,9 +20,9 @@ export function applyPlatformUI(): void {
 
 export function selectLayout(el: HTMLElement, _val: string): void {
   document.querySelectorAll('.layout-option').forEach(l => {
-    (l as HTMLElement).style.borderColor = '#e5e7eb';
-    (l as HTMLElement).style.background = '#fff';
+    (l as HTMLElement).style.borderColor = 'var(--border-light)';
+    (l as HTMLElement).style.background = 'var(--surface)';
   });
-  el.style.borderColor = '#3B82F6';
-  el.style.background = '#3B82F610';
+  el.style.borderColor = 'var(--sky)';
+  el.style.background = 'var(--sky-light)';
 }
