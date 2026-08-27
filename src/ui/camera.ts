@@ -1,6 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 const w = window as any;
 
+function nativeFlags(): { isNative: boolean; MediaPlugin: any } {
+  const cap = (window as any).Capacitor;
+  const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  const MediaPlugin = isNative ? (cap?.Plugins?.MediaGallery ?? cap?.Plugins?.Media ?? null) : null;
+  return { isNative, MediaPlugin };
+}
+
 // ========== 相机/相册 ==========
 
 export function _handleImageReady(target: string, dataUrl: string): void {
@@ -102,7 +109,8 @@ export function removeImage(target: string): void {
 }
 
 export async function loadGalleryThumbnails(target: string): Promise<void> {
-  if (!w.isNative || !w.MediaPlugin) {
+  const { isNative, MediaPlugin } = nativeFlags();
+  if (!isNative || !MediaPlugin) {
     console.warn('[Gallery] not native or no MediaPlugin');
     return;
   }
@@ -115,7 +123,7 @@ export async function loadGalleryThumbnails(target: string): Promise<void> {
   container.innerHTML = '<span style="font-size:12px;color:var(--text-secondary);padding:8px">加载中...</span>';
   try {
     console.log('[Gallery] calling getMedias for ' + target + '...');
-    const result = await w.MediaPlugin.getMedias({
+    const result = await MediaPlugin.getMedias({
       quantity: 20,
       thumbnailWidth: 240,
       thumbnailHeight: 240,
