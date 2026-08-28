@@ -12,3 +12,4 @@ export * from './wiki-schema';
 export * from './wiki-diagnostic';
 export * from './wiki-mvp';
 export * from './local-ocr';
+export * from './issue-feedback';
