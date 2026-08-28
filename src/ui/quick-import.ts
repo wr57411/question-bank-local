@@ -7,6 +7,8 @@ import {
   markImportedIds,
   buildQuickCreateArgs,
   loadQuickLayoutType,
+  saveQuickLayoutType,
+  toggleLayoutType,
   layoutLabel,
   type GalleryMediaLite,
   type QuickPair,
@@ -16,7 +18,14 @@ import {
   comboVersionNames,
   getComboById,
   getActiveComboId,
+  loadVersionCombos,
+  createVersionCombo,
+  updateVersionCombo,
+  deleteVersionCombo,
+  setActiveComboId,
+  type VersionCombo,
 } from '../services/version-combo';
+import { getAppVersions, getCurrentVersionId, type AppVersion } from '../services/version-skin';
 
 const w = window as unknown as Record<string, any>;
 const MODE_KEY = 'quickImportMode';
@@ -119,7 +128,7 @@ function render(): void {
   const comboBtn = document.getElementById('qi-combo-btn');
   if (comboBtn) {
     const combo = getComboById(getActiveComboId());
-    const names = comboVersionNames(combo, (id) => w.getAppVersions?.().find((v: any) => v.id === id)?.name ?? null);
+    const names = comboVersionNames(combo, (id) => getAppVersions().find((v) => v.id === id)?.name ?? null);
     comboBtn.textContent = (combo?.name || '组合') + (names.length ? '：' + names.join('+') : '') + ' ▾';
   }
 
@@ -146,7 +155,7 @@ function render(): void {
 
 export async function confirmQuickImport(): Promise<void> {
   if (!pair || loading) return;
-  const combo = resolveActiveCombo(() => (w.getAppVersions?.() || []).map((v: any) => v.id));
+  const combo = resolveActiveCombo(() => getAppVersions().map((v) => v.id));
   const ids = [pair.question.identifier, pair.answer.identifier];
   loading = true;
   renderHint('正在导入...');
@@ -322,4 +331,152 @@ export function stopQuickTagPoll(): void {
     clearInterval(tagPollTimer);
     tagPollTimer = null;
   }
+}
+
+export function openComboPanel(): void {
+  const panel = document.getElementById('quick-combo-panel');
+  if (!panel) return;
+  panel.style.display = '';
+  renderComboList();
+}
+
+export function closeComboPanel(): void {
+  const panel = document.getElementById('quick-combo-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+export function renderComboList(): void {
+  const list = document.getElementById('qi-combo-list');
+  if (!list) return;
+  const combos = loadVersionCombos();
+  const activeId = getActiveComboId();
+  list.innerHTML = '';
+  if (combos.length === 0) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'font-size:12px;color:var(--text-tertiary);margin:0 0 8px';
+    empty.textContent = '还没有组合，下面输入名称新建一个。';
+    list.appendChild(empty);
+  }
+  for (const c of combos) list.appendChild(comboRow(c, c.id === activeId));
+}
+
+function comboRow(combo: VersionCombo, active: boolean): HTMLDivElement {
+  const row = document.createElement('div');
+  row.style.cssText = 'padding:10px;border:1.5px solid ' + (active ? 'var(--primary)' : 'var(--border)')
+    + ';border-radius:var(--radius-md);margin-bottom:8px;background:' + (active ? 'var(--primary-light)' : 'var(--surface)');
+
+  const head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;gap:8px';
+
+  const title = document.createElement('span');
+  title.style.cssText = 'flex:1;min-width:0;font-size:13px;font-weight:700;cursor:pointer';
+  title.textContent = (active ? '✅ ' : '') + combo.name;
+  title.onclick = () => {
+    setActiveComboId(combo.id);
+    renderComboList();
+    render();
+  };
+
+  const rename = document.createElement('button');
+  rename.type = 'button';
+  rename.textContent = '✏️';
+  rename.style.cssText = 'border:none;background:transparent;cursor:pointer;font-size:14px';
+  rename.onclick = () => {
+    const next = prompt('组合名称', combo.name);
+    if (next && next.trim()) {
+      updateVersionCombo(combo.id, { name: next.trim() });
+      renderComboList();
+      render();
+    }
+  };
+
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.textContent = '🗑';
+  del.style.cssText = 'border:none;background:transparent;cursor:pointer;font-size:14px';
+  del.onclick = () => {
+    if (!confirm('删除组合「' + combo.name + '」？')) return;
+    deleteVersionCombo(combo.id);
+    renderComboList();
+    render();
+  };
+
+  head.append(title, rename, del);
+
+  const chips = document.createElement('div');
+  chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:8px';
+  for (const v of getAppVersions()) chips.appendChild(versionChip(combo, v));
+
+  row.append(head, chips);
+  return row;
+}
+
+function versionChip(combo: VersionCombo, version: AppVersion): HTMLDivElement {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;align-items:center;gap:4px;padding:5px 9px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;cursor:pointer;background:var(--surface)';
+
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = combo.versionIds.includes(version.id);
+  cb.style.cssText = 'accent-color:' + version.theme.primary + ';width:15px;height:15px;cursor:pointer';
+
+  const span = document.createElement('span');
+  span.textContent = version.emoji + ' ' + version.name;
+
+  const updateStyle = () => {
+    wrap.style.background = cb.checked ? version.theme.primary + '15' : 'var(--surface)';
+    wrap.style.borderColor = cb.checked ? version.theme.primary : 'var(--border)';
+  };
+
+  const toggle = () => {
+    const nextIds = cb.checked
+      ? [...new Set([...combo.versionIds, version.id])]
+      : combo.versionIds.filter((id) => id !== version.id);
+    updateVersionCombo(combo.id, { versionIds: nextIds });
+    combo.versionIds = nextIds;
+    updateStyle();
+    render();
+  };
+
+  cb.onchange = toggle;
+  wrap.onclick = (e) => {
+    if (e.target === cb) return;
+    cb.checked = !cb.checked;
+    toggle();
+  };
+
+  updateStyle();
+  wrap.append(cb, span);
+  return wrap;
+}
+
+export function createComboFromPanel(): void {
+  const input = document.getElementById('qi-combo-name') as HTMLInputElement | null;
+  const name = input?.value.trim();
+  if (!name) {
+    showStatus('请输入组合名称', 'error');
+    return;
+  }
+  const combo = createVersionCombo(name, [getCurrentVersionId()].filter(Boolean));
+  setActiveComboId(combo.id);
+  if (input) input.value = '';
+  renderComboList();
+  render();
+  showStatus('已创建' + combo.name, 'success');
+}
+
+export function toggleQuickLayout(): void {
+  const next = toggleLayoutType(loadQuickLayoutType());
+  saveQuickLayoutType(next);
+  syncFormLayoutRadio(next);
+  render();
+  showStatus('已设为' + (next === 1 ? '单双栏均可' : '仅适合单栏'), 'success');
+}
+
+function syncFormLayoutRadio(layoutType: number): void {
+  const radio = document.querySelector('input[name="layout_type"][value="' + layoutType + '"]') as HTMLInputElement | null;
+  if (!radio) return;
+  radio.checked = true;
+  const option = radio.closest('.layout-option') as HTMLElement | null;
+  if (option && typeof w.selectLayout === 'function') w.selectLayout(option, String(layoutType));
 }
