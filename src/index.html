@@ -16,6 +16,29 @@
     <script src="/katex/auto-render.min.js"></script>
 </head>
 <body>
+<div id="quick-import-bar" style="display:none;position:fixed;top:0;left:0;right:0;z-index:1200;background:var(--surface);border-bottom:2px solid var(--primary);box-shadow:0 4px 16px rgba(0,0,0,.18);padding-top:calc(8px + env(safe-area-inset-top));padding-bottom:8px;padding-left:12px;padding-right:12px">
+    <div style="display:flex;align-items:center;gap:8px">
+        <div style="position:relative;flex-shrink:0">
+            <img id="qi-thumb-question" alt="题目" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:2px solid var(--primary);background:var(--surface-dim)">
+            <span style="position:absolute;top:-6px;left:-6px;background:var(--primary);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px">题</span>
+        </div>
+        <div style="position:relative;flex-shrink:0">
+            <img id="qi-thumb-answer" alt="答案" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:2px solid var(--accent);background:var(--surface-dim)">
+            <span style="position:absolute;top:-6px;left:-6px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px">答</span>
+        </div>
+        <button type="button" onclick="swapQuickPair()" style="flex-shrink:0;width:32px;height:32px;border-radius:50%;border:1.5px solid var(--border);background:var(--surface);font-size:15px;cursor:pointer" title="交换题目与答案">⇄</button>
+        <div id="qi-tags" style="flex:1;min-width:0;display:flex;align-items:center;gap:4px;overflow-x:auto;padding:2px 0;font-size:11px"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
+        <input id="qi-tag-input" type="text" placeholder="🏷 搜索或新建标签，回车确认" autocomplete="off"
+            style="flex:1;min-width:0;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:13px;background:var(--surface);color:var(--text)">
+        <button type="button" id="qi-combo-btn" onclick="openComboPanel()" style="flex-shrink:0;padding:7px 8px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">组合 ▾</button>
+        <button type="button" id="qi-layout-btn" onclick="toggleQuickLayout()" style="flex-shrink:0;padding:7px 8px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);font-size:12px;cursor:pointer;white-space:nowrap" title="点击在单栏/双栏间切换，会记住上次选择">📏 单双栏</button>
+        <button type="button" id="qi-confirm-btn" onclick="confirmQuickImport()" style="flex-shrink:0;padding:7px 14px;border:none;border-radius:var(--radius-md);background:var(--primary);color:#fff;font-size:13px;font-weight:700;cursor:pointer">✅ 确认</button>
+    </div>
+    <div id="qi-hint" style="margin-top:6px;font-size:11px;color:var(--text-secondary)"></div>
+    <div id="qi-tag-results" style="display:none;flex-wrap:wrap;align-content:flex-start;gap:6px;padding:6px;max-height:140px;overflow-y:auto;margin-top:6px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface)"></div>
+</div>
 <div class="container">
     <header id="app-header">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
@@ -41,6 +64,7 @@
         <button class="secondary" onclick="document.getElementById('import-file').click()">📥 导入</button>
         <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
         <button id="floating-toggle-btn" class="btn-grape" onclick="console.log('[Floating] Button clicked!');toggleFloatingWindow()">📋 悬浮窗</button>
+        <button id="quick-import-toggle" class="btn-grape" onclick="toggleQuickImportMode()">⚡ 快速导入</button>
     </div>
     <div class="tabs">
         <button class="tab active" onclick="showTab('questions',this)">题目管理</button>
@@ -1274,6 +1298,21 @@
         <div class="btn-group" style="margin-top:12px">
             <button class="secondary" onclick="cancelFloatingSave()">取消</button>
         </div>
+    </div>
+</div>
+
+<div id="quick-combo-panel" style="display:none;position:fixed;inset:0;z-index:1300;background:rgba(0,0,0,.45)" onclick="closeComboPanel()">
+    <div onclick="event.stopPropagation()" style="position:absolute;left:12px;right:12px;top:calc(84px + env(safe-area-inset-top));max-height:70vh;overflow-y:auto;background:var(--surface);border-radius:var(--radius-lg);padding:14px;box-shadow:0 8px 32px rgba(0,0,0,.28)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+            <span style="font-size:15px;font-weight:700">版本组合</span>
+            <button type="button" onclick="closeComboPanel()" style="border:none;background:transparent;font-size:20px;cursor:pointer;color:var(--text-secondary)">×</button>
+        </div>
+        <div id="qi-combo-list"></div>
+        <div style="display:flex;gap:6px;margin-top:12px">
+            <input id="qi-combo-name" type="text" placeholder="新组合名称" autocomplete="off" style="flex:1;min-width:0;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:13px;background:var(--surface);color:var(--text)">
+            <button type="button" onclick="createComboFromPanel()" style="padding:8px 12px;border:none;border-radius:var(--radius-md);background:var(--primary);color:#fff;font-size:13px;font-weight:600;cursor:pointer">＋ 新建</button>
+        </div>
+        <p style="margin-top:10px;font-size:11px;color:var(--text-tertiary);line-height:1.5">顶部条只显示组合摘要，完整的版本列表仍在「添加题目」表单的「版本」区域。</p>
     </div>
 </div>
 
