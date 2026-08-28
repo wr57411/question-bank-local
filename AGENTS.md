@@ -139,3 +139,4 @@
 | 架构可视化模型（Architecture Visualization 插件） | C4 系统上下文/容器 DSL + 客户端四层依赖 DOT + 同步流程 Mermaid + 证据索引 | docs/architecture/artifact-summary.md | 2026-08-05 | 架构模型, C4, Graphviz, 证据索引 |
 | 一键问题反馈与 GitHub Issues 自动提交 | 截图监听（Android 插件+iOS 通知桥接）+ 反馈表单 + 服务端中转 + 图片存 feedback-assets 分支 + 离线重试队列 | docs/auto-issue-feedback.md | 2026-08-27 | 问题反馈, GitHub Issues, 服务端, 原生插件 |
 | E2E 隔离测试账号与数据快照 | 专用测试账号 + 主账号标签/题目快照复制脚本 + 测试数据与真实账号隔离 | docs/e2e-test-account.md | 2026-08-28 | 测试基建, 数据隔离, 服务端 |
+| 快速导入题目模式 | 顶部悬浮确认条 + 相册最新两张自动配对（第1张=答案/第2张=题目）+ 版本组合 + 栏数切换 + 切回前台自动刷新 | docs/quick-import-mode.md | 2026-08-28 | 快速导入, 相册, 版本组合, UI |
