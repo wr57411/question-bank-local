@@ -348,3 +348,99 @@ test.describe("UI 健康检测 - 扩展功能", () => {
     await expect(page.locator('button:has-text("导入")').first()).toBeVisible();
   });
 });
+
+// 账号隔离：以下用例全部只操作 localStorage / 本地 IndexedDB，不登录、不同步、不调服务端。
+// 见 docs/e2e-test-account.md —— E2E 一律使用 E2E_TEST_PHONE，禁止使用主账号。
+test.describe("快速导入题目", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.confirm = () => true;
+      window.alert = () => {};
+      window.prompt = () => null;
+      window.Capacitor = { getPlatform: () => 'android', Plugins: {} };
+    });
+    await page.goto("/");
+  });
+
+  test("模式开关与顶部条降级提示", async ({ page }) => {
+    await expect(page.locator('#quick-import-toggle')).toBeVisible();
+    await expect(page.locator('#quick-import-bar')).toBeHidden();
+
+    await page.click('#quick-import-toggle');
+    await expect(page.locator('#quick-import-bar')).toBeVisible();
+    await expect(page.locator('#qi-confirm-btn')).toBeDisabled();
+    // Web 环境没有原生相册插件，应给出降级提示而不是崩溃
+    await expect(page.locator('#qi-hint')).toContainText('不是原生环境');
+
+    await page.click('#quick-import-toggle');
+    await expect(page.locator('#quick-import-bar')).toBeHidden();
+  });
+
+  test("版本组合可创建并显示在顶部条", async ({ page }) => {
+    await page.evaluate(() => localStorage.setItem('quickImportMode', '1'));
+    await page.reload();
+    await expect(page.locator('#quick-import-bar')).toBeVisible();
+
+    await page.click('#qi-combo-btn');
+    await expect(page.locator('#quick-combo-panel')).toBeVisible();
+
+    await page.fill('#qi-combo-name', '组合一');
+    await page.locator('#quick-combo-panel button:has-text("新建")').click();
+    await expect(page.locator('#qi-combo-btn')).toContainText('组合一');
+
+    await page.locator('#quick-combo-panel button:has-text("×")').click();
+    await expect(page.locator('#quick-combo-panel')).toBeHidden();
+  });
+
+  test("顶部标签输入与已选 chip", async ({ page }) => {
+    await page.evaluate(async () => {
+      localStorage.setItem('quickImportMode', '1');
+      await window.dbCreateTag('函数', '#4CC3FF');
+    });
+    await page.reload();
+    await expect(page.locator('#quick-import-bar')).toBeVisible();
+
+    await page.fill('#qi-tag-input', '函');
+    await expect(page.locator('#qi-tag-results')).toBeVisible();
+    await page.locator('#qi-tag-results > span').first().click();
+    await expect(page.locator('#qi-tags')).toContainText('函数');
+
+    await page.fill('#qi-tag-input', '全新标签XYZ');
+    await page.press('#qi-tag-input', 'Enter');
+    await expect(page.locator('#qi-tags')).toContainText('全新标签XYZ');
+
+    await page.locator('#qi-tags > span').first().locator('text=✕').click();
+    await expect(page.locator('#qi-tags')).not.toContainText('函数');
+  });
+
+  test("顶部栏数可切换、同步表单并持久化", async ({ page }) => {
+    await page.evaluate(() => localStorage.setItem('quickImportMode', '1'));
+    await page.reload();
+    await expect(page.locator('#qi-layout-btn')).toContainText('单双栏均可');
+
+    await page.click('#qi-layout-btn');
+    await expect(page.locator('#qi-layout-btn')).toContainText('仅适合单栏');
+    await expect(page.locator('input[name="layout_type"][value="0"]')).toBeChecked();
+
+    await page.reload();
+    await expect(page.locator('#qi-layout-btn')).toContainText('仅适合单栏');
+  });
+
+  test("组合与栏数设置不被清空", async ({ page }) => {
+    await page.evaluate(() => {
+      localStorage.setItem('quickImportMode', '1');
+      localStorage.setItem('quickImportLayoutType', '0');
+    });
+    await page.reload();
+
+    await page.click('#qi-combo-btn');
+    await page.fill('#qi-combo-name', '组合一');
+    await page.locator('#quick-combo-panel button:has-text("新建")').click();
+    await page.locator('#quick-combo-panel button:has-text("×")').click();
+
+    await page.reload();
+    await expect(page.locator('#qi-combo-btn')).toContainText('组合一');
+    await expect(page.locator('#qi-layout-btn')).toContainText('仅适合单栏');
+    await expect(page.locator('#qi-tags')).toContainText('未选标签');
+  });
+});
