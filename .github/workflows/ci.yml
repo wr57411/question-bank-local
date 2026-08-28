@@ -1,0 +1,70 @@
+name: CI
+
+on: [push, pull_request]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: TypeScript 类型检查
+        run: npx tsc --noEmit
+      - name: 单元测试
+        run: npx vitest run --exclude 'unit-tests/real-api.spec.js'
+      - name: 构建验证
+        run: npx vite build
+
+  e2e:
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci --legacy-peer-deps
+      - name: 安装 Playwright 浏览器
+        run: npx playwright install chromium --with-deps
+      - name: 构建前端
+        run: npx vite build
+      - name: E2E 测试
+        run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  build-apk:
+    needs: e2e
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - run: npm ci --legacy-peer-deps
+      - name: 构建前端
+        run: npx vite build
+      - name: 同步 Capacitor
+        run: npx cap sync android
+      - name: 构建 APK
+        run: cd android && chmod +x gradlew && ./gradlew assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30

@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-07-30T15:13:51.985Z",
+  "model": "openrouter/free",
+  "total": 2,
+  "success": 0,
+  "failed": 2,
+  "avgElapsedMs": 0,
+  "totalTokens": 0,
+  "results": [
+    {
+      "id": "2d875146",
+      "success": false,
+      "elapsedMs": null,
+      "tokens": 0,
+      "contentPreview": null,
+      "error": "OpenRouter 请求超时（90秒）"
+    },
+    {
+      "id": "f5151b08",
+      "success": false,
+      "elapsedMs": null,
+      "tokens": 0,
+      "contentPreview": null,
+      "error": "OpenRouter 请求超时（90秒）"
+    }
+  ]
+}

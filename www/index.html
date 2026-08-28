@@ -334,6 +334,9 @@
 
         .teaching-node-card{display:flex;align-items:center;gap:8px;padding:12px;border-radius:var(--radius-md);background:var(--surface);border:1px solid var(--border-light);margin-bottom:8px;box-shadow:var(--shadow-sm);transition:all .2s}
         .teaching-node-card:hover{box-shadow:var(--shadow-md)}
+        .node-diagram-thumb{width:40px;height:40px;flex-shrink:0;border-radius:6px;border:1px solid var(--border-light);overflow:hidden;display:flex;align-items:center;justify-content:center;background:#fff;cursor:pointer}
+        .node-diagram-thumb svg{width:100%;height:100%}
+        .node-diagram-thumb img{width:100%;height:100%;object-fit:contain}
         .teaching-node-info{flex:1;min-width:0}
         .teaching-node-name{font-size:13px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .teaching-node-meta{font-size:11px;color:var(--text-tertiary);margin-top:2px}
@@ -409,6 +412,15 @@
             <button id="login-btn" onclick="showLoginModal()" style="padding:8px 16px;background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:var(--radius-xl);font-size:13px;backdrop-filter:blur(4px);box-shadow:none;font-weight:500">👤 登录</button>
         </div>
     </header>
+    <div id="sync-bar" style="display:flex;align-items:center;justify-content:space-between;padding:6px 16px;margin:0 -12px var(--space-sm);background:var(--surface);border-bottom:1px solid var(--border-light);font-size:12px;color:var(--text-secondary)">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+            <span id="sync-bar-server">⚪ 未登录</span>
+            <span style="color:var(--border)">|</span>
+            <span id="sync-bar-state">同步: --</span>
+            <span id="sync-bar-time" style="color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+        </div>
+        <button id="sync-bar-btn" onclick="handleSyncBarClick()" style="padding:4px 10px;font-size:11px;flex-shrink:0" disabled>🔄 同步</button>
+    </div>
     <div class="toolbar">
         <button class="success" onclick="exportAllData()">📤 导出</button>
         <button style="background:var(--warning);box-shadow:0 4px 0 #B07A08" onclick="showBackupModal()">☁️ 备份</button>
@@ -799,6 +811,14 @@
                     <input id="teaching-chapter-input" type="text" placeholder="例如：必修一 第三章 相互作用" style="flex:1" onkeydown="if(event.key==='Enter')atomizeChapter()" />
                     <button onclick="atomizeChapter()" id="atomize-btn" style="background:var(--accent);box-shadow:0 4px 0 #5A3DC0">🔍 拆解</button>
                 </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+                    <span style="font-size:11px;color:var(--text-tertiary)">拆解模式</span>
+                    <select id="atomize-mode-select" onchange="localStorage.setItem('atomize_mode',this.value)" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface)">
+                        <option value="text">✏️ 纯文字</option>
+                        <option value="multimodal">🖼️ 图文（多模态）</option>
+                    </select>
+                    <span id="atomize-mode-hint" style="font-size:10px;color:var(--text-tertiary)"></span>
+                </div>
             </div>
 
             <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px" id="quick-chapters">
@@ -904,6 +924,18 @@
             <button onclick="confirmNodeQuestionLinks()" style="background:var(--primary);flex:1">确认关联</button>
             <button onclick="closeNodeQuestionPicker()" class="secondary">取消</button>
         </div>
+    </div>
+</div>
+
+<!-- 同步数据警告弹窗 -->
+<div id="sync-warning-modal" class="modal" onclick="if(event.target===this)closeSyncWarning()">
+    <div class="modal-content" style="max-width:480px;text-align:center;padding:32px 24px">
+        <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+        <h2 style="margin:0 0 12px;font-size:17px;font-weight:700;color:var(--warning)">同步数据异常</h2>
+        <p id="sync-warning-message" style="font-size:14px;color:var(--text);margin:0 0 16px;line-height:1.6">同步过程中检测到本地数据可能丢失。</p>
+        <div id="sync-warning-details" style="background:var(--surface-dim);border-radius:var(--radius-md);padding:12px;font-size:12px;color:var(--text-secondary);text-align:left;margin-bottom:16px"></div>
+        <p style="font-size:12px;color:var(--text-tertiary);margin:0 0 16px">建议：请勿切换设备，建议立即执行本地备份。</p>
+        <button onclick="closeSyncWarning()" style="background:var(--warning);color:#fff;padding:10px 32px;border:none;border-radius:var(--radius-md);font-size:14px;cursor:pointer">确认</button>
     </div>
 </div>
 
@@ -1768,6 +1800,10 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // 初始化远程同步
     initRemoteSync(serverUrl, apiToken, syncEnabled);
+    // 绑定同步数据完整性警告回调
+    if (typeof setOnSyncDataWarning === 'function') {
+        setOnSyncDataWarning(showSyncWarning);
+    }
     // 恢复实时同步开关状态
     const syncToggle = document.getElementById('sync-toggle');
     if (syncToggle) syncToggle.checked = syncEnabled;
@@ -1776,6 +1812,10 @@ document.addEventListener("DOMContentLoaded", async () => {
     await updatePendingPhotosBadge();
     restartSyncPolling();
     if (currentUser && autoSyncEnabled && syncEnabled) queueAutoSync(true);
+    if (currentUser && apiToken) startSupabaseAutoSync();
+    checkServerConnection();
+    updateSyncBar();
+    setInterval(checkServerConnection, 60000);
     checkAppUpdate();
 
     // 平台专属 UI 降级（iOS / Android 差异）
@@ -6196,6 +6236,9 @@ async function handleBatchAnalyze() {
 window.addEventListener('DOMContentLoaded', () => {
     updateAIStatusUI();
     setInterval(updateAIStatusUI, 10000);
+    const savedAtomizeMode = localStorage.getItem('atomize_mode') || 'text';
+    const atomizeSelect = document.getElementById('atomize-mode-select');
+    if (atomizeSelect) atomizeSelect.value = savedAtomizeMode;
     document.addEventListener('click', (e) => {
         const dropdown = document.getElementById('tag-suggest-dropdown');
         const wrap = dropdown?.parentElement;
@@ -6746,10 +6789,14 @@ let autoSyncEnabled = localStorage.getItem('autoSync') !== '0';
 let syncEnabled = localStorage.getItem('syncEnabled') !== '0';
 let syncInFlight = false;
 let syncQueued = false;
+let lastSyncError = null;
+let serverConnected = null;
 let syncTimer = null;
 let syncPollTimer = null;
 const SYNC_DEBOUNCE_MS = 800;
-const SYNC_POLL_MS = 4000;
+const SYNC_POLL_MS = 300000;
+const SUPABASE_SYNC_MS = 300000;
+let supabaseSyncTimer = null;
 
 function apiHeaders() {
     return { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiToken };
@@ -6758,6 +6805,80 @@ function apiHeaders() {
 function setSyncStatus(text) {
     const el = document.getElementById('sync-status');
     if (el) el.textContent = text;
+}
+
+window.showSyncStatus = function(text) {
+    setSyncStatus(text);
+    updateSyncBar();
+};
+
+async function checkServerConnection() {
+    const el = document.getElementById('sync-bar-server');
+    if (!el) return;
+    if (!currentUser || !serverUrl) {
+        el.textContent = '⚪ 未登录';
+        serverConnected = null;
+        return;
+    }
+    try {
+        await apiCall('/api/recovery/status');
+        el.textContent = '🟢 Mac mini';
+        serverConnected = true;
+    } catch (e) {
+        el.textContent = '🔴 Mac mini';
+        serverConnected = false;
+    }
+}
+
+function updateSyncBar() {
+    const stateEl = document.getElementById('sync-bar-state');
+    const timeEl = document.getElementById('sync-bar-time');
+    const btn = document.getElementById('sync-bar-btn');
+    if (!stateEl) return;
+    const canDoSync = canSync();
+    btn.disabled = !canDoSync || syncInFlight;
+    if (!currentUser) {
+        stateEl.textContent = '同步: 未登录';
+        timeEl.textContent = '';
+        return;
+    }
+    if (syncInFlight) {
+        stateEl.textContent = '🔄 同步中...';
+        return;
+    }
+    if (lastSyncError) {
+        stateEl.textContent = '🔴 同步失败';
+        timeEl.textContent = lastSyncError;
+        return;
+    }
+    const lastSync = localStorage.getItem('lastSyncTime');
+    if (!lastSync) {
+        stateEl.textContent = '⚪ 从未同步';
+        timeEl.textContent = '';
+        return;
+    }
+    const diffMin = (Date.now() - new Date(lastSync).getTime()) / 60000;
+    if (diffMin < 5) {
+        stateEl.textContent = '🟢 同步: 最新';
+    } else if (diffMin < 60) {
+        stateEl.textContent = '🟡 同步: ' + Math.floor(diffMin) + '分钟前';
+    } else {
+        stateEl.textContent = '🟡 同步: ' + Math.floor(diffMin / 60) + '小时前';
+    }
+    timeEl.textContent = new Date(lastSync).toLocaleString();
+}
+
+async function handleSyncBarClick() {
+    if (syncInFlight || !canSync()) return;
+    const btn = document.getElementById('sync-bar-btn');
+    btn.disabled = true;
+    btn.textContent = '🔄 ...';
+    lastSyncError = null;
+    updateSyncBar();
+    await runSync({ silent: false });
+    btn.textContent = '🔄 同步';
+    btn.disabled = false;
+    updateSyncBar();
 }
 
 function canSync() {
@@ -6820,6 +6941,27 @@ function showSyncModal() {
 }
 function closeSyncModal() { document.getElementById('sync-modal').classList.remove('active'); }
 
+function showSyncWarning(warnings) {
+    const detailsEl = document.getElementById('sync-warning-details');
+    detailsEl.innerHTML = warnings.map(w =>
+        `<div style="margin-bottom:6px"><strong>${w.table}</strong>: ${w.before} → ${w.after} 条 (丢失 ${w.lost} 条)${w.detail ? '<br><span style="color:var(--text-tertiary)>' + w.detail + '</span>' : ''}</div>`
+    ).join('');
+    const msgEl = document.getElementById('sync-warning-message');
+    const hasCritical = warnings.some(w => w.severity === 'critical');
+    msgEl.textContent = hasCritical
+        ? '同步过程中检测到严重数据丢失，部分题目可能未同步成功。'
+        : '同步过程中检测到部分数据量减少，可能存在数据丢弃。';
+    document.getElementById('sync-warning-modal').classList.add('active');
+    const log = JSON.parse(localStorage.getItem('syncWarningLog') || '[]');
+    log.push({ time: new Date().toISOString(), warnings });
+    if (log.length > 50) log.splice(0, log.length - 50);
+    localStorage.setItem('syncWarningLog', JSON.stringify(log));
+}
+
+function closeSyncWarning() {
+    document.getElementById('sync-warning-modal').classList.remove('active');
+}
+
 async function doLogin() {
     const url = document.getElementById('server-url').value.trim().replace(/\/$/, '');
     const phone = document.getElementById('login-phone').value.trim();
@@ -6841,6 +6983,7 @@ async function doLogin() {
         closeLoginModal(); updateLoginUI();
         restartSyncPolling();
         if (autoSyncEnabled && syncEnabled) queueAutoSync(true);
+        startSupabaseAutoSync();
         showStatus('登录成功', 'success');
     } catch (e) { showLoginError('连接失败: ' + e.message); }
 }
@@ -6866,6 +7009,7 @@ async function doRegister() {
         closeLoginModal(); updateLoginUI();
         restartSyncPolling();
         if (autoSyncEnabled && syncEnabled) queueAutoSync(true);
+        startSupabaseAutoSync();
         showStatus('注册成功', 'success');
     } catch (e) { showLoginError('连接失败: ' + e.message); }
 }
@@ -6906,10 +7050,25 @@ async function fullSyncToCloud() {
         showStatus('正在同步到云端...', 'info');
         const resp = await apiCall('/api/recovery/sync-to-supabase', 'POST');
         if (resp.error) { showStatus('同步失败: ' + resp.error, 'error'); return; }
-        showStatus('全量同步完成，已推送 ' + resp.users + ' 个用户', 'success');
+        showStatus(resp.message || '☁️ 云端同步已启动，后台执行中', 'success');
     } catch (e) {
         showStatus('同步失败: ' + e.message, 'error');
     }
+}
+
+async function silentSupabaseSync() {
+    if (!currentUser || !apiToken || !serverUrl) return;
+    try {
+        await apiCall('/api/recovery/sync-to-supabase', 'POST');
+    } catch (e) {
+        console.warn('[Supabase自动同步] 失败:', e.message);
+    }
+}
+
+function startSupabaseAutoSync() {
+    if (supabaseSyncTimer) clearInterval(supabaseSyncTimer);
+    silentSupabaseSync();
+    supabaseSyncTimer = setInterval(silentSupabaseSync, SUPABASE_SYNC_MS);
 }
 
 function switchToBackupServer() {
@@ -6995,6 +7154,8 @@ async function runSync({ forceFullPull = false, skipPush = false, silent = false
 
         const pullResp = await apiCall('/api/sync/pull');
         await dbApplyRemoteSnapshot(pullResp);
+        cloudProviders = JSON.parse(localStorage.getItem('cloud_providers') || '[]');
+        currentProviderId = localStorage.getItem('current_provider_id') || '';
         await refreshAll();
 
         const syncTime = pullResp.now || new Date().toISOString();
@@ -7003,13 +7164,16 @@ async function runSync({ forceFullPull = false, skipPush = false, silent = false
         setSyncStatus('上次同步: ' + new Date(syncTime).toLocaleString());
 
         if (!silent) showStatus(skipPush ? '下载完成' : '同步完成', 'success');
+        lastSyncError = null;
         return true;
     } catch (e) {
         setSyncStatus((skipPush ? '下载' : '同步') + '失败: ' + e.message);
         if (!silent) showStatus((skipPush ? '下载' : '同步') + '失败: ' + e.message, 'error');
+        lastSyncError = e.message;
         return false;
     } finally {
         syncInFlight = false;
+        updateSyncBar();
         if (syncQueued && canSync()) {
             syncQueued = false;
             setTimeout(() => { runSync({ silent: true }); }, 0);
@@ -7605,8 +7769,10 @@ async function renderTeachingNodeList() {
                 actions += `<button onclick="showVersionSwitcher('${node.id}')" class="secondary" title="切换版本">${verLabel}</button>`;
             }
             const errorInfo = status === 'ERROR' && curVer?.error_msg ? ` · ${curVer.error_msg.substring(0, 40)}` : '';
+            const diagramThumb = node.diagram ? `<div class="node-diagram-thumb" onclick="event.stopPropagation();showNodeDiagram('${node.id}')" title="查看示意图">${node.diagram.startsWith('<svg') ? node.diagram : '<img src="' + node.diagram + '" style="width:100%;height:100%;object-fit:contain" />'}</div>` : '';
             html += `<div class="teaching-node-card" data-node-id="${node.id}">
                 ${checkbox}
+                ${diagramThumb}
                 <div class="teaching-node-info">
                     <div class="teaching-node-name">${node.name}</div>
                     <div class="teaching-node-meta">${node.difficulty}${errorInfo}</div>
@@ -7618,6 +7784,23 @@ async function renderTeachingNodeList() {
         html += '</div></details>';
     }
     container.innerHTML = html;
+}
+
+async function showNodeDiagram(nodeId) {
+    const node = await dbGetTeachingNode(nodeId);
+    if (!node || !node.diagram) return;
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:10000;display:flex;align-items:center;justify-content:center;padding:20px';
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    const box = document.createElement('div');
+    box.style.cssText = 'background:#fff;border-radius:12px;padding:20px;max-width:90vw;max-height:80vh;overflow:auto;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.3)';
+    box.innerHTML = '<div style="font-size:14px;font-weight:700;margin-bottom:12px;color:#1f2937">' + node.name + ' - 示意图</div>' +
+        '<div style="min-width:200px;min-height:150px;display:flex;align-items:center;justify-content:center">' +
+        (node.diagram.startsWith('<svg') ? node.diagram : '<img src="' + node.diagram + '" style="max-width:100%;max-height:60vh" />') +
+        '</div>' +
+        '<div style="margin-top:12px;font-size:11px;color:#9ca3af">点击空白处关闭 · 手绘功能在校验弹窗中使用</div>';
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
 }
 
 async function atomizeChapter() {
@@ -7632,54 +7815,81 @@ async function atomizeChapter() {
         return;
     }
 
+    const mode = document.getElementById('atomize-mode-select').value;
     const btn = document.getElementById('atomize-btn');
     btn.disabled = true;
-    btn.textContent = '拆解中...';
+    btn.textContent = mode === 'multimodal' ? '图文拆解中...' : '拆解中...';
 
     try {
-        let resultText = '';
         let parsed = null;
-        let retryCount = 0;
-        const maxRetries = 3;
 
-        while (retryCount < maxRetries && !parsed) {
-            const isRetry = retryCount > 0;
-            const promptText = isRetry
-                ? `上一次返回的内容无法解析为合法JSON。请重新拆解章节【${chapter}】，只输出纯JSON数组，不要任何markdown标记或解释文字。`
-                : `请拆解章节：【${chapter}】`;
-            btn.textContent = isRetry ? `JSON解析失败，重试(${retryCount}/${maxRetries})...` : '拆解中...';
-            resultText = await callCloudAIStream(
-                promptText,
-                (chunk, full) => { btn.textContent = (isRetry ? `重试(${retryCount}/${maxRetries}) ` : '拆解中... ') + full.length + '字'; },
-                { systemPrompt: KNOWLEDGE_ATOMIZER_PROMPT, temperature: isRetry ? 0.3 : 0.5 }
-            );
-            parsed = safeParseJSON(resultText);
-            if (!parsed) {
-                console.warn(`[atomizeChapter] 第${retryCount + 1}次解析失败，AI返回前300字:`, resultText.substring(0, 300));
-                retryCount++;
+        if (mode === 'multimodal') {
+            let retryCount = 0;
+            const maxRetries = 2;
+            while (retryCount < maxRetries && !parsed) {
+                const isRetry = retryCount > 0;
+                const promptText = isRetry
+                    ? `上一次返回的内容无法解析为合法JSON。请重新拆解章节【${chapter}】，只输出纯JSON数组（含 diagram 字段），不要任何markdown标记或解释文字。`
+                    : `请拆解章节：【${chapter}】`;
+                btn.textContent = isRetry ? `JSON解析失败，重试(${retryCount}/${maxRetries})...` : '图文拆解中...';
+                const result = await callCloudAIMultimodal(promptText, {
+                    systemPrompt: KNOWLEDGE_ATOMIZER_PROMPT_MULTIMODAL,
+                    temperature: isRetry ? 0.3 : 0.5
+                });
+                const textToParse = result.text || '';
+                parsed = safeParseJSON(textToParse);
+                if (!parsed) {
+                    console.warn(`[atomizeChapter:multimodal] 第${retryCount + 1}次解析失败，AI返回前300字:`, textToParse.substring(0, 300));
+                    retryCount++;
+                }
+            }
+        } else {
+            let resultText = '';
+            let retryCount = 0;
+            const maxRetries = 3;
+            while (retryCount < maxRetries && !parsed) {
+                const isRetry = retryCount > 0;
+                const promptText = isRetry
+                    ? `上一次返回的内容无法解析为合法JSON。请重新拆解章节【${chapter}】，只输出纯JSON数组，不要任何markdown标记或解释文字。`
+                    : `请拆解章节：【${chapter}】`;
+                btn.textContent = isRetry ? `JSON解析失败，重试(${retryCount}/${maxRetries})...` : '拆解中...';
+                resultText = await callCloudAIStream(
+                    promptText,
+                    (chunk, full) => { btn.textContent = (isRetry ? `重试(${retryCount}/${maxRetries}) ` : '拆解中... ') + full.length + '字'; },
+                    { systemPrompt: KNOWLEDGE_ATOMIZER_PROMPT, temperature: isRetry ? 0.3 : 0.5 }
+                );
+                parsed = safeParseJSON(resultText);
+                if (!parsed) {
+                    console.warn(`[atomizeChapter] 第${retryCount + 1}次解析失败，AI返回前300字:`, resultText.substring(0, 300));
+                    retryCount++;
+                }
             }
         }
 
         if (!parsed || !Array.isArray(parsed)) {
-            console.error('[atomizeChapter] 最终解析失败，完整返回内容:', resultText);
-            throw new Error('AI返回的内容无法解析为JSON数组（已重试' + maxRetries + '次）');
+            throw new Error('AI返回的内容无法解析为JSON数组');
         }
 
         let created = 0;
+        let withDiagram = 0;
         for (const item of parsed) {
             if (!item.name) continue;
+            const diagram = item.diagram || '';
+            if (diagram) withDiagram++;
             const node = await dbCreateTeachingNode({
                 chapter,
                 subject: '物理',
                 name: item.name,
                 difficulty: item.difficulty || '基础',
-                key_concept: item.key_concept || ''
+                key_concept: item.key_concept || '',
+                diagram
             });
             await dbCreateVersion(node.id, { version_num: 1, status: 'PENDING', is_current: true });
             created++;
         }
 
-        showStatus(`已拆解出 ${created} 个知识点`, 'success');
+        const diagramInfo = withDiagram > 0 ? `，其中 ${withDiagram} 个带示意图` : '';
+        showStatus(`已拆解出 ${created} 个知识点${diagramInfo}`, 'success');
         await loadTeachingView();
     } catch (e) {
         showStatus('拆解失败: ' + e.message, 'error');
@@ -7890,11 +8100,20 @@ async function regenerateNode(nodeId) {
     const node = await dbGetTeachingNode(nodeId);
     if (!node) return;
     const provider = getCurrentProvider();
-    const newVer = await dbCreateVersion(nodeId, {
-        status: 'PENDING',
-        is_current: true,
-        model_name: provider ? provider.model : ''
-    });
+    const ver = await getCurrentVersion(node);
+    if (ver && ver.status === 'ERROR') {
+        await dbUpdateVersion(ver.id, {
+            status: 'PENDING',
+            error_msg: null,
+            model_name: provider ? provider.model : ver.model_name
+        });
+    } else {
+        await dbCreateVersion(nodeId, {
+            status: 'PENDING',
+            is_current: true,
+            model_name: provider ? provider.model : ''
+        });
+    }
     await renderTeachingStats();
     await renderTeachingNodeList();
     if (teachingQueue && teachingQueue.isRunning) {

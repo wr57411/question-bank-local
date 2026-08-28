@@ -1,4 +1,5 @@
 node_modules/
+dist/
 
 # iOS：保留工程源码，仅忽略构建产物
 ios/App/Pods/
@@ -6,7 +7,6 @@ ios/App/build/
 ios/App/DerivedData/
 ios/App/*.xcworkspace/xcuserdata/
 ios/App/Podfile.lock
-
 .DS_Store
 **/.DS_Store
 *.log
@@ -18,6 +18,21 @@ android/.idea/
 android/local.properties
 android/*.iml
 *.apk
+
+# 服务端
+server/data.db*
+server/.migration-backups/
+server/uploads/
+server/node_modules/
+
+# 本地 OCR 服务（Python）
+ocr-server/.venv/
+ocr-server/models/
+ocr-server/.unimer-src/
+ocr-server/output/
+ocr-server/.ocr-test*
+**/__pycache__/
+*.pyc
 
 # AI Test Harness
 .env
@@ -35,3 +50,4 @@ android/*.iml
 .claude/**/.DS_Store
 .Codex/**/.DS_Store
 .agents/**/.DS_Store
+server/.env_副本

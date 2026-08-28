@@ -16,7 +16,7 @@ if (existsSync('.env')) {
 export default defineConfig({
   test: {
     environment: 'jsdom',
-    include: ['unit-tests/**/*.spec.js'],
+    include: ['unit-tests/**/*.spec.{js,ts}'],
     globals: true,
     testTimeout: 180000,
   },

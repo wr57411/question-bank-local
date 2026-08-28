@@ -30,28 +30,35 @@ npx tsc --noEmit || {
   exit 1
 }
 
-# 1. 同步 Capacitor
+# 1. Vite 构建前端
+echo ">>> 构建前端 (Vite)..."
+npx vite build || {
+  echo "❌ Vite 构建失败"
+  exit 1
+}
+
+# 2. 同步 Capacitor
 echo ">>> 同步 Capacitor 资源..."
 npx cap sync android
 
-# 2. 修复 proguard 兼容性（AGP 9.x）
+# 3. 修复 proguard 兼容性（AGP 9.x）
 echo ">>> 修复 proguard 兼容性..."
 find node_modules/@capacitor node_modules/@hotend -name "build.gradle" -exec grep -l "proguard-android\.txt" {} \; 2>/dev/null | while read f; do
   sed -i '' 's/proguard-android\.txt/proguard-android-optimize.txt/g' "$f"
 done
 
-# 3. 构建 APK
+# 4. 构建 APK
 echo ">>> 构建 debug APK..."
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 cd android && ./gradlew clean assembleDebug
 cd ..
 
-# 4. 复制 APK 到原项目根目录
+# 5. 复制 APK 到原项目根目录
 APK_NAME="question-bank-local_${TIMESTAMP}.apk"
 cp android/app/build/outputs/apk/debug/app-debug.apk "$OUTPUT_DIR/$APK_NAME"
 echo ">>> APK 已生成: $OUTPUT_DIR/$APK_NAME"
 
-# 5. 更新原项目的 PROJECT_MEMORY.md
+# 6. 更新原项目的 PROJECT_MEMORY.md
 MEMORY_FILE="$OUTPUT_DIR/PROJECT_MEMORY.md"
 if [ ! -f "$MEMORY_FILE" ]; then
   echo "# PROJECT_MEMORY.md" > "$MEMORY_FILE"
@@ -65,11 +72,6 @@ fi
 
 echo "- **$TIMESTAMP** - $DESCRIPTION ($APK_NAME)" >> "$MEMORY_FILE"
 echo ">>> PROJECT_MEMORY.md 已更新"
-
-# 6. 运行 UI 健康检测
-echo ">>> 运行 UI 健康检测..."
-cd "$PROJECT_DIR"
-npx playwright test tests/ui-health.spec.js --reporter=list 2>&1 || echo "⚠️ 部分测试未通过，请检查"
 
 # 7. 显示手动验证清单提示
 echo ""

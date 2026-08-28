@@ -11,8 +11,10 @@ public class MainActivity extends BridgeActivity {
 
     @Override
     protected void onCreate(android.os.Bundle savedInstanceState) {
+        registerPlugin(ScreenshotListenerPlugin.class);
         registerPlugin(SmartCapturePlugin.class);
         registerPlugin(Gemma4Plugin.class);
+        registerPlugin(MediaGalleryPlugin.class);
         super.onCreate(savedInstanceState);
         handlePendingPhotosIntent(getIntent());
     }

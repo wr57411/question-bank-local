@@ -36,7 +36,19 @@ test.describe("本地题库主流程", () => {
       };
     });
 
+    // 清理历史 XSS 测试残留数据（防止多次运行后标签/试卷残留在 IndexedDB）
     await page.goto("/");
+    await page.evaluate(async () => {
+      const evilTags = await window.dbGetAllTags();
+      for (const t of evilTags) {
+        if (t.name && t.name.includes("危险")) await window.dbDeleteTag(t.id);
+      }
+      const evilPapers = await window.dbGetAllPapers();
+      for (const p of evilPapers) {
+        if (p.name && p.name.includes("XSS")) await window.dbDeletePaper(p.id);
+      }
+    });
+    await page.reload();
   });
 
   test("可以完成离线主流程并支持调试", async ({ page }, testInfo) => {

@@ -1,0 +1,1284 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
+    <title>本地题库</title>
+    <link rel="stylesheet" href="/cropper.min.css" />
+    <link rel="stylesheet" href="/katex/katex.min.css" />
+    <script src="/localforage.min.js"></script>
+    <script src="/jspdf.umd.min.js"></script>
+    <script src="/cropper.min.js"></script>
+    <script src="/marked.min.js"></script>
+    <script src="/katex/katex.min.js"></script>
+    <script src="/katex/auto-render.min.js"></script>
+</head>
+<body>
+<div class="container">
+    <header id="app-header">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div>
+                <h1 id="header-title">📚 本地题库</h1>
+                <p id="user-status">数据存储在本地，无需联网</p>
+            </div>
+            <button id="login-btn" onclick="showLoginModal()" class="header-login-btn">👤 登录</button>
+        </div>
+    </header>
+    <div id="sync-bar" class="sync-bar">
+        <div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">
+            <span id="sync-bar-server">⚪ 未登录</span>
+            <span style="color:var(--border)">|</span>
+            <span id="sync-bar-state">同步: --</span>
+            <span id="sync-bar-time" style="color:var(--text-tertiary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></span>
+        </div>
+        <button id="sync-bar-btn" onclick="handleSyncBarClick()" class="btn-mini" disabled>🔄 同步</button>
+    </div>
+    <div class="toolbar">
+        <button class="success" onclick="exportAllData()">📤 导出</button>
+        <button class="btn-warn" onclick="showBackupModal()">☁️ 备份</button>
+        <button class="secondary" onclick="document.getElementById('import-file').click()">📥 导入</button>
+        <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
+        <button id="floating-toggle-btn" class="btn-grape" onclick="console.log('[Floating] Button clicked!');toggleFloatingWindow()">📋 悬浮窗</button>
+    </div>
+    <div class="tabs">
+        <button class="tab active" onclick="showTab('questions',this)">题目管理</button>
+        <button class="tab" onclick="showTab('tags',this)">标签管理</button>
+        <button class="tab" onclick="showTab('papers',this)">试卷管理</button>
+        <button class="tab" onclick="showTab('topics',this);loadTopics();renderTopicQuestionPicker()">📚 专题</button>
+        <button class="tab" onclick="showTab('trash',this);loadTrashed()">🗑️ 垃圾篓</button>
+        <button class="tab" onclick="showTab('pending-link',this);renderPendingLinkList()">🔗 待关联<span id="pending-link-count" class="badge tab-badge badge-warn" style="display:none">0</span></button>
+        <button class="tab" onclick="showPendingBlankList()" id="pending-blank-tab">📷 待补拍<span id="pending-blank-count" class="badge tab-badge badge-danger" style="display:none">0</span></button>
+        <button class="tab" onclick="showPendingPhotosTab()" id="pending-photos-tab">📸 待处理<span id="pending-photos-count" class="badge tab-badge badge-grape" style="display:none">0</span></button>
+        <button class="tab" onclick="showTab('teaching',this);loadTeachingView()">🎓 AI教学</button>
+        <button class="tab" onclick="showTab('pdf-library',this);renderPdfLibrary()">📚 书库</button>
+        <button class="tab" onclick="showWikiTabMvp(this)">📖 Wiki</button>
+    </div>
+
+    <!-- 题目管理 -->
+    <div id="questions-tab">
+        <div class="card ai-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <h3 style="margin:0;color:var(--accent);font-size:16px;font-weight:700">🤖 AI 引擎管理</h3>
+                <span id="ai-status-label" class="ai-badge" style="background:var(--danger)">未就绪</span>
+            </div>
+            <p id="ai-status-desc" style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5">请将 Gemma 4 模型文件放入手机的 Download 目录，然后点击"加载模型"。</p>
+
+            <!-- 进度条容器 -->
+            <div id="ai-download-progress-wrap" class="hidden" style="margin-bottom:12px">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px;font-size:11px;color:var(--accent);font-weight:600">
+                    <span id="ai-progress-text">正在准备下载...</span>
+                    <span id="ai-progress-percent">0%</span>
+                </div>
+                <div style="width:100%;height:6px;background:var(--border);border-radius:3px;overflow:hidden">
+                    <div id="ai-progress-bar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-dark));transition:width .3s;border-radius:3px"></div>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button id="ai-load-btn" onclick="handleLoadModel()" class="btn-grape" style="font-size:13px">🧠 加载模型</button>
+                <button id="ai-batch-btn" onclick="handleBatchAnalyze()" class="secondary" style="font-size:13px;display:none">📊 批量分析</button>
+            </div>
+
+            <!-- 模型服务商管理 -->
+            <details style="margin-top:var(--space-md)">
+                <summary style="font-size:12px;color:var(--text-secondary);cursor:pointer;font-weight:500">☁️ 模型服务商管理</summary>
+                <div style="margin-top:8px;padding:12px;background:var(--surface);border-radius:var(--radius-md);border:1px solid var(--border-light)">
+                    <!-- 已保存的服务商按钮列表 -->
+                    <div id="provider-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">
+                        <!-- 动态填充 -->
+                    </div>
+                    <button onclick="showAddProviderModal()" class="btn-grape" style="padding:8px 14px;font-size:12px">➕ 添加服务商</button>
+                    <span id="current-provider-name" style="font-size:11px;color:var(--text-tertiary);margin-left:8px"></span>
+                </div>
+            </details>
+        </div>
+
+        <!-- 添加/编辑服务商弹窗 -->
+        <div id="provider-modal" class="modal" onclick="if(event.target===this)closeProviderModal()">
+            <div class="modal-content" style="max-width:400px">
+                <h3 id="provider-modal-title">添加服务商</h3>
+                <div class="form-group">
+                    <label>服务商名称</label>
+                    <input id="provider-name" type="text" placeholder="例如：OpenRouter、DeepSeek" />
+                </div>
+                <div class="form-group">
+                    <label>Base URL</label>
+                    <div style="display:flex;gap:6px">
+                        <input id="provider-base-url" type="text" placeholder="https://api.openrouter.ai/v1" style="flex:1" />
+                        <button onclick="pasteTo('provider-base-url')" class="btn-paste">📋</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>API Key</label>
+                    <div style="display:flex;gap:6px">
+                        <input id="provider-api-key" type="password" placeholder="sk-..." style="flex:1" />
+                        <button onclick="pasteTo('provider-api-key')" class="btn-paste">📋</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>模型名称</label>
+                    <div style="display:flex;gap:6px">
+                        <input id="provider-model" type="text" placeholder="google/gemma-7b-it" style="flex:1" />
+                        <button onclick="pasteTo('provider-model')" class="btn-paste">📋</button>
+                    </div>
+                </div>
+                <details style="margin-top:4px">
+                    <summary style="font-size:12px;color:var(--text-tertiary);cursor:pointer">高级设置</summary>
+                    <div style="margin-top:8px">
+                        <div class="form-group">
+                            <label>认证头名称</label>
+                            <input id="provider-auth-header" type="text" placeholder="Authorization（默认）" />
+                        </div>
+                        <div class="form-group">
+                            <label>认证方案</label>
+                            <select id="provider-auth-scheme" style="font-size:13px;padding:8px;border:1px solid var(--border);border-radius:6px;width:100%;background:var(--surface)">
+                                <option value="Bearer">Bearer（默认）</option>
+                                <option value="X-API-Key">X-API-Key</option>
+                                <option value="">无前缀（直接用 Key 值）</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>自定义端点（覆盖默认路径）</label>
+                            <div style="display:flex;gap:6px">
+                                <input id="provider-endpoint" type="text" placeholder="留空则自动拼接 baseUrl + /chat/completions" style="flex:1" />
+                                <button onclick="pasteTo('provider-endpoint')" class="btn-paste">📋</button>
+                            </div>
+                        </div>
+                    </div>
+                </details>
+                <div class="btn-group">
+                    <button class="secondary" onclick="closeProviderModal()">取消</button>
+                    <button onclick="saveProvider()" id="provider-save-btn">保存</button>
+                    <button class="danger" onclick="deleteProvider()" id="provider-delete-btn" style="display:none">删除</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>添加题目</h2>
+            <div id="status-message"></div>
+            <form id="question-form">
+                <div class="form-group">
+                    <label>添加方式</label>
+                    <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
+                        <button type="button" id="mode-photo-btn" onclick="switchAddMode('photo')" style="flex:1;padding:10px;font-size:13px">📸 拍照添加</button>
+                        <button type="button" id="mode-text-btn" onclick="switchAddMode('text')" class="btn-ghost" style="flex:1;padding:10px;font-size:13px">✏️ 纯文字记录</button>
+                        <button type="button" id="mode-batch-btn" onclick="switchAddMode('batch')" class="btn-ghost" style="flex:1;padding:10px;font-size:13px">📋 批量录入</button>
+                    </div>
+                </div>
+                <div id="book-info-section" class="form-group">
+                    <label>📖 书本信息（可选）</label>
+                    <div style="display:flex;gap:8px;flex-wrap:wrap">
+                        <input id="book-name" list="book-name-list" placeholder="书名" style="flex:2;min-width:120px" />
+                        <datalist id="book-name-list"></datalist>
+                        <input id="page-number" placeholder="页码" style="flex:1;min-width:60px" />
+                        <input id="question-number" placeholder="题号" style="flex:1;min-width:60px" />
+                    </div>
+                </div>
+                <div id="batch-section" style="display:none">
+                    <div class="form-group">
+                        <label>📖 书名 *</label>
+                        <input id="batch-book-name" list="book-name-list" placeholder="输入或选择书名" style="width:100%;padding:12px;font-size:14px;border:1.5px solid var(--border);border-radius:var(--radius-md)" />
+                    </div>
+                    <div class="form-group">
+                        <label>📋 题目列表（页码 + 题号）</label>
+                        <div id="batch-rows"></div>
+                        <button type="button" onclick="addBatchRow()" class="btn-ghost" style="margin-top:8px;padding:8px 16px;font-size:13px">➕ 添加一行</button>
+                    </div>
+                </div>
+                <div id="photo-section">
+                    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-secondary);font-weight:500">
+                            <input type="checkbox" id="skip-crop-check" style="accent-color:var(--primary);width:16px;height:16px;cursor:pointer" />
+                            导入时不裁剪
+                        </label>
+                    </div>
+                    <div id="question-gallery-thumb-strip" style="display:none;margin-bottom:12px">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                            <span style="font-size:12px;color:var(--text-secondary);font-weight:500">📷 题目相册</span>
+                            <button type="button" onclick="loadGalleryThumbnails('question')" class="btn-paste">🔄 刷新</button>
+                        </div>
+                        <div id="question-gallery-thumb-container" style="display:flex;gap:8px;overflow-x:auto;padding:4px 0;scrollbar-width:none;-webkit-overflow-scrolling:touch"></div>
+                    </div>
+                    <div class="form-group">
+                        <label id="question-image-label">题目图片（笔记）*</label>
+                        <div class="upload-buttons">
+                            <button type="button" class="upload-btn camera" onclick="takePhoto('question')">📷 拍照</button>
+                            <button type="button" class="upload-btn btn-ghost" onclick="pickFromGallery('question')">🖼️ 相册</button>
+                            <button type="button" class="upload-btn btn-grape" onclick="crossPageShoot('question')">📸 跨页</button>
+                            <button type="button" class="upload-btn btn-sky" onclick="pickFromFloating('question')">📋 悬浮窗</button>
+                        </div>
+                        <div class="preview-wrap" id="question-preview-wrap" style="display:none">
+                            <span class="preview-delete" onclick="removeImage('question')">×</span>
+                            <img id="question-preview" class="preview-image" />
+                        </div>
+                        <div id="question-preview-label" class="preview-label hidden">✓ 题目图片已选择 <span class="crop-icon" onclick="startCrop('question')" title="裁剪图片">✂️</span></div>
+                        <button type="button" onclick="addExtraNoteVersion()" class="btn-ghost" style="margin-top:8px;padding:6px 14px;font-size:12px">+ 添加另一版本</button>
+                        <div id="extra-note-versions"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>答案图片（可选）</label>
+                        <div id="answer-gallery-thumb-strip" style="display:none;margin-bottom:12px">
+                            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                                <span style="font-size:12px;color:var(--text-secondary);font-weight:500">📷 答案相册</span>
+                                <button type="button" onclick="loadGalleryThumbnails('answer')" class="btn-paste">🔄 刷新</button>
+                            </div>
+                            <div id="answer-gallery-thumb-container" style="display:flex;gap:8px;overflow-x:auto;padding:4px 0;scrollbar-width:none;-webkit-overflow-scrolling:touch"></div>
+                        </div>
+                        <div class="upload-buttons">
+                            <button type="button" class="upload-btn camera" onclick="takePhoto('answer')">📷 拍照</button>
+                            <button type="button" class="upload-btn btn-ghost" onclick="pickFromGallery('answer')">🖼️ 相册</button>
+                            <button type="button" class="upload-btn btn-grape" onclick="crossPageShoot('answer')">📸 跨页</button>
+                            <button type="button" class="upload-btn btn-sky" onclick="pickFromFloating('answer')">📋 悬浮窗</button>
+                            <button type="button" id="copy-q-to-a-btn" class="upload-btn btn-mint" onclick="copyQuestionToAnswer()" style="display:none">📋 复制题目</button>
+                        </div>
+                        <div class="preview-wrap" id="answer-preview-wrap" style="display:none">
+                            <span class="preview-delete" onclick="removeImage('answer')">×</span>
+                            <img id="answer-preview" class="preview-image" />
+                        </div>
+                        <div id="answer-preview-label" class="preview-label hidden">✓ 答案图片已选择 <span class="crop-icon" onclick="startCrop('answer')" title="裁剪图片">✂️</span></div>
+                    </div>
+                    <div class="form-group">
+                        <label>空白版图片（可选，学生用）</label>
+                        <div class="upload-buttons">
+                            <button type="button" class="upload-btn btn-warn" onclick="takePhoto('blank')">📷 拍空白版</button>
+                            <button type="button" class="upload-btn btn-ghost" onclick="pickFromGallery('blank')">🖼️ 相册</button>
+                            <button type="button" class="upload-btn btn-sky" onclick="pickFromFloating('blank')">📋 悬浮窗</button>
+                        </div>
+                        <div class="preview-wrap" id="blank-preview-wrap" style="display:none">
+                            <span class="preview-delete" onclick="removeImage('blank')">×</span>
+                            <img id="blank-preview" class="preview-image" style="border-color:var(--warning)" />
+                        </div>
+                        <div id="blank-preview-label" class="preview-label hidden" style="color:var(--warning)">✓ 空白版图片已选择 <span class="crop-icon" onclick="startCrop('blank')" title="裁剪图片">✂️</span></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>排版适用性 *</label>
+                    <div style="display:flex;gap:12px;margin-top:6px">
+                        <label class="layout-option" onclick="selectLayout(this,0)"><input type="radio" name="layout_type" value="0" required style="accent-color:var(--sky)"><span>📐 仅适合单栏</span></label>
+                        <label class="layout-option" onclick="selectLayout(this,1)"><input type="radio" name="layout_type" value="1" style="accent-color:var(--sky)"><span>📏 单双栏均可</span></label>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>适用版本</label>
+                    <div id="version-checkboxes" style="display:flex;flex-wrap:wrap;gap:10px;margin-top:6px"></div>
+                    <small style="color:var(--text-secondary);font-size:12px">不勾选则所有版本均可见（标记为未分配）</small>
+                </div>
+                <div class="form-group">
+                    <label>选择标签 <span style="cursor:pointer;color:var(--sky-dark)" onclick="showNewTagModal('form')" title="新建标签">＋</span></label>
+                    <div id="form-tag-section" style="border:1.5px solid var(--border);border-radius:var(--radius-md);padding:8px;background:var(--surface)">
+                        <div style="display:flex;gap:6px;margin-bottom:6px">
+                            <input id="form-tag-search" type="text" placeholder="🔍 搜索标签..." oninput="onFormTagSearch()" onkeydown="onFormTagKeydown(event)" onfocus="_startFormTagPoll()" onblur="_stopFormTagPoll()" style="flex:1;padding:6px 8px;font-size:13px;border:1px solid var(--border-light);border-radius:var(--radius-sm)" />
+                            <button type="button" id="form-tag-create-btn" onclick="createTagFromSearch()" class="btn-grape-soft">＋ 创建</button>
+                        </div>
+                        <div id="form-tag-results" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;max-height:100px;overflow-y:auto"></div>
+                        <div id="form-tag-selected" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px"></div>
+                    </div>
+                    <small style="color:var(--text-secondary);font-size:12px">搜索并点击标签添加，已选标签显示在下方</small>
+                </div>
+                <div class="form-group">
+                    <label>📝 评价生成标签（可选）</label>
+                    <div style="display:flex;gap:6px">
+                        <input id="form-comment" type="text" placeholder="输入评价（如：典型勾股定理题）" style="flex:1;padding:8px 10px;font-size:13px;border:1px solid var(--sun);border-radius:var(--radius-sm)" />
+                        <button type="button" onclick="generateFormTagsFromComment()" class="btn-warn" style="padding:6px 12px;font-size:12px;white-space:nowrap">🤖 AI 生成</button>
+                    </div>
+                    <div id="form-generated-tags" style="margin-top:6px;display:none">
+                        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                            <span style="font-size:11px;color:var(--warning);font-weight:500">建议标签：</span>
+                        </div>
+                        <div id="form-generated-tags-list" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>📝 文字笔记（可选）</label>
+                    <textarea id="form-text-note" rows="2" placeholder="输入文字笔记..." style="width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);resize:vertical;font-family:inherit"></textarea>
+                </div>
+                <button type="submit" style="width:100%;padding:14px;font-size:15px;border-radius:var(--radius-lg)">✨ 添加题目</button>
+            </form>
+        </div>
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:var(--space-md)">
+                <h2 style="margin:0">📋 题目列表 <span id="question-count" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h2>
+                <div style="display:flex;gap:8px;align-items:center">
+                    <span id="selected-count" style="font-size:13px;color:var(--primary);display:none;font-weight:600">已选 <b id="selected-num">0</b> 题</span>
+                    <button onclick="exportSelectedOrAll()" style="padding:10px 18px;font-size:13px;border-radius:var(--radius-md)">📄 导出 PDF</button>
+                </div>
+            </div>
+            <div class="filter-tags-wrap">
+                <div class="filter-toggle" id="filter-toggle" onclick="toggleFilterTags()">
+                    <span class="arrow">▶</span>
+                    <span>标签筛选</span>
+                    <span class="badge" id="filter-badge" style="display:none">0</span>
+                </div>
+                <div class="filter-tags collapsed" id="filter-tags"></div>
+            </div>
+            <div style="display:flex;gap:8px;margin-bottom:var(--space-md);flex-wrap:wrap">
+                <select id="book-filter" onchange="filterByBook(this.value)" style="flex:1;min-width:120px;padding:8px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface)">
+                    <option value="">📚 全部书本</option>
+                </select>
+                <div class="tag-suggest" style="flex:2;min-width:150px;position:relative">
+                    <input id="search-input" type="text" placeholder="🔍 搜索标签/书名/页码..." oninput="filterQuestions()" onkeyup="filterQuestions()" oncompositionend="filterQuestions()" style="width:100%;padding:8px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-md)" autocomplete="off" />
+                    <div class="tag-suggest-dropdown" id="tag-suggest-dropdown"></div>
+                </div>
+            </div>
+            <div class="question-grid" id="questions-list"></div>
+        </div>
+    </div>
+
+    <!-- 标签管理 -->
+    <div id="tags-tab" class="hidden">
+        <div class="card">
+            <h2>添加标签</h2>
+            <form id="tag-form">
+                <div class="form-group"><label>标签名称 *</label><input type="text" id="tag-name" required placeholder="例如：数学、第一章" /></div>
+                <div class="form-group"><label>标签颜色</label><input type="color" id="tag-color" value="#FF7847" /></div>
+                <button type="submit" style="width:100%;padding:14px;border-radius:var(--radius-lg)">➕ 添加标签</button>
+            </form>
+        </div>
+        <div class="card"><h2>标签列表</h2><div class="tag-container" id="tags-list"></div></div>
+    </div>
+
+    <!-- 试卷管理 -->
+    <div id="papers-tab" class="hidden">
+        <div class="card ai-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
+                <h2 style="margin:0;color:var(--accent)">✨ AI 智能推荐组卷</h2>
+                <span class="ai-badge">Gemma 4</span>
+            </div>
+            <div class="form-group">
+                <label style="color:var(--accent)">告诉 AI 你的组卷需求</label>
+                <textarea id="ai-paper-requirement" placeholder="例如：想要 3 道很难的几何题..." rows="3" style="resize:none;margin-top:4px"></textarea>
+            </div>
+            <button class="btn-grape" style="width:100%;padding:14px;font-size:15px" onclick="startAIPaperGeneration()">🚀 开始 AI 智能推荐</button>
+        </div>
+
+        <div class="card">
+            <h2>创建试卷</h2>
+            <form id="paper-form">
+                <div class="form-group"><label>试卷名称 *</label><input type="text" id="paper-name" required placeholder="例如：2026年4月错题巩固" /></div>
+                <div class="form-group"><label>按标签选题 <span style="cursor:pointer;color:var(--sky-dark)" onclick="showNewTagModal('paper')" title="新建标签">＋</span></label>
+                    <select id="paper-tag-select" multiple style="height:90px"></select>
+                    <small style="color:var(--text-secondary);font-size:12px">选择标签后，将自动添加包含这些标签的题目</small>
+                </div>
+                <button type="submit" style="width:100%;padding:14px;border-radius:var(--radius-lg)">📝 手动创建试卷</button>
+            </form>
+        </div>
+        <div class="card"><h2>试卷列表</h2><div id="papers-list"></div></div>
+    </div>
+
+    <!-- 专题管理 -->
+    <div id="topics-tab" class="hidden">
+        <div class="card">
+            <h2>创建专题</h2>
+            <form id="topic-form">
+                <div class="form-group"><label>专题名称 *</label><input type="text" id="topic-name" required placeholder="例如：勾股定理专练" /></div>
+                <div class="form-group"><label>学习目标（可选）</label><textarea id="topic-desc" rows="2" placeholder="描述这个专题的学习重点..."></textarea></div>
+                <div class="form-group"><label>选择题目 <small style="color:var(--text-tertiary)">（不选则创建空专题）</small></label>
+                    <div id="topic-question-picker" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);padding:8px"></div>
+                </div>
+                <button type="submit" style="width:100%;padding:14px">✨ 创建专题</button>
+            </form>
+        </div>
+        <div class="card"><h2>专题列表</h2><div id="topics-list"></div></div>
+    </div>
+
+    <!-- AI 推荐结果展示弹窗 -->
+    <div id="ai-recommend-modal" class="modal">
+        <div class="modal-content" style="max-width:600px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
+                <h2>🤖 AI 智能推荐结果</h2>
+                <button class="secondary" onclick="closeAIRecommendModal()" style="padding:6px 14px">关闭</button>
+            </div>
+            <div id="ai-recommend-reason" class="ai-summary-wrap" style="margin-bottom:var(--space-md);font-size:13px;line-height:1.6"></div>
+            <div id="ai-recommend-list" class="question-grid" style="grid-template-columns:repeat(2,1fr)"></div>
+            <div class="btn-group" style="margin-top:var(--space-lg)">
+                <button class="secondary" onclick="closeAIRecommendModal()">重新调整要求</button>
+                <button id="ai-create-paper-btn" class="btn-grape" style="padding:12px 20px">🚀 一键生成此试卷</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 垃圾篓 -->
+    <div id="trash-tab" class="hidden">
+        <div class="card">
+            <h2>🗑️ 垃圾篓 <span id="trash-count" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:var(--space-md);line-height:1.5">点击「恢复」可将题目移回题库，点击「彻底删除」将永久删除（不可恢复）。</p>
+            <div id="trash-list"></div>
+        </div>
+    </div>
+
+    <!-- 待关联 -->
+    <div id="pending-link-tab" class="hidden">
+        <div class="card">
+            <h2>🔗 待关联题目 <span id="pending-link-count-text" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:var(--space-md);line-height:1.5">标记后可在列表中快速查看，点击题目打开详情。</p>
+            <div id="pending-link-list"></div>
+        </div>
+    </div>
+
+    <!-- 待处理照片 Tab -->
+    <div id="pending-photos-tab" class="hidden">
+        <div class="card">
+            <h2>📸 待处理照片</h2>
+            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:var(--space-md);line-height:1.5">以下照片来自快速拍照，点击可处理（关联到题目）。</p>
+            <div id="pending-photos-list"></div>
+        </div>
+    </div>
+
+    <!-- AI教学内容生产 -->
+    <div id="teaching-tab" class="hidden">
+        <div class="card ai-card">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+                <h2 style="margin:0;color:var(--accent);font-size:17px;font-weight:700">🎓 AI教学内容生产</h2>
+            </div>
+            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5">输入章节名称，AI自动拆解知识点并批量生成教学内容。生成完成后可校验并投屏展示。</p>
+
+            <div class="form-group">
+                <label>章节名称</label>
+                <div style="display:flex;gap:6px">
+                    <input id="teaching-chapter-input" type="text" placeholder="例如：必修一 第三章 相互作用" style="flex:1" onkeydown="if(event.key==='Enter')atomizeChapter()" />
+                    <button onclick="atomizeChapter()" id="atomize-btn" class="btn-grape">🔍 拆解</button>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+                    <span style="font-size:11px;color:var(--text-tertiary)">拆解模式</span>
+                    <select id="atomize-mode-select" onchange="localStorage.setItem('atomize_mode',this.value)" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface)">
+                        <option value="text">✏️ 纯文字</option>
+                        <option value="multimodal">🖼️ 图文（多模态）</option>
+                    </select>
+                    <span id="atomize-mode-hint" style="font-size:10px;color:var(--text-tertiary)"></span>
+                </div>
+            </div>
+
+            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px" id="quick-chapters">
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修一 第一章 运动的描述';atomizeChapter()">运动的描述</button>
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修一 第二章 匀变速直线运动';atomizeChapter()">匀变速直线运动</button>
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修一 第三章 相互作用';atomizeChapter()">相互作用</button>
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修一 第四章 牛顿运动定律';atomizeChapter()">牛顿运动定律</button>
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修二 第五章 抛体运动';atomizeChapter()">抛体运动</button>
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修二 第六章 圆周运动';atomizeChapter()">圆周运动</button>
+                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修三 第十章 电磁感应';atomizeChapter()">电磁感应</button>
+            </div>
+        </div>
+
+        <div class="card" id="teaching-queue-card" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
+                <h2 style="margin:0;font-size:17px;font-weight:700">生产队列</h2>
+                <div style="display:flex;gap:6px;flex-wrap:wrap">
+                    <button id="batch-start-btn" onclick="startSelectedGeneration()" style="font-size:13px">▶ 生成选中</button>
+                    <button onclick="startAllGeneration()" class="secondary" style="font-size:13px">▶ 全部生成</button>
+                    <button id="batch-pause-btn" onclick="pauseBatchGeneration()" class="secondary" style="font-size:13px;display:none">⏸ 暂停</button>
+                    <button onclick="selectAllPending()" class="secondary" style="font-size:13px">☑ 全选</button>
+                    <button onclick="retryAllErrors()" class="secondary" style="font-size:13px">↻ 重试错误</button>
+                </div>
+            </div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">已选: <span id="selected-count" style="font-weight:700;color:var(--primary)">0</span> 个</div>
+
+            <div class="teaching-stats">
+                <div class="teaching-stat pending"><div class="stat-num" id="stat-pending">0</div><div class="stat-label">待生成</div></div>
+                <div class="teaching-stat generating"><div class="stat-num" id="stat-generating">0</div><div class="stat-label">生成中</div></div>
+                <div class="teaching-stat generated"><div class="stat-num" id="stat-generated">0</div><div class="stat-label">待校验</div></div>
+                <div class="teaching-stat verified"><div class="stat-num" id="stat-verified">0</div><div class="stat-label">已完成</div></div>
+                <div class="teaching-stat error"><div class="stat-num" id="stat-error">0</div><div class="stat-label">错误</div></div>
+            </div>
+
+            <div class="teaching-progress" id="teaching-progress-wrap" style="display:none">
+                <div class="teaching-progress-bar" id="teaching-progress-bar" style="width:0%"></div>
+            </div>
+
+            <div id="teaching-node-list" style="margin-top:12px"></div>
+        </div>
+
+        <div class="card" id="teaching-project-entry" style="display:none">
+            <div style="display:flex;justify-content:space-between;align-items:center">
+                <h2 style="margin:0;font-size:17px;font-weight:700">🖥️ 投屏模式</h2>
+                <button onclick="enterProjectionMode()" style="font-size:13px">🖥️ 进入投屏</button>
+            </div>
+            <p style="font-size:12px;color:var(--text-secondary);margin-top:8px">已校验的教学内容可在课堂投屏展示，支持滑动切换。建议横屏使用。</p>
+        </div>
+    </div>
+</div>
+
+<!-- PDF 书库 -->
+<div id="pdf-library-tab" class="hidden">
+    <div class="card">
+        <h2>📚 PDF 书库</h2>
+        <div id="pdf-library-content"></div>
+    </div>
+</div>
+
+<div id="wiki-tab" class="hidden">
+    <div id="wiki-content"></div>
+</div>
+
+<!-- PDF 操作弹窗 -->
+<div id="pdf-action-modal" class="modal" onclick="if(event.target===this)closePdfActionModal()">
+    <div class="modal-content" style="max-width:600px;max-height:90dvh;overflow-y:auto" id="pdf-action-content"></div>
+</div>
+
+<!-- PDF 试读弹窗 -->
+<div id="pdf-preview-modal" class="modal" onclick="if(event.target===this)closePdfPreview()">
+    <div class="modal-content" style="max-width:700px;max-height:90dvh;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+            <span id="pdf-preview-progress" style="font-size:13px;color:var(--text-secondary)"></span>
+            <span style="cursor:pointer;font-size:24px;color:var(--text-tertiary)" onclick="closePdfPreview()">×</span>
+        </div>
+        <div id="pdf-preview-pages" style="flex:1;overflow-y:auto"></div>
+        <button onclick="doDownloadPdf(window._previewPdfId)" class="btn-warn" style="margin-top:8px;padding:12px;width:100%">⬇️ 下载全文</button>
+    </div>
+</div>
+
+<!-- PDF 管理弹窗 -->
+<div id="pdf-manage-modal" class="modal" onclick="if(event.target===this)closePdfManageModal()">
+    <div class="modal-content" style="max-width:450px" id="pdf-manage-content"></div>
+</div>
+
+<!-- 校验弹窗 -->
+<div id="teaching-verify-modal" class="modal" onclick="if(event.target===this)closeVerifyModal()">
+    <div class="modal-content" style="max-width:900px;max-height:95dvh;overflow:hidden;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-shrink:0;padding-bottom:8px;border-bottom:1px solid var(--border-light)">
+            <div style="display:flex;align-items:center;gap:8px">
+                <button id="verify-prev-btn" onclick="verifyPrev()" class="secondary" style="font-size:13px;padding:6px 12px">← 上一个</button>
+                <h2 style="margin:0;font-size:16px;font-weight:700" id="verify-title">校验教学内容</h2>
+                <button id="verify-next-btn" onclick="verifyNext()" class="secondary" style="font-size:13px;padding:6px 12px">下一个 →</button>
+            </div>
+            <span style="cursor:pointer;font-size:28px;color:var(--text-tertiary)" onclick="closeVerifyModal()">×</span>
+        </div>
+        <div id="verify-content" class="teaching-content-render" style="flex:1;overflow-y:auto;outline:none"></div>
+        <div id="verify-edit-toolbar" style="display:none;padding:8px 0;flex-shrink:0;border-top:2px solid var(--primary)">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <span style="font-size:12px;color:var(--primary);font-weight:700">✏️ 编辑模式</span>
+                <span style="font-size:11px;color:var(--text-tertiary)">直接点击内容编辑 · 公式区域点击可编辑 LaTeX</span>
+                <span style="flex:1"></span>
+                <button onclick="saveWysiwygEdit()" style="background:var(--primary);font-size:13px;padding:6px 16px">💾 完成编辑</button>
+                <button onclick="cancelWysiwygEdit()" class="secondary" style="font-size:13px;padding:6px 12px">取消</button>
+            </div>
+        </div>
+        <div id="verify-actions" style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-light);flex-shrink:0">
+            <button onclick="verifyApprove()" style="background:var(--primary);flex:1">✅ 通过</button>
+            <button onclick="verifyRegenerate()" class="secondary" style="flex:1">🔄 重新生成</button>
+            <button onclick="toggleVerifyEdit()" class="secondary" style="flex:1">✏️ 编辑</button>
+            <button onclick="openNodeQuestionPicker()" class="secondary" style="flex:1">📎 关联题目</button>
+            <button onclick="closeVerifyModal()" class="secondary">关闭</button>
+        </div>
+        <div id="verify-linked-questions" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border-light);flex-shrink:0;max-height:150px;overflow-y:auto"></div>
+    </div>
+</div>
+
+<!-- 关联题目选择器 -->
+<div id="node-question-picker-modal" class="modal" onclick="if(event.target===this)closeNodeQuestionPicker()">
+    <div class="modal-content" style="max-width:600px;max-height:80dvh;display:flex;flex-direction:column">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h2 style="margin:0;font-size:16px;font-weight:700">关联题库题目</h2>
+            <span style="cursor:pointer;font-size:24px;color:var(--text-tertiary)" onclick="closeNodeQuestionPicker()">×</span>
+        </div>
+        <div style="margin-bottom:8px">
+            <select id="nq-module-select" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-md);font-size:13px">
+                <option value="模块一">模块一：概念原子化拆解</option>
+                <option value="模块二">模块二：沉浸式样例库</option>
+                <option value="模块三">模块三：配对练习</option>
+                <option value="模块四">模块四：变式组题</option>
+                <option value="模块五">模块五：小循环复习包</option>
+                <option value="其他">其他</option>
+            </select>
+        </div>
+        <div id="node-question-picker-list" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);padding:8px"></div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+            <button onclick="confirmNodeQuestionLinks()" style="background:var(--primary);flex:1">确认关联</button>
+            <button onclick="closeNodeQuestionPicker()" class="secondary">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 同步数据警告弹窗 -->
+<div id="sync-warning-modal" class="modal" onclick="if(event.target===this)closeSyncWarning()">
+    <div class="modal-content" style="max-width:480px;text-align:center;padding:32px 24px">
+        <div style="font-size:48px;margin-bottom:12px">⚠️</div>
+        <h2 style="margin:0 0 12px;font-size:17px;font-weight:700;color:var(--warning)">同步数据异常</h2>
+        <p id="sync-warning-message" style="font-size:14px;color:var(--text);margin:0 0 16px;line-height:1.6">同步过程中检测到本地数据可能丢失。</p>
+        <div id="sync-warning-details" style="background:var(--surface-dim);border-radius:var(--radius-md);padding:12px;font-size:12px;color:var(--text-secondary);text-align:left;margin-bottom:16px"></div>
+        <p style="font-size:12px;color:var(--text-tertiary);margin:0 0 16px">建议：请勿切换设备，建议立即执行本地备份。</p>
+        <button onclick="closeSyncWarning()" style="background:var(--warning);color:#fff;padding:10px 32px;border:none;border-radius:var(--radius-md);font-size:14px;cursor:pointer">确认</button>
+    </div>
+</div>
+
+<!-- 投屏覆盖层 -->
+<div id="projection-overlay" class="projection-overlay">
+    <div class="projection-header">
+        <button onclick="exitProjectionMode()" class="projection-exit-btn">✕ 退出</button>
+    </div>
+    <div class="projection-body">
+        <div id="projection-content" class="teaching-content-render"></div>
+    </div>
+    <div class="projection-nav">
+        <button id="proj-prev-btn" onclick="projectionPrev()" class="secondary" style="font-size:13px">← 上一个</button>
+        <span id="proj-nav-info" style="font-size:13px;color:var(--text-secondary)"></span>
+        <button id="proj-next-btn" onclick="projectionNext()" style="font-size:13px">下一个 →</button>
+    </div>
+</div>
+
+<!-- 图片裁剪弹窗 -->
+<div id="crop-modal" class="modal">
+    <div class="modal-content" style="max-width:100%;width:100%;max-height:100dvh;height:100dvh;padding:0;display:flex;flex-direction:column;background:#000">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 16px;flex-shrink:0">
+            <h2 style="margin:0;font-size:16px;color:#fff;font-weight:600">✂️ 裁剪图片</h2>
+            <span style="cursor:pointer;font-size:28px;color:rgba(255,255,255,.7)" onclick="cancelCrop()">×</span>
+        </div>
+        <div id="crop-container" style="flex:1 1 0;background:#000;min-height:0;position:relative;overflow:hidden"><img id="crop-image" style="display:block" /></div>
+        <div style="display:flex;gap:8px;justify-content:center;padding:8px 12px 4px;flex-shrink:0">
+            <button onclick="rotateCrop(-5)" class="crop-rotate-btn">↺ 5°</button>
+            <button onclick="rotateCrop(-1)" class="crop-rotate-btn">← 1°</button>
+            <button onclick="rotateCrop(1)" class="crop-rotate-btn">1° →</button>
+            <button onclick="rotateCrop(5)" class="crop-rotate-btn">5° ↻</button>
+        </div>
+        <div style="display:flex;gap:10px;justify-content:center;padding:10px 12px max(12px,env(safe-area-inset-bottom));flex-shrink:0">
+            <button onclick="confirmCrop()" style="flex:1;max-width:200px;padding:14px;font-size:15px;border-radius:var(--radius-md)">✅ 确认裁剪</button>
+            <button class="secondary" onclick="cancelCrop()" style="flex:1;max-width:200px;padding:14px;font-size:15px;border-radius:var(--radius-md)">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- 题目详情弹窗 -->
+<div id="question-modal" class="modal" onclick="if(event.target===this)closeModal()">
+    <div class="modal-content" id="question-detail-content" style="max-width:600px;position:relative;padding-top:48px">
+        <div style="position:absolute;top:12px;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:0 24px;z-index:10">
+            <span id="detail-nav-info" style="font-size:13px;color:var(--text-secondary)"></span>
+            <div style="display:flex;gap:8px;align-items:center">
+                <button id="detail-pending-link-btn" onclick="togglePendingLinkInDetail()" style="width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.15);background:rgba(255,255,255,.9)">🔗</button>
+                <button id="detail-basket-btn" onclick="toggleBasketInDetail()" style="width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.15);background:rgba(255,255,255,.9)">🧺</button>
+                <span style="cursor:pointer;font-size:28px;color:var(--text-tertiary)" onclick="closeModal()">×</span>
+            </div>
+        </div>
+        <div id="modal-note-version-bar" style="display:flex;align-items:center;gap:8px;padding:8px 0;margin-bottom:8px;border-bottom:1px solid var(--border-light)">
+            <span style="font-size:12px;color:var(--text-secondary);font-weight:600">📝 题目图片:</span>
+            <select id="modal-note-version-select" onchange="switchNoteVersion(this.value)" style="flex:1;padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)"></select>
+            <button onclick="showAddNoteVersionModal()" style="padding:6px 12px;font-size:12px;border-radius:var(--radius-sm)">+ 添加版本</button>
+        </div>
+        <div id="modal-question-image"></div>
+        <div id="modal-question-text-note-wrap" style="margin:8px 0">
+            <div style="font-size:12px;color:var(--text-secondary);font-weight:600;margin-bottom:4px">📝 文字笔记</div>
+            <textarea id="modal-question-text-note" rows="2" placeholder="输入文字笔记..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;resize:none"></textarea>
+            <button onclick="saveTextNote()" style="margin-top:4px;padding:4px 12px;font-size:12px">保存笔记</button>
+        </div>
+        <div id="modal-answer-image"></div>
+        <div id="modal-tags"></div>
+        <div id="modal-similar-questions" style="margin-top:12px"></div>
+        <!-- 用户评价生成标签 -->
+        <div style="margin-top:12px;padding:12px;background:var(--warning-light);border-radius:var(--radius-md);border-left:3px solid var(--warning)">
+            <div style="font-size:12px;color:var(--warning-dark);font-weight:600;margin-bottom:8px">📝 基于评价生成标签</div>
+            <div style="display:flex;gap:6px">
+                <input id="user-comment" type="text" placeholder="输入您对题目的评价（如：典型勾股定理题）" style="flex:1;font-size:12px;padding:8px 10px;border:1px solid var(--sun);border-radius:var(--radius-sm)" />
+                <button onclick="generateTagsFromComment()" class="btn-warn" style="padding:6px 12px;font-size:12px">生成</button>
+            </div>
+            <div id="generated-tags" style="margin-top:8px;display:none">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                    <span style="font-size:11px;color:var(--warning-dark)">生成的标签（点击添加，绿色=已添加）：</span>
+                    <button onclick="clearGeneratedTags()" style="font-size:10px;color:var(--warning-dark);background:none;border:1px solid var(--sun);border-radius:4px;padding:2px 6px;cursor:pointer">清除</button>
+                </div>
+                <div id="generated-tags-list" style="display:flex;flex-wrap:wrap;gap:4px"></div>
+            </div>
+        </div>
+        <div id="modal-ai-summary" style="display:none;margin-top:12px;padding:12px;background:var(--accent-light);border-radius:var(--radius-md);border-left:3px solid var(--accent)">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <span class="ai-badge">AI</span>
+                <span style="font-size:12px;color:var(--accent);font-weight:700">分析结果</span>
+            </div>
+            <div id="modal-ai-text" style="font-size:13px;color:var(--text-secondary);line-height:1.6"></div>
+        </div>
+        <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border-light);display:flex;align-items:center;justify-content:center;gap:8px">
+            <span style="font-size:12px;color:var(--text-secondary)">分析方式:</span>
+            <select id="analyze-mode" style="font-size:12px;padding:4px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface)">
+                <option value="cloud" selected>☁️ 云端 API</option>
+                <option value="local">🤖 本地模型</option>
+            </select>
+        </div>
+        <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--border-light);display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+            <button onclick="navigateDetail(-1)" id="btn-prev" style="padding:10px 18px;font-size:13px;border-radius:var(--radius-md)">← 上一题</button>
+            <button onclick="analyzeSingleQuestion()" class="btn-grape" style="padding:10px 18px;font-size:13px">🧠 分析此题</button>
+            <button class="danger" onclick="deleteQuestion()" style="border-radius:var(--radius-md)">移至垃圾篓</button>
+            <button onclick="navigateDetail(1)" id="btn-next" style="padding:10px 18px;font-size:13px;border-radius:var(--radius-md)">下一题 →</button>
+        </div>
+    </div>
+</div>
+
+<div id="similar-modal" class="modal" onclick="if(event.target===this)closeSimilarModal()">
+    <div class="modal-content" style="max-width:700px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
+            <h2 style="margin:0">🔗 关联相似题</h2>
+            <span style="cursor:pointer;font-size:28px;color:var(--text-tertiary)" onclick="closeSimilarModal()">×</span>
+        </div>
+        <div class="form-group">
+            <label>参考标签</label>
+            <select id="similar-tag-select" multiple style="height:90px" onchange="renderSimilarCandidates()"></select>
+            <small style="color:var(--text-tertiary);font-size:12px">默认使用当前题标签，可调整后重新筛选</small>
+        </div>
+        <div class="btn-group" style="margin-bottom:var(--space-md)">
+            <button onclick="renderSimilarCandidates()">按标签筛选</button>
+            <button onclick="loadPendingLinkCandidates()" id="btn-pending-similar" class="btn-warn">📌 待关联 (<span id="btn-pending-similar-count">0</span>)</button>
+            <button onclick="recommendSimilarWithAI()" class="btn-grape">🤖 AI 推荐</button>
+        </div>
+        <div id="similar-ai-reason" class="ai-summary-wrap" style="display:none;border-left-color:var(--primary)"></div>
+        <div id="similar-candidate-list"></div>
+        <div class="btn-group" style="margin-top:var(--space-md)">
+            <button onclick="confirmSimilarLinks()" style="padding:14px">✅ 确认关联</button>
+            <button class="secondary" onclick="closeSimilarModal()">取消</button>
+        </div>
+    </div>
+</div>
+
+<!-- PDF 导出弹窗 -->
+<div id="export-modal" class="modal" onclick="if(event.target===this)closeExportModal()">
+    <div class="modal-content" style="max-width:500px">
+        <h3>📄 导出 PDF</h3>
+        <div id="export-summary" style="font-size:13px;color:var(--text-tertiary);margin-bottom:var(--space-md)"></div>
+        <div style="margin-bottom:var(--space-md)">
+            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">布局方式</label>
+            <div class="mode-option selected" onclick="selectExportMode(this,'single')">
+                <div><div class="mode-label">📄 单栏排列</div><div class="mode-desc">每道题全宽显示，题后紧跟答案</div></div>
+            </div>
+            <div class="mode-option" onclick="selectExportMode(this,'double')">
+                <div><div class="mode-label">📋 双栏排列</div><div class="mode-desc">左右各一题，紧凑排列</div></div>
+            </div>
+            <div class="mode-option" onclick="selectExportMode(this,'separate')">
+                <div><div class="mode-label">📑 题目/答案分开</div><div class="mode-desc">前面全部是题目，后面全部是答案</div></div>
+            </div>
+        </div>
+        <div style="margin-bottom:var(--space-md)">
+            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">题后留空</label>
+            <div style="display:flex;gap:10px">
+                <div class="spacing-option selected" onclick="selectSpacing(this,'none')">📏<br>无空</div>
+                <div class="spacing-option" onclick="selectSpacing(this,'small')">📐<br><input type="number" id="spc-small" value="2" min="0" max="20" step="0.5" onclick="event.stopPropagation()" style="width:48px;text-align:center;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px"> cm</div>
+                <div class="spacing-option" onclick="selectSpacing(this,'large')">📄<br><input type="number" id="spc-large" value="8" min="0" max="30" step="0.5" onclick="event.stopPropagation()" style="width:48px;text-align:center;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px"> cm</div>
+            </div>
+        </div>
+        <div class="form-group" style="margin-bottom:var(--space-md)">
+            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">📁 保存文件夹</label>
+            <select id="export-folder-select" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)">
+                <option value="">加载中...</option>
+            </select>
+            <div id="export-new-folder-wrap" style="display:none;margin-top:6px;display:none">
+                <input type="text" id="export-new-folder-name" placeholder="输入新文件夹名" style="width:calc(100% - 70px);padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
+                <button type="button" onclick="confirmNewExportFolder()" style="padding:6px 12px;font-size:12px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer">创建</button>
+            </div>
+        </div>
+        <div class="form-group" style="margin-bottom:var(--space-md)">
+            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">文件名</label>
+            <input type="text" id="export-filename" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeExportModal()">取消</button>
+            <div style="display:flex;gap:8px;align-items:center">
+                <button onclick="previewExportPDF()" style="padding:12px 18px">👁️ 预览</button>
+                <button onclick="doExportPDF()" style="padding:12px 18px">📄 导出 PDF</button>
+                <button onclick="doExportImagesFromBasket()" class="btn-warn" style="padding:12px 18px">📁 导出图片</button>
+                <button id="export-img-mode-btn" onclick="toggleExportImgMode()" style="padding:6px 8px;font-size:11px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);border-radius:var(--radius-sm);cursor:pointer" title="切换导出模式"></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 新建标签弹窗 -->
+<div id="new-tag-modal" class="modal" onclick="if(event.target===this)closeNewTagModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3>✨ 新建标签</h3>
+        <div class="form-group"><label>标签名称</label><input type="text" id="new-tag-name" placeholder="输入标签名称" onkeydown="if(event.key==='Enter'){event.preventDefault();submitNewTag()}" /></div>
+        <div class="form-group"><label>标签颜色</label><input type="color" id="new-tag-color" value="#FF7847" /></div>
+        <div class="btn-group"><button class="secondary" onclick="closeNewTagModal()">取消</button><button onclick="submitNewTag()" style="padding:12px 20px">创建</button></div>
+    </div>
+</div>
+
+<!-- 试题篮弹窗 -->
+<div id="basket-modal" class="modal" onclick="if(event.target===this)closeBasketModal()">
+    <div class="modal-content">
+        <h3>🧺 试题篮 <span id="basket-modal-count" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h3>
+        <div id="basket-items" style="max-height:50vh;overflow-y:auto"></div>
+        <div class="btn-group" style="margin-top:var(--space-md)">
+            <button class="secondary" onclick="closeBasketModal()">取消</button>
+            <button onclick="exportFromBasket()" style="padding:12px 20px">✅ 确认导出</button>
+        </div>
+    </div>
+</div>
+
+<!-- 试卷详情弹窗 -->
+<div id="paper-modal" class="modal" onclick="if(event.target===this)closePaperModal()">
+    <div class="modal-content" style="max-width:700px">
+        <h3 id="paper-modal-title" style="margin:0 0 var(--space-md) 0"></h3>
+        <div id="paper-modal-questions" style="max-height:60vh;overflow-y:auto;margin-bottom:var(--space-md)"></div>
+        <div class="btn-group" style="justify-content:space-between">
+            <button class="secondary" onclick="closePaperModal()">关闭</button>
+            <div style="display:flex;gap:8px">
+                <button onclick="exportPaperAsPDF()" style="padding:12px 18px">📄 导出 PDF</button>
+                <button onclick="exportPaperAsImages()" class="btn-warn" style="padding:12px 18px">📁 导出图片</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 专题详情弹窗 -->
+<div id="topic-detail-modal" class="modal" onclick="if(event.target===this)closeTopicDetailModal()">
+    <div class="modal-content" style="max-width:600px">
+        <h3 id="topic-detail-title" style="margin:0 0 4px 0"></h3>
+        <p id="topic-detail-desc" style="color:var(--text-secondary);font-size:13px;margin-bottom:16px"></p>
+        <div id="topic-detail-questions" style="max-height:60vh;overflow-y:auto"></div>
+        <div class="btn-group" style="margin-top:16px">
+            <button class="secondary" onclick="closeTopicDetailModal()">关闭</button>
+            <button onclick="exportTopicPDF()">📄 导出 PDF</button>
+        </div>
+    </div>
+</div>
+
+<!-- 添加笔记版本弹窗 -->
+<div id="add-note-version-modal" class="modal" onclick="if(event.target===this)closeAddNoteVersionModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3>📝 添加题目图片版本</h3>
+        <div class="form-group">
+            <label>版本名称</label>
+            <input id="note-version-label" type="text" placeholder="例如：考前复习、期末冲刺" />
+        </div>
+        <div class="form-group">
+            <label>题目图片 *</label>
+            <div class="upload-buttons">
+                <button type="button" class="upload-btn camera" onclick="takePhotoForNoteVersion('question')">📷 拍照</button>
+                <button type="button" class="upload-btn btn-ghost" onclick="pickFromGalleryForNoteVersion('question')">🖼️ 相册</button>
+            </div>
+            <div class="preview-wrap" id="note-version-preview-wrap" style="display:none">
+                <span class="preview-delete" onclick="removeNoteVersionImage()">×</span>
+                <img id="note-version-preview" class="preview-image" />
+            </div>
+        </div>
+        <div class="form-group">
+            <label>文字笔记（可选）</label>
+            <textarea id="note-version-text" rows="2" placeholder="输入文字笔记..."></textarea>
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeAddNoteVersionModal()">取消</button>
+            <button onclick="confirmAddNoteVersion()">添加</button>
+        </div>
+    </div>
+</div>
+
+<!-- 导出图片文件夹弹窗 -->
+<div id="export-images-modal" class="modal" onclick="if(event.target===this)closeExportImagesModal()">
+    <div class="modal-content" style="max-width:450px">
+        <h3>📁 导出图片文件夹</h3>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:var(--space-md)">将试卷中的题目图片导出到本地文件夹</div>
+        <div class="form-group">
+            <label>文件夹名称</label>
+            <input type="text" id="export-images-folder" placeholder="例如：2026年4月错题集" />
+        </div>
+        <div id="export-images-summary" style="font-size:13px;color:var(--text-tertiary);margin-bottom:var(--space-md)"></div>
+        <div id="export-images-progress" style="display:none;margin-bottom:var(--space-md)">
+            <div style="background:var(--border);border-radius:3px;height:6px;overflow:hidden">
+                <div id="export-images-progress-bar" style="background:var(--warning);height:100%;width:0%;transition:width .3s;border-radius:3px"></div>
+            </div>
+            <p id="export-images-progress-text" style="font-size:12px;color:var(--text-tertiary);margin-top:6px">导出中...</p>
+        </div>
+        <div class="form-group">
+            <label>导出内容</label>
+            <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <input type="radio" name="export-type" value="with_notes" checked style="width:auto">
+                    <span>仅带笔记版（老师用）</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <input type="radio" name="export-type" value="blank" style="width:auto">
+                    <span>仅空白版（学生用）</span>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+                    <input type="radio" name="export-type" value="both" style="width:auto">
+                    <span>两者都导出</span>
+                </label>
+            </div>
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeExportImagesModal()">取消</button>
+            <button onclick="_doExportImagesModalConfirm()" class="btn-warn" style="padding:12px 20px">确认导出</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- 待补拍列表弹窗 -->
+<div id="pending-blank-modal" class="modal" onclick="if(event.target===this)closePendingBlankModal()">
+    <div class="modal-content" style="max-width:500px">
+        <h3>📷 待补拍空白题</h3>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">以下题目缺少空白版，点击可补拍</div>
+        <div id="pending-blank-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px">
+            <!-- 动态填充 -->
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closePendingBlankModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 待处理照片弹窗 -->
+<div id="pending-photos-modal" class="modal" onclick="if(event.target===this)closePendingPhotosModal()">
+    <div class="modal-content" style="max-width:500px">
+        <h3>📸 待处理照片</h3>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">以下照片来自快速拍照，点击可处理（关联到题目）</div>
+        <div id="pending-photos-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px">
+            <!-- 动态填充 -->
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closePendingPhotosModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 处理单张照片弹窗 -->
+<div id="process-photo-modal" class="modal" onclick="if(event.target===this)closeProcessPhotoModal()">
+    <div class="modal-content" style="max-width:500px">
+        <h3>📝 处理照片</h3>
+        <div id="process-photo-preview" style="text-align:center;margin-bottom:14px">
+            <img id="process-photo-img" style="max-width:100%;max-height:200px;border-radius:8px" />
+        </div>
+        <div class="form-group">
+            <label>关联到题目</label>
+            <select id="process-photo-question" style="width:100%">
+                <option value="">-- 新建题目 --</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>笔记版本名称</label>
+            <input id="process-photo-label" type="text" placeholder="例如：笔记 v1" />
+        </div>
+        <div class="form-group">
+            <label>选择标签</label>
+            <select id="process-photo-tags" multiple style="height:80px"></select>
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeProcessPhotoModal()">取消</button>
+            <button class="danger" onclick="deletePendingPhoto()">删除</button>
+            <button onclick="confirmProcessPhoto()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 添加/编辑版本弹窗 -->
+<div id="version-modal" class="modal" onclick="if(event.target===this)closeVersionModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3 id="version-modal-title">添加版本</h3>
+        <div class="form-group">
+            <label>版本名称</label>
+            <input id="version-name-input" type="text" placeholder="例如：竞赛版" />
+        </div>
+        <div class="form-group">
+            <label>版本图标 (Emoji)</label>
+            <input id="version-emoji-input" type="text" placeholder="例如：🏆" maxlength="4" style="font-size:24px;text-align:center" />
+        </div>
+        <div class="form-group">
+            <label>版本标语</label>
+            <input id="version-tagline-input" type="text" placeholder="例如：挑战极限，追求卓越" />
+        </div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeVersionModal()">取消</button>
+            <button onclick="saveVersion()" id="version-save-btn">保存</button>
+            <button class="danger" onclick="deleteVersion()" id="version-delete-btn" style="display:none">删除版本</button>
+        </div>
+    </div>
+</div>
+
+<!-- 删除版本密码确认弹窗 -->
+<div id="version-delete-modal" class="modal" onclick="if(event.target===this)closeVersionDeleteModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3>⚠️ 删除版本确认</h3>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">删除版本需要输入系统密码。该版本的题目不会被删除，但会从该版本中移除。</p>
+        <div class="form-group">
+            <label>系统密码</label>
+            <input id="version-delete-password" type="password" placeholder="输入系统密码" />
+        </div>
+        <div id="version-delete-error" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeVersionDeleteModal()">取消</button>
+            <button class="danger" onclick="confirmDeleteVersion()">确认删除</button>
+        </div>
+    </div>
+</div>
+
+<!-- 系统密码设置弹窗 -->
+<div id="system-password-modal" class="modal" onclick="if(event.target===this)closeSystemPasswordModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3>🔐 系统密码设置</h3>
+        <p style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">设置系统密码用于保护敏感操作（如删除版本）。</p>
+        <div class="form-group">
+            <label id="system-password-label">设置密码</label>
+            <input id="system-password-input" type="password" placeholder="输入密码" />
+        </div>
+        <div class="form-group" id="system-password-confirm-group">
+            <label>确认密码</label>
+            <input id="system-password-confirm" type="password" placeholder="再次输入密码" />
+        </div>
+        <div id="system-password-error" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeSystemPasswordModal()">取消</button>
+            <button onclick="saveSystemPassword()">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 试题篮悬浮按钮 -->
+<button id="basket-fab" class="basket-fab" onclick="openBasketModal()">🧺<span class="badge" id="basket-badge" style="display:none">0</span></button>
+
+<!-- 更新提示弹窗 -->
+<div id="update-modal" class="modal">
+    <div class="modal-content" style="max-width:400px;text-align:center">
+        <h3 style="margin-bottom:8px">🎉 发现新版本</h3>
+        <p id="update-version-name" style="font-size:18px;font-weight:600;color:var(--sky-dark);margin-bottom:12px"></p>
+        <div id="update-release-notes" style="text-align:left;background:var(--surface-dim);padding:12px;border-radius:8px;margin-bottom:16px;font-size:14px;color:var(--text-secondary);max-height:200px;overflow-y:auto"></div>
+        <div id="update-progress" style="display:none;margin-bottom:12px">
+            <div style="background:var(--surface-dim);border-radius:8px;height:8px;overflow:hidden">
+                <div id="update-progress-bar" style="background:var(--sky);height:100%;width:0%;transition:width .3s;border-radius:8px"></div>
+            </div>
+            <p id="update-progress-text" style="font-size:12px;color:var(--text-secondary);margin-top:4px">下载中...</p>
+        </div>
+        <div class="btn-group" style="justify-content:center">
+            <button id="update-btn" onclick="downloadAndInstall()" style="flex:1">下载更新</button>
+            <button class="secondary" onclick="dismissUpdate()" style="flex:1">稍后提醒</button>
+        </div>
+    </div>
+</div>
+
+<!-- 截图反馈提示条 -->
+<div id="feedback-prompt-bar" style="display:none;position:fixed;left:16px;right:16px;bottom:24px;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:12px 14px;flex-direction:column;gap:8px">
+    <div style="font-size:14px;color:var(--text)">📸 检测到截图，要反馈问题吗？</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="secondary" onclick="dismissFeedbackPrompt()" style="padding:8px 14px;font-size:13px">忽略</button>
+        <button onclick="openFeedbackPromptFeedback()" style="padding:8px 14px;font-size:13px">反馈问题</button>
+    </div>
+</div>
+
+<!-- 问题反馈弹窗 -->
+<div id="issue-feedback-modal" class="modal" style="z-index:1001" onclick="if(event.target===this)closeIssueFeedbackModal()">
+    <div class="modal-content" style="max-width:420px">
+        <h3>💬 问题反馈</h3>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">提交后将创建为 GitHub Issue，可附截图。</div>
+        <div class="form-group">
+            <label>标题（必填）</label>
+            <input id="feedback-title" maxlength="120" placeholder="一句话描述问题" />
+        </div>
+        <div class="form-group">
+            <label>详细描述（可选）</label>
+            <textarea id="feedback-description" rows="4" maxlength="2000" placeholder="发生了什么？期望是什么？" style="width:100%;font-size:14px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface)"></textarea>
+        </div>
+        <div class="form-group">
+            <label>截图</label>
+            <div style="display:flex;align-items:center;gap:10px">
+                <img id="feedback-shot-preview" style="display:none;max-width:120px;max-height:120px;border-radius:8px;border:1px solid var(--border-light)" />
+                <div>
+                    <button id="feedback-shot-btn" class="secondary" onclick="addFeedbackScreenshot()" style="padding:8px 14px;font-size:13px">＋ 添加截图</button>
+                    <button id="feedback-shot-remove" class="secondary" onclick="removeFeedbackScreenshot()" style="display:none;padding:8px 14px;font-size:13px;margin-left:6px">移除</button>
+                </div>
+            </div>
+        </div>
+        <div id="feedback-status" style="font-size:13px;color:var(--text-secondary);margin-bottom:8px"></div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeIssueFeedbackModal()">取消</button>
+            <button id="feedback-submit-btn" onclick="submitIssueFeedback()">提交反馈</button>
+        </div>
+    </div>
+</div>
+
+<!-- 备份设置弹窗 -->
+<div id="backup-modal" class="modal" onclick="if(event.target===this)closeBackupModal()">
+    <div class="modal-content">
+        <h3>☁️ 备份设置</h3>
+        <div class="form-group">
+            <label>本地自动备份</label>
+            <div style="display:flex;align-items:center;gap:12px;padding:10px 0">
+                <input type="checkbox" id="auto-backup-toggle" style="width:auto" onchange="toggleAutoBackup(this.checked)">
+                <span style="font-size:14px">每次修改数据后自动备份到设备</span>
+            </div>
+            <small style="color:var(--text-secondary);font-size:12px">iOS 同步到 iCloud，Android 可自定义备份位置</small>
+        </div>
+        <div id="backup-path-info" style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">
+            文件将保存在 <b>Download/question-bank-backup.json</b>
+        </div>
+        <div class="form-group">
+            <button onclick="saveBackupToDevice()" style="width:100%">💾 保存备份到设备</button>
+        </div>
+        <div id="backup-status" style="font-size:13px;color:var(--text-secondary);margin:8px 0"></div>
+
+        <!-- 百度网盘 -->
+        <div style="border-top:1px solid var(--border-light);padding-top:14px;margin-top:14px">
+            <label style="font-weight:600;font-size:14px;margin-bottom:10px;display:block">百度网盘</label>
+            <div id="baidu-status" style="font-size:13px;color:var(--text-secondary);margin-bottom:10px"></div>
+            <div id="baidu-bind-area"></div>
+            <div id="baidu-actions" class="hidden">
+                <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+                    <input type="checkbox" id="auto-baidu-toggle" style="width:auto" onchange="toggleAutoBaidu(this.checked)">
+                    <span style="font-size:14px">数据变更时自动上传到百度网盘</span>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:8px">
+                    <button onclick="uploadToBaidu()" style="flex:1;background:var(--sky);font-size:13px;padding:10px">☁️ 上传备份</button>
+                    <button onclick="downloadFromBaidu()" style="flex:1;background:var(--warning);font-size:13px;padding:10px">📥 下载备份</button>
+                </div>
+                <button onclick="unbindBaidu()" class="secondary" style="width:100%;margin-top:8px;font-size:13px;padding:8px">解除绑定</button>
+            </div>
+        </div>
+
+        <!-- 版本皮肤切换 -->
+        <div style="border-top:1px solid var(--border-light);padding-top:14px;margin-top:14px">
+            <label style="font-weight:600;font-size:14px;margin-bottom:10px;display:block">🎨 题库版本</label>
+            <div id="version-switcher" style="display:flex;gap:10px;margin-bottom:8px;flex-wrap:wrap"></div>
+            <small style="color:var(--text-tertiary);font-size:12px;display:block;margin-bottom:8px">切换版本改变界面风格和题目筛选，点击版本名称可编辑</small>
+        </div>
+
+        <!-- 系统密码 -->
+        <div style="border-top:1px solid var(--border-light);padding-top:14px;margin-top:14px">
+            <label style="font-weight:600;font-size:14px;margin-bottom:10px;display:block">🔐 系统密码</label>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font-size:13px;color:var(--text-secondary)">用于删除版本等敏感操作</span>
+                <button onclick="showSystemPasswordModal()" style="padding:8px 16px;font-size:13px" id="system-password-btn">设置密码</button>
+            </div>
+            <div id="system-password-status" style="font-size:13px;color:var(--text-secondary);margin-top:8px"></div>
+        </div>
+
+        <details style="margin-top:16px">
+            <summary style="color:var(--text-tertiary);font-size:13px;cursor:pointer">高级：从设备加载备份</summary>
+            <div style="margin-top:10px">
+                <small style="color:var(--text-secondary);font-size:12px;display:block;margin-bottom:8px">从之前保存的备份文件恢复数据。已有数据时会提示确认。</small>
+                <button onclick="loadBackupFromDevice()" style="width:100%;background:var(--warning);font-size:13px;padding:10px">📂 加载备份</button>
+            </div>
+        </details>
+
+        <!-- 意见反馈 -->
+        <div style="border-top:1px solid var(--border-light);padding-top:14px;margin-top:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font-size:13px;color:var(--text-secondary)">遇到问题？附截图一键反馈</span>
+                <button onclick="openIssueFeedbackModal(false)" style="padding:8px 16px;font-size:13px" id="open-feedback-btn">💬 意见反馈</button>
+            </div>
+        </div>
+
+        <!-- APP 更新 -->
+        <div style="border-top:1px solid var(--border-light);padding-top:14px;margin-top:14px">
+            <label style="font-weight:600;font-size:14px;margin-bottom:10px;display:block">📱 APP 版本</label>
+            <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font-size:13px;color:var(--text-secondary)">当前版本: <b id="current-version-display"></b></span>
+                <button onclick="manualCheckUpdate()" style="padding:8px 16px;font-size:13px" id="check-update-btn">检查更新</button>
+            </div>
+            <div id="check-update-status" style="font-size:13px;color:var(--text-secondary);margin-top:8px"></div>
+        </div>
+
+        <div class="btn-group" style="margin-top:16px">
+            <button class="secondary" onclick="closeBackupModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 百度授权码输入弹窗 -->
+<div id="baidu-auth-modal" class="modal" onclick="if(event.target===this)closeBaiduAuthModal()">
+    <div class="modal-content" style="max-width:450px">
+        <h3>绑定百度网盘</h3>
+        <ol style="font-size:13px;color:var(--text-secondary);padding-left:20px;line-height:1.8">
+            <li>点击下方按钮，在浏览器中打开百度授权页面</li>
+            <li>登录百度账号并授权</li>
+            <li>授权后页面地址栏会出现 <code>code=xxxxx</code></li>
+            <li>复制 <code>code=</code> 后面的部分，粘贴到下方</li>
+        </ol>
+        <button onclick="openBaiduAuth()" style="width:100%;margin:12px 0;background:var(--sky);padding:12px;font-size:15px">🔗 打开百度授权页面</button>
+        <div class="form-group"><label>粘贴授权码</label><input type="text" id="baidu-auth-code" placeholder="粘贴从浏览器复制的 code" /></div>
+        <div class="btn-group"><button class="secondary" onclick="closeBaiduAuthModal()">取消</button><button onclick="exchangeBaiduToken()">确认绑定</button></div>
+    </div>
+</div>
+
+<!-- 登录/注册弹窗 -->
+<div id="login-modal" class="modal" onclick="if(event.target===this)closeLoginModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3 id="login-modal-title">登录</h3>
+        <div class="form-group"><label>服务器地址</label><input type="text" id="server-url" placeholder="例如 http://192.168.1.100:3001" /></div>
+        <div class="form-group"><label>手机号</label><input type="tel" id="login-phone" placeholder="输入手机号" /></div>
+        <div class="form-group"><label>密码</label><input type="password" id="login-password" placeholder="输入密码" /></div>
+        <div id="login-error" style="color:var(--danger);font-size:13px;margin-bottom:10px;display:none"></div>
+        <div class="btn-group">
+            <button onclick="doLogin()" id="btn-do-login">登录</button>
+            <button class="secondary" onclick="doRegister()" id="btn-do-register">注册</button>
+        </div>
+        <div class="btn-group" style="margin-top:8px"><button class="secondary" onclick="closeLoginModal()">取消</button></div>
+    </div>
+</div>
+
+<!-- 同步设置弹窗 -->
+<div id="sync-modal" class="modal" onclick="if(event.target===this)closeSyncModal()">
+    <div class="modal-content" style="max-width:400px">
+        <h3>☁️ 云端同步</h3>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">
+            已登录: <b id="sync-user-name" style="color:var(--text)"></b>
+        </div>
+        <div class="form-group">
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 0">
+                <input type="checkbox" id="auto-sync-toggle" style="width:auto" onchange="toggleAutoSync(this.checked)">
+                <span style="font-size:14px">登录时自动同步</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:8px 0;border-top:1px solid var(--border-light);margin-top:8px">
+                <input type="checkbox" id="sync-toggle" style="width:auto" onchange="toggleSync(this.checked)">
+                <span style="font-size:14px">实时同步（每次操作自动推送）</span>
+            </div>
+        </div>
+        <button onclick="doSync()" style="width:100%;margin-bottom:8px">🔄 立即同步</button>
+        <button onclick="doSyncDown()" style="width:100%;background:var(--warning);margin-bottom:8px">📥 从云端下载</button>
+        <div id="sync-status" style="font-size:13px;color:var(--text-secondary);margin:8px 0"></div>
+        <details style="margin-top:12px;border-top:1px solid var(--border-light);padding-top:12px">
+            <summary style="font-size:13px;color:var(--text-secondary);cursor:pointer">🛡️ 容灾设置</summary>
+            <div style="margin-top:10px">
+                <div id="recovery-status" style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">检查中...</div>
+                <button onclick="fullSyncToCloud()" style="width:100%;margin-bottom:8px;font-size:13px">☁️ 全量同步到云端</button>
+                <div class="form-group" style="margin-bottom:8px">
+                    <label style="font-size:13px">备用服务器地址</label>
+                    <input type="text" id="backup-server-url" placeholder="例如 http://192.168.1.100:3001" style="font-size:13px" />
+                </div>
+                <button onclick="switchToBackupServer()" style="width:100%;background:var(--accent);font-size:13px">🔄 切换到备用服务器</button>
+            </div>
+        </details>
+        <div class="btn-group" style="margin-top:14px">
+            <button class="secondary" onclick="closeSyncModal()">关闭</button>
+            <button class="danger" onclick="doLogout()" style="padding:8px 14px;font-size:13px">退出登录</button>
+        </div>
+    </div>
+</div>
+
+<!-- 悬浮窗截图列表弹窗 -->
+<div id="floating-modal" class="modal" onclick="if(event.target===this)closeFloatingModal()">
+    <div class="modal-content" style="max-width:500px">
+        <h3>   悬浮窗截图</h3>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">选择图片导入到当前题目</div>
+        <div id="floating-image-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px"></div>
+        <div class="btn-group">
+            <button class="secondary" onclick="clearFloatingImages()">清空全部</button>
+            <button class="secondary" onclick="closeFloatingModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 悬浮窗保存弹窗 -->
+<div id="floating-save-modal" class="modal">
+    <div class="modal-content" style="max-width:380px">
+        <h3>保存截图</h3>
+        <div class="form-group">
+            <label>保存到第几题</label>
+            <div style="display:flex;gap:8px;align-items:center">
+                <input type="number" id="floating-save-qnum" min="1" value="1" style="width:80px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:16px;text-align:center" />
+                <span style="color:var(--text-secondary)">题</span>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>保存类型</label>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+                <button type="button" class="upload-btn camera" onclick="confirmFloatingSave('question')">📖 题目</button>
+                <button type="button" class="upload-btn" style="background:var(--accent)" onclick="confirmFloatingSave('answer')">📝 答案</button>
+                <button type="button" class="upload-btn" style="background:var(--warning)" onclick="confirmFloatingSave('blank')">📄 空白题</button>
+                <button type="button" class="upload-btn" style="background:var(--danger)" onclick="confirmFloatingSave('cross-page')">📸 跨页</button>
+            </div>
+        </div>
+        <div class="btn-group" style="margin-top:12px">
+            <button class="secondary" onclick="cancelFloatingSave()">取消</button>
+        </div>
+    </div>
+</div>
+
+<script src="/db.js"></script>
+<script src="/ai.js"></script>
+<script type="module" src="/main.ts"></script>
+</body>
+</html>

@@ -1,12 +1,30 @@
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const { defineConfig, devices } = require("@playwright/test");
 
+function tempUserDataDir() {
+  // 每个 Playwright worker/会话生成一个唯一临时 profile 目录，运行结束后自动清理，
+  // 彻底隔离 IndexedDB / localStorage，避免复用真实 Chrome profile 导致数据污染。
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pw-"));
+  process.on("exit", () => {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch (e) {
+      // 忽略清理错误
+    }
+  });
+  return dir;
+}
+
 function resolveChromeConfig() {
+  const userDataDir = tempUserDataDir();
+
   if (process.env.CHROME_BIN) {
     return {
       launchOptions: {
         executablePath: process.env.CHROME_BIN,
+        userDataDir,
       },
     };
   }
@@ -29,11 +47,16 @@ function resolveChromeConfig() {
     return {
       launchOptions: {
         executablePath: installedChrome,
+        userDataDir,
       },
     };
   }
 
-  return {};
+  return {
+    launchOptions: {
+      userDataDir,
+    },
+  };
 }
 
 module.exports = defineConfig({
@@ -56,9 +79,9 @@ module.exports = defineConfig({
     ...resolveChromeConfig(),
   },
   webServer: {
-    command: "npx serve www -l 3000",
+    command: "./node_modules/.bin/vite --port 3000 --host 127.0.0.1 --mode production",
     url: "http://127.0.0.1:3000",
     reuseExistingServer: !process.env.CI,
-    timeout: 30_000,
+    timeout: 120_000,
   },
 });
