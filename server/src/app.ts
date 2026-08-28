@@ -19,6 +19,7 @@ import pdfsRouter from './routes/pdfs.js';
 import pdfBooksRouter from './routes/pdf-books.js';
 import pdfTopicsRouter from './routes/pdf-topics.js';
 import wikiRouter from './routes/wiki.js';
+import issuesRouter from './routes/issues.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -95,6 +96,7 @@ app.use('/api/pdfs', pdfsRouter);
 app.use('/api/pdf-books', pdfBooksRouter);
 app.use('/api/pdf-topics', pdfTopicsRouter);
 app.use('/api/wiki', wikiRouter);
+app.use('/api/issues', issuesRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
