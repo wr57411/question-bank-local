@@ -621,6 +621,17 @@ assignToWindow({
   doAutoBackup: ui.doAutoBackup,
   buildBackupData: ui.buildBackupData,
   stopFloatingPolling: ui.stopFloatingPolling, restartFloatingPolling: ui.restartFloatingPolling,
+  // Batch 8: issue-feedback
+  initIssueFeedbackListener: ui.initIssueFeedbackListener,
+  showFeedbackPromptBar: ui.showFeedbackPromptBar,
+  dismissFeedbackPrompt: ui.dismissFeedbackPrompt,
+  openFeedbackPromptFeedback: ui.openFeedbackPromptFeedback,
+  openIssueFeedbackModal: ui.openIssueFeedbackModal,
+  closeIssueFeedbackModal: ui.closeIssueFeedbackModal,
+  addFeedbackScreenshot: ui.addFeedbackScreenshot,
+  removeFeedbackScreenshot: ui.removeFeedbackScreenshot,
+  submitIssueFeedback: ui.submitIssueFeedback,
+  retryPendingFeedback: ui.retryPendingFeedback,
 });
 
 // Batch 2: expose native import alias
@@ -642,6 +653,9 @@ ui.initSyncUI();
 ui.initProjectionEvents();
 ui.initProviderList();
 
+// Batch 8: init issue feedback listener
+ui.initIssueFeedbackListener();
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', initApp);
 } else {
@@ -651,5 +665,6 @@ if (document.readyState === 'loading') {
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     Promise.resolve(ui.wikiFlushPendingJobs?.()).catch(() => {});
+    Promise.resolve(ui.retryPendingFeedback()).catch(() => {});
   });
 }

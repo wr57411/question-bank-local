@@ -1040,6 +1040,46 @@
     </div>
 </div>
 
+<!-- 截图反馈提示条 -->
+<div id="feedback-prompt-bar" style="display:none;position:fixed;left:16px;right:16px;bottom:24px;z-index:9999;background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.15);padding:12px 14px;flex-direction:column;gap:8px">
+    <div style="font-size:14px;color:var(--text)">📸 检测到截图，要反馈问题吗？</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="secondary" onclick="dismissFeedbackPrompt()" style="padding:8px 14px;font-size:13px">忽略</button>
+        <button onclick="openFeedbackPromptFeedback()" style="padding:8px 14px;font-size:13px">反馈问题</button>
+    </div>
+</div>
+
+<!-- 问题反馈弹窗 -->
+<div id="issue-feedback-modal" class="modal" style="z-index:1001" onclick="if(event.target===this)closeIssueFeedbackModal()">
+    <div class="modal-content" style="max-width:420px">
+        <h3>💬 问题反馈</h3>
+        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:10px">提交后将创建为 GitHub Issue，可附截图。</div>
+        <div class="form-group">
+            <label>标题（必填）</label>
+            <input id="feedback-title" maxlength="120" placeholder="一句话描述问题" />
+        </div>
+        <div class="form-group">
+            <label>详细描述（可选）</label>
+            <textarea id="feedback-description" rows="4" maxlength="2000" placeholder="发生了什么？期望是什么？" style="width:100%;font-size:14px;padding:8px;border:1px solid var(--border);border-radius:6px;background:var(--surface)"></textarea>
+        </div>
+        <div class="form-group">
+            <label>截图</label>
+            <div style="display:flex;align-items:center;gap:10px">
+                <img id="feedback-shot-preview" style="display:none;max-width:120px;max-height:120px;border-radius:8px;border:1px solid var(--border-light)" />
+                <div>
+                    <button id="feedback-shot-btn" class="secondary" onclick="addFeedbackScreenshot()" style="padding:8px 14px;font-size:13px">＋ 添加截图</button>
+                    <button id="feedback-shot-remove" class="secondary" onclick="removeFeedbackScreenshot()" style="display:none;padding:8px 14px;font-size:13px;margin-left:6px">移除</button>
+                </div>
+            </div>
+        </div>
+        <div id="feedback-status" style="font-size:13px;color:var(--text-secondary);margin-bottom:8px"></div>
+        <div class="btn-group">
+            <button class="secondary" onclick="closeIssueFeedbackModal()">取消</button>
+            <button id="feedback-submit-btn" onclick="submitIssueFeedback()">提交反馈</button>
+        </div>
+    </div>
+</div>
+
 <!-- 备份设置弹窗 -->
 <div id="backup-modal" class="modal" onclick="if(event.target===this)closeBackupModal()">
     <div class="modal-content">
@@ -1102,6 +1142,14 @@
                 <button onclick="loadBackupFromDevice()" style="width:100%;background:var(--warning);font-size:13px;padding:10px">📂 加载备份</button>
             </div>
         </details>
+
+        <!-- 意见反馈 -->
+        <div style="border-top:1px solid var(--border-light);padding-top:14px;margin-top:14px">
+            <div style="display:flex;align-items:center;justify-content:space-between">
+                <span style="font-size:13px;color:var(--text-secondary)">遇到问题？附截图一键反馈</span>
+                <button onclick="openIssueFeedbackModal(false)" style="padding:8px 16px;font-size:13px" id="open-feedback-btn">💬 意见反馈</button>
+            </div>
+        </div>
 
         <!-- APP 更新 -->
         <div style="border-top:1px solid var(--border-light);padding-top:14px;margin-top:14px">

@@ -63,6 +63,8 @@ export function initApp(): void {
   setInterval(() => ui.checkServerConnection(), 60000);
   ui.checkAppUpdate();
   ui.applyPlatformUI();
+  ui.initIssueFeedbackListener();
+  ui.retryPendingFeedback();
   if (w.isNative && w.MediaPlugin) {
     ui.loadGalleryThumbnails('question');
     ui.loadGalleryThumbnails('answer');

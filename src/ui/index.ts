@@ -38,3 +38,4 @@ export * from './teaching-ui';
 export * from './teaching-queue';
 export * from './teaching-verify';
 export * from './projection';
+export * from './issue-feedback';
