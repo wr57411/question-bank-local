@@ -6,8 +6,21 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     var window: UIWindow?
 
+    private var screenshotObserver: NSObjectProtocol?
+
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        screenshotObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.userDidTakeScreenshotNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            DispatchQueue.main.async {
+                if let vc = self?.window?.rootViewController as? CAPBridgeViewController {
+                    vc.bridge?.eval(js: "window.dispatchEvent(new CustomEvent('appScreenshotTaken'))")
+                }
+            }
+        }
         return true
     }
 
