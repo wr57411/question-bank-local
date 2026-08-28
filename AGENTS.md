@@ -122,6 +122,7 @@
 | 服务端数据库迁移恢复 | 旧服务端数据安全合并到统一仓库服务端 | docs/server-database-migration-recovery.md | 2026-07-26 | 服务端, SQLite, 账号, PDF书库 |
 | 修复 LLM Wiki 知识编译流水线 | UI编译入口未接通+接口割裂+links不持久化+预算/队列死代码+实体去重失真+图谱随机连线+JSON静默失败+服务端无CRDT等12项 | docs/fix-llm-wiki-pipeline.md | 2026-07-31 | LLM Wiki, 编译流水线, 视觉OCR, 实体对齐, 服务端合并 |
 | 修复 UI 迁移回归（相册缩略图+原生门控+双重初始化） | window原生标志未赋值+initApp被注释+app.js/main.ts双重绑定submit导致一次创建两条+Playwright数据污染，13个commit修复 | docs/fix-migration-native-gating-regression.md | 2026-08-27 | 相册缩略图, 原生门控, 双重初始化, app.js移除, Playwright隔离 |
+| 修复 Android 端输入框光标失效（文字总插入到末尾） | android.captureInput:true 使 WebView 返回 dummy BaseInputConnection，输入法拿不到光标位置，文字只能追加到末尾；移除该配置恢复 Chromium 真实输入连接 | docs/fix-android-cursor-jump-to-end.md | 2026-08-28 | Capacitor 配置, Android WebView, 输入框, IME |
 
 ### 功能设计文档
 

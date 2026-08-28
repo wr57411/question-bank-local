@@ -14,8 +14,7 @@ const config: CapacitorConfig = {
     scrollEnabled: true
   },
   android: {
-    allowMixedContent: true,
-    captureInput: true
+    allowMixedContent: true
   }
 };
 
