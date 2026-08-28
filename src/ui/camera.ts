@@ -108,6 +108,46 @@ export function removeImage(target: string): void {
   if (target === 'question') w.isFormDirty = false;
 }
 
+export async function fetchLatestMedias(quantity = 6): Promise<any[] | null> {
+  const { isNative, MediaPlugin } = nativeFlags();
+  if (!isNative || !MediaPlugin) return null;
+  const result = await MediaPlugin.getMedias({
+    quantity,
+    thumbnailWidth: 240,
+    thumbnailHeight: 240,
+    thumbnailQuality: 70,
+    types: 'photos',
+  });
+  return result?.medias ?? [];
+}
+
+export async function getGalleryImageDataUrl(identifier: string): Promise<string> {
+  const { MediaPlugin } = nativeFlags();
+  const cap = (window as any).Capacitor;
+  const isContentUri = identifier.startsWith('content://') || identifier.startsWith('file://')
+    || (!identifier.startsWith('/') && !identifier.match(/^[A-Z]:\\/));
+
+  if (typeof MediaPlugin?.getFullImage === 'function' && isContentUri) {
+    const result = await MediaPlugin.getFullImage({ identifier });
+    const mime = result.mimeType || 'image/jpeg';
+    return 'data:' + mime + ';base64,' + result.data;
+  }
+
+  const isIos = !!(cap && cap.getPlatform && cap.getPlatform() === 'ios');
+  if (isIos && MediaPlugin?.getMediaByIdentifier) {
+    const pathResult = await MediaPlugin.getMediaByIdentifier({ identifier });
+    const FS = cap?.Plugins?.Filesystem;
+    if (!FS) throw new Error('文件系统不可用');
+    const fileResult = await FS.readFile({ path: pathResult.path });
+    return fileResult.data.startsWith('data:') ? fileResult.data : 'data:image/jpeg;base64,' + fileResult.data;
+  }
+
+  const FS = cap?.Plugins?.Filesystem;
+  if (!FS) throw new Error('文件系统不可用');
+  const fileResult = await FS.readFile({ path: identifier });
+  return fileResult.data.startsWith('data:') ? fileResult.data : 'data:image/jpeg;base64,' + fileResult.data;
+}
+
 export async function loadGalleryThumbnails(target: string): Promise<void> {
   const { isNative, MediaPlugin } = nativeFlags();
   if (!isNative || !MediaPlugin) {
@@ -165,36 +205,8 @@ export async function galleryThumbClick(identifier: string, target: string): Pro
   w.showStatus('正在加载' + label + '图片...', 'success');
   try {
     console.log('[Gallery] loading full image for identifier:', identifier, 'target:', target);
-    let dataUrl: string | undefined;
-    if (typeof w.MediaPlugin.getFullImage === 'function' && (identifier.startsWith('content://') || identifier.startsWith('file://') || (!identifier.startsWith('/') && !identifier.match(/^[A-Z]:\\/)))) {
-      const result = await w.MediaPlugin.getFullImage({ identifier: identifier });
-      const mime = result.mimeType || 'image/jpeg';
-      dataUrl = 'data:' + mime + ';base64,' + result.data;
-    } else if (w.Capacitor && w.Capacitor.getPlatform && w.Capacitor.getPlatform() === 'ios' && w.MediaPlugin.getMediaByIdentifier) {
-      const pathResult = await w.MediaPlugin.getMediaByIdentifier({ identifier: identifier });
-      const FS = w.Capacitor?.Plugins?.Filesystem;
-      if (FS) {
-        const fileResult = await FS.readFile({ path: pathResult.path });
-        let data = fileResult.data;
-        if (!data.startsWith('data:')) dataUrl = 'data:image/jpeg;base64,' + data;
-        else dataUrl = data;
-      } else {
-        w.showStatus('文件系统不可用', 'error');
-        return;
-      }
-    } else {
-      const FS = w.Capacitor?.Plugins?.Filesystem;
-      if (FS) {
-        const fileResult = await FS.readFile({ path: identifier });
-        let data = fileResult.data;
-        if (!data.startsWith('data:')) dataUrl = 'data:image/jpeg;base64,' + data;
-        else dataUrl = data;
-      } else {
-        w.showStatus('文件系统不可用', 'error');
-        return;
-      }
-    }
-    _handleImageReady(target, dataUrl!);
+    const dataUrl = await getGalleryImageDataUrl(identifier);
+    _handleImageReady(target, dataUrl);
     w.showStatus('已导入' + label + '图片', 'success');
   } catch (e: any) {
     console.error('[Gallery] load full image failed:', e);
