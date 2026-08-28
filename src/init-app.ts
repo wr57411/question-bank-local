@@ -75,4 +75,5 @@ export function initApp(): void {
   ui.initQuestionForm();
   ui.initPaperForm();
   ui.initTopicForm();
+  ui.initQuickImportMode();
 }

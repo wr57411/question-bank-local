@@ -27,6 +27,7 @@ export * from './paper-manage';
 export * from './topic-manage';
 export * from './export-pdf-ui';
 export * from './camera';
+export * from './quick-import';
 export * from './floating-window';
 export * from './crop';
 export * from './pending-photos-ui';

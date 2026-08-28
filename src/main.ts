@@ -632,6 +632,14 @@ assignToWindow({
   removeFeedbackScreenshot: ui.removeFeedbackScreenshot,
   submitIssueFeedback: ui.submitIssueFeedback,
   retryPendingFeedback: ui.retryPendingFeedback,
+  // Batch 9: quick import
+  toggleQuickImportMode: ui.toggleQuickImportMode,
+  confirmQuickImport: ui.confirmQuickImport,
+  swapQuickPair: ui.swapQuickPair,
+  openComboPanel: ui.openComboPanel,
+  closeComboPanel: ui.closeComboPanel,
+  createComboFromPanel: ui.createComboFromPanel,
+  toggleQuickLayout: ui.toggleQuickLayout,
 });
 
 // Batch 2: expose native import alias
