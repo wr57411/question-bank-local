@@ -480,3 +480,28 @@ function syncFormLayoutRadio(layoutType: number): void {
   const option = radio.closest('.layout-option') as HTMLElement | null;
   if (option && typeof w.selectLayout === 'function') w.selectLayout(option, String(layoutType));
 }
+
+export function renderQuickImportBar(): void {
+  render();
+}
+
+export function initQuickImportMode(): void {
+  quickMode = localStorage.getItem(MODE_KEY) === '1';
+  const btn = document.getElementById('quick-import-toggle');
+  if (btn) btn.style.background = quickMode ? 'var(--primary)' : '';
+  syncFormLayoutRadio(loadQuickLayoutType());
+  render();
+
+  const onForeground = () => {
+    if (!quickMode) return;
+    lastFetchAt = 0;
+    void refreshGalleryPair();
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) onForeground();
+  });
+  window.addEventListener('focus', onForeground);
+  window.addEventListener('pageshow', onForeground);
+
+  if (quickMode) void refreshGalleryPair();
+}
