@@ -38,6 +38,25 @@ function normalizeQuestionRecord(question: Record<string, unknown>, key: string)
   return next as unknown as Question;
 }
 
+export function recordNeedsNormalization(original: Record<string, unknown>): boolean {
+  if (!original || typeof original !== 'object') return false;
+  if (!original.id) return true;
+  const required: Array<keyof Record<string, unknown>> = [
+    'question_image_url', 'answer_image_url', 'question_image_blank_url',
+    'semantic_summary', 'ai_metadata', 'user_comment',
+    'versions', 'book_name', 'page_number', 'question_number'
+  ];
+  for (const k of required) {
+    if (!(k in original)) return true;
+  }
+  if (original.layoutType != null && original.layout_type == null) return true;
+  if (original.createdAt != null && original.created_at == null) return true;
+  if (original.updatedAt != null && original.updated_at == null) return true;
+  if (original.deletedAt != null && original.deleted_at == null) return true;
+  if (original.purgedAt != null && original.purged_at == null) return true;
+  return false;
+}
+
 export async function dbGetAllQuestions(): Promise<Question[]> {
   if (_questionsCache && !_questionsDirty) {
     const qtMap = await buildTagIndex();
@@ -48,7 +67,7 @@ export async function dbGetAllQuestions(): Promise<Question[]> {
   await dbQuestions.iterate((v: unknown, key: string) => {
     const question = normalizeQuestionRecord(v as Record<string, unknown>, key);
     if (!question) return;
-    if (JSON.stringify(v) !== JSON.stringify(question)) updates.push(question);
+    if (recordNeedsNormalization(v as Record<string, unknown>)) updates.push(question);
     if (!question.deleted_at) questions.push({ ...question });
   });
   for (const question of updates) await dbQuestions.setItem(question.id, question);
