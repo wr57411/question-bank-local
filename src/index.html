@@ -26,15 +26,16 @@
             <img id="qi-thumb-answer" alt="答案" style="width:56px;height:56px;object-fit:cover;border-radius:8px;border:2px solid var(--accent);background:var(--surface-dim)">
             <span style="position:absolute;top:-6px;left:-6px;background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:1px 5px;border-radius:8px">答</span>
         </div>
-        <button type="button" onclick="swapQuickPair()" style="flex-shrink:0;width:32px;height:32px;border-radius:50%;border:1.5px solid var(--border);background:var(--surface);font-size:15px;cursor:pointer" title="交换题目与答案">⇄</button>
+        <button type="button" onclick="swapQuickPair()" style="flex-shrink:0;width:32px;height:32px;border-radius:50%;border:1.5px solid var(--border);background:var(--surface);color:var(--text);font-size:15px;cursor:pointer" title="交换题目与答案">⇄</button>
         <div id="qi-tags" style="flex:1;min-width:0;display:flex;align-items:center;gap:4px;overflow-x:auto;padding:2px 0;font-size:11px"></div>
     </div>
+    <input id="qi-tag-input" type="text" placeholder="🏷 搜索或新建标签，回车确认" autocomplete="off"
+        style="display:block;width:100%;box-sizing:border-box;margin-top:8px;padding:11px 13px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:15px;line-height:1.3;background:var(--surface);color:var(--text)">
     <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
-        <input id="qi-tag-input" type="text" placeholder="🏷 搜索或新建标签，回车确认" autocomplete="off"
-            style="flex:1;min-width:0;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:13px;background:var(--surface);color:var(--text)">
-        <button type="button" id="qi-combo-btn" onclick="openComboPanel()" style="flex-shrink:0;padding:7px 8px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);font-size:12px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer">组合 ▾</button>
-        <button type="button" id="qi-layout-btn" onclick="toggleQuickLayout()" style="flex-shrink:0;padding:7px 8px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);font-size:12px;cursor:pointer;white-space:nowrap" title="点击在单栏/双栏间切换，会记住上次选择">📏 单双栏</button>
-        <button type="button" id="qi-confirm-btn" onclick="confirmQuickImport()" style="flex-shrink:0;padding:7px 14px;border:none;border-radius:var(--radius-md);background:var(--primary);color:#fff;font-size:13px;font-weight:700;cursor:pointer">✅ 确认</button>
+        <button type="button" id="qi-combo-btn" onclick="openComboPanel()" style="flex:0 1 auto;min-width:46px;max-width:calc(100% - 132px);padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="点击切换版本组合">组合 ▾</button>
+        <button type="button" id="qi-layout-btn" onclick="toggleQuickLayout()" style="flex-shrink:0;min-width:34px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text);font-size:14px;font-weight:500;text-align:center;cursor:pointer;white-space:nowrap" title="点击在单栏/双栏间切换，会记住上次选择">双</button>
+        <div style="flex:1"></div>
+        <button type="button" id="qi-confirm-btn" onclick="confirmQuickImport()" style="flex-shrink:0;padding:8px 16px;border:none;border-radius:var(--radius-md);background:var(--primary);color:#fff;font-size:13px;font-weight:700;cursor:pointer">✅ 确认</button>
     </div>
     <div id="qi-hint" style="margin-top:6px;font-size:11px;color:var(--text-secondary)"></div>
     <div id="qi-tag-results" style="display:none;flex-wrap:wrap;align-content:flex-start;gap:6px;padding:6px;max-height:140px;overflow-y:auto;margin-top:6px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface)"></div>
@@ -759,10 +760,7 @@
         <div style="margin-bottom:var(--space-md)">
             <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">布局方式</label>
             <div class="mode-option selected" onclick="selectExportMode(this,'single')">
-                <div><div class="mode-label">📄 单栏排列</div><div class="mode-desc">每道题全宽显示，题后紧跟答案</div></div>
-            </div>
-            <div class="mode-option" onclick="selectExportMode(this,'double')">
-                <div><div class="mode-label">📋 双栏排列</div><div class="mode-desc">左右各一题，紧凑排列</div></div>
+                <div><div class="mode-label">📄 题目跟答案挨着</div><div class="mode-desc">按题目“排版适用性”标注自动单双栏混排，题后紧跟答案</div></div>
             </div>
             <div class="mode-option" onclick="selectExportMode(this,'separate')">
                 <div><div class="mode-label">📑 题目/答案分开</div><div class="mode-desc">前面全部是题目，后面全部是答案</div></div>

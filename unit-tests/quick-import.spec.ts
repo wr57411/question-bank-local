@@ -10,12 +10,15 @@ import {
   setActiveComboId,
   resolveActiveCombo,
   comboVersionNames,
+  versionShortName,
+  comboPreviewText,
+  getComboDisplayText,
 } from '../src/services/version-combo';
 import {
   pickQuestionAnswerPair, countFreshMedias,
   loadImportedIds, markImportedIds, clearImportedIds,
   buildQuickCreateArgs, loadQuickLayoutType, saveQuickLayoutType,
-  toggleLayoutType, layoutLabel,
+  toggleLayoutType, layoutLabel, layoutFullLabel,
 } from '../src/services/quick-import';
 
 beforeEach(() => localStorage.clear());
@@ -180,8 +183,68 @@ describe('quick-import layout persistence', () => {
     expect(toggleLayoutType(0)).toBe(1);
   });
 
-  it('layoutLabel renders readable text', () => {
-    expect(layoutLabel(1)).toBe('📏 单双栏均可');
-    expect(layoutLabel(0)).toBe('📐 仅适合单栏');
+  it('layoutLabel renders a single compact character', () => {
+    expect(layoutLabel(1)).toBe('双');
+    expect(layoutLabel(0)).toBe('单');
+  });
+
+  it('layoutFullLabel renders the readable text for toasts', () => {
+    expect(layoutFullLabel(1)).toBe('单双栏均可');
+    expect(layoutFullLabel(0)).toBe('仅适合单栏');
+  });
+});
+
+describe('version combo preview text', () => {
+  it('maps known version names to single characters', () => {
+    expect(versionShortName('高三总复习版')).toBe('高');
+    expect(versionShortName('培优版')).toBe('培');
+    expect(versionShortName('同步练版')).toBe('同');
+    expect(versionShortName('基础版')).toBe('基');
+    expect(versionShortName('中等难度版')).toBe('中');
+  });
+
+  it('falls back to the first character for unknown names', () => {
+    expect(versionShortName('竞赛版')).toBe('竞');
+    expect(versionShortName('')).toBe('');
+  });
+
+  it('joins short names of every version in the combo', () => {
+    const combo = createVersionCombo('组合一', ['gaosan', 'peiyou', 'tongblian']);
+    const nameById = (id: string) =>
+      ({ gaosan: '高三总复习版', peiyou: '培优版', tongblian: '同步练版' }[id] ?? null);
+    expect(comboPreviewText(combo, nameById)).toBe('高培同');
+  });
+
+  it('returns empty string when combo is null', () => {
+    expect(comboPreviewText(null, () => 'x')).toBe('');
+  });
+
+  it('skips version ids that no longer exist', () => {
+    const combo = createVersionCombo('组合一', ['gaosan', 'ghost']);
+    const nameById = (id: string) => (id === 'gaosan' ? '高三总复习版' : null);
+    expect(comboPreviewText(combo, nameById)).toBe('高');
+  });
+});
+
+describe('version combo display name', () => {
+  it('uses custom displayName when provided', () => {
+    const c = createVersionCombo('组合一', ['peiyou']);
+    updateVersionCombo(c.id, { displayName: '高三专用' });
+    expect(getComboDisplayText(getComboById(c.id))).toBe('高三专用');
+  });
+
+  it('falls back to combo name when displayName is empty', () => {
+    const c = createVersionCombo('组合一', ['peiyou']);
+    expect(getComboDisplayText(getComboById(c.id))).toBe('组合一');
+  });
+
+  it('treats whitespace-only displayName as empty', () => {
+    const c = createVersionCombo('组合一', ['peiyou']);
+    updateVersionCombo(c.id, { displayName: '   ' });
+    expect(getComboDisplayText(getComboById(c.id))).toBe('组合一');
+  });
+
+  it('returns empty string for null combo', () => {
+    expect(getComboDisplayText(null)).toBe('');
   });
 });

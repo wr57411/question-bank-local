@@ -386,7 +386,7 @@ test.describe("快速导入题目", () => {
 
     await page.fill('#qi-combo-name', '组合一');
     await page.locator('#quick-combo-panel button:has-text("新建")').click();
-    await expect(page.locator('#qi-combo-btn')).toContainText('组合一');
+    await expect(page.locator('#qi-combo-btn')).toHaveAttribute('title', /^组合一/);
 
     await page.locator('#quick-combo-panel button:has-text("×")').click();
     await expect(page.locator('#quick-combo-panel')).toBeHidden();
@@ -416,14 +416,14 @@ test.describe("快速导入题目", () => {
   test("顶部栏数可切换、同步表单并持久化", async ({ page }) => {
     await page.evaluate(() => localStorage.setItem('quickImportMode', '1'));
     await page.reload();
-    await expect(page.locator('#qi-layout-btn')).toContainText('单双栏均可');
+    await expect(page.locator('#qi-layout-btn')).toContainText('双');
 
     await page.click('#qi-layout-btn');
-    await expect(page.locator('#qi-layout-btn')).toContainText('仅适合单栏');
+    await expect(page.locator('#qi-layout-btn')).toContainText('单');
     await expect(page.locator('input[name="layout_type"][value="0"]')).toBeChecked();
 
     await page.reload();
-    await expect(page.locator('#qi-layout-btn')).toContainText('仅适合单栏');
+    await expect(page.locator('#qi-layout-btn')).toContainText('单');
   });
 
   test("组合与栏数设置不被清空", async ({ page }) => {
@@ -439,8 +439,28 @@ test.describe("快速导入题目", () => {
     await page.locator('#quick-combo-panel button:has-text("×")').click();
 
     await page.reload();
-    await expect(page.locator('#qi-combo-btn')).toContainText('组合一');
-    await expect(page.locator('#qi-layout-btn')).toContainText('仅适合单栏');
+    await expect(page.locator('#qi-combo-btn')).toHaveAttribute('title', /^组合一/);
+    await expect(page.locator('#qi-layout-btn')).toContainText('单');
     await expect(page.locator('#qi-tags')).toContainText('未选标签');
+  });
+
+  test("组合按钮可显示自定义名称", async ({ page }) => {
+    await page.evaluate(() => localStorage.setItem('quickImportMode', '1'));
+    await page.reload();
+    await page.click('#qi-combo-btn');
+    await page.fill('#qi-combo-name', '组合一');
+    await page.locator('#quick-combo-panel button:has-text("新建")').click();
+
+    const displayInput = page.locator('#qi-combo-list input[type="text"]').first();
+    const initial = await displayInput.inputValue();
+    expect(initial.length, '新建组合应预填首字建议，不应为空').toBeGreaterThan(0);
+    expect(initial, '预填的应是首字建议，不应等于组合名').not.toBe('组合一');
+
+    await displayInput.fill('高三专用');
+    await page.locator('#quick-combo-panel button:has-text("×")').click();
+    await expect(page.locator('#qi-combo-btn')).toContainText('高三专用');
+
+    await page.reload();
+    await expect(page.locator('#qi-combo-btn')).toContainText('高三专用');
   });
 });

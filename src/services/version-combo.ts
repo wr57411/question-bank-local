@@ -1,6 +1,7 @@
 export interface VersionCombo {
   id: string;
   name: string;
+  displayName?: string;
   versionIds: string[];
   created_at: string;
   updated_at: string;
@@ -53,7 +54,7 @@ export function createVersionCombo(name: string, versionIds: string[]): VersionC
 
 export function updateVersionCombo(
   id: string,
-  patch: Partial<Pick<VersionCombo, 'name' | 'versionIds'>>
+  patch: Partial<Pick<VersionCombo, 'name' | 'displayName' | 'versionIds'>>
 ): VersionCombo | null {
   const combos = loadVersionCombos();
   const idx = combos.findIndex((c) => c.id === id);
@@ -94,4 +95,35 @@ export function comboVersionNames(
 ): string[] {
   if (!combo) return [];
   return combo.versionIds.map(nameById).filter((n): n is string => !!n);
+}
+
+const SHORT_NAME_RULES: Array<[string, string]> = [
+  ['高三', '高'],
+  ['培优', '培'],
+  ['同步', '同'],
+  ['基础', '基'],
+  ['中等', '中'],
+  ['冲刺', '冲'],
+];
+
+export function versionShortName(name: string): string {
+  const trimmed = (name || '').trim();
+  for (const [keyword, short] of SHORT_NAME_RULES) {
+    if (trimmed.includes(keyword)) return short;
+  }
+  return trimmed.charAt(0);
+}
+
+export function comboPreviewText(
+  combo: VersionCombo | null,
+  nameById: (id: string) => string | null
+): string {
+  if (!combo) return '';
+  return comboVersionNames(combo, nameById).map(versionShortName).join('');
+}
+
+export function getComboDisplayText(combo: VersionCombo | null): string {
+  if (!combo) return '';
+  const custom = (combo.displayName || '').trim();
+  return custom || (combo.name || '').trim();
 }

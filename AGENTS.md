@@ -24,11 +24,49 @@
   - [ ] `npm run typecheck`（TypeScript 类型检查）
   - [ ] `npm run test`（单元测试）
   - [ ] `npm run build`（生产构建）
-  - [ ] `npx playwright test tests/ui-health.spec.js`（E2E 测试）
+  - [ ] `npx playwright test tests/ui-health.spec.js tests/quick-import-visibility.spec.js`（E2E 测试；不要跑全量，`ai-*` 用例需要 API key）
+  - [ ] **UI 改动必须通过「截图 + 可见性评估」，见下方专节**
   - 发现问题立即修复，修复后重跑，全部通过才告知用户可手动测试
 - [ ] 执行 ship 打包验证
 
 **违反检查清单 = 产出不可信。**
+
+## E2E 截图评估要求（强制，UI 改动必做）
+
+**背景（真实事故）**：2026-08-29 快速导入顶部条上线后，组合按钮与栏数按钮在真机上**完全看不见**——
+全局样式 `main.css:86` 的 `button{color:#fff}` 配上我在 HTML 里覆盖的 `background:var(--surface)` 白底，
+变成白字白底。而当时的 E2E 用 `toContainText('组合一')` 断言**照样通过**，因为文本确实存在于 DOM，
+只是肉眼不可见。**只断言 DOM 的测试抓不住"看得见的 bug"。**
+
+**规则**：
+
+1. **任何 UI 改动，E2E 必须截图**，不能只断言文本存在。
+   - 用 `tests/helpers/visibility.js` 的 `captureForReview(page, name)`，截图落到 `test-results/screenshots/`。
+2. **每个关键控件必须过 `assertVisiblyRendered(page, selector, label)`**，它检查：
+   - 非 `display:none` / `visibility:hidden` / 近乎透明
+   - 宽高 > 0，且完整落在视口内
+   - `scrollWidth <= clientWidth + 1`（文字没被 CSS 截断）
+   - 中心点 `elementFromPoint` 命中自身（没被别的东西遮挡）
+   - **文字/背景对比度 >= 3**（WCAG 对 UI 组件的最低要求），背景会向上冒泡找第一个不透明祖先
+3. **遮罩层、纯容器跳过对比度**：`assertVisiblyRendered(..., { skipContrast: true })`，
+   容器自身 `textContent` 含后代文本但文字其实渲染在内部卡片上，对它算对比度必然误报。
+   改为对内部真正承载文字的元素（如 `#quick-combo-panel > div`）做完整检查。
+4. **改完 UI 后，AI 必须实际 Read 截图确认**，不能只看测试变绿。
+5. **新增测试要能复现它要防的 bug**：写完后临时把 bug 改回去，确认测试确实失败，再改回来。
+
+**参考实现**：`tests/quick-import-visibility.spec.js`。
+
+## E2E 运行方式（避免触发批量删除保护）
+
+Playwright 启动时会清空 `test-results/` 与 `playwright-report/`，文件数超过 50 会被
+WorkBuddy 的 safe-delete 拦截。用下面的方式绕开（不删除任何东西）：
+
+```bash
+npx playwright test --reporter=list --output=test-results-<新目录名>
+```
+
+`--reporter=list` 覆盖配置里的 html 报告器（它才是清理 `playwright-report` 的元凶）；
+`--output` 指向全新目录。旧产物目录需要用户明确授权后才能清理。
 
 ## 项目信息
 
@@ -139,4 +177,5 @@
 | 架构可视化模型（Architecture Visualization 插件） | C4 系统上下文/容器 DSL + 客户端四层依赖 DOT + 同步流程 Mermaid + 证据索引 | docs/architecture/artifact-summary.md | 2026-08-05 | 架构模型, C4, Graphviz, 证据索引 |
 | 一键问题反馈与 GitHub Issues 自动提交 | 截图监听（Android 插件+iOS 通知桥接）+ 反馈表单 + 服务端中转 + 图片存 feedback-assets 分支 + 离线重试队列 | docs/auto-issue-feedback.md | 2026-08-27 | 问题反馈, GitHub Issues, 服务端, 原生插件 |
 | E2E 隔离测试账号与数据快照 | 专用测试账号 + 主账号标签/题目快照复制脚本 + 测试数据与真实账号隔离 | docs/e2e-test-account.md | 2026-08-28 | 测试基建, 数据隔离, 服务端 |
+| PDF 排版引擎 v5 集成 | planLayout 纯函数引擎替换 pdf.ts + 单双栏自动分组 + 长图切割 + 修复试卷导出空白 | docs/pdf-layout-engine-v5.md | 2026-08-28 | PDF 生成, 排版引擎, generatePDF, 试卷导出 |
 | 快速导入题目模式 | 顶部悬浮确认条 + 相册最新两张自动配对（第1张=答案/第2张=题目）+ 版本组合 + 栏数切换 + 切回前台自动刷新 | docs/quick-import-mode.md | 2026-08-28 | 快速导入, 相册, 版本组合, UI |

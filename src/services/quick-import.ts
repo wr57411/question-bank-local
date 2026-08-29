@@ -90,5 +90,9 @@ export function toggleLayoutType(current: number): number {
 }
 
 export function layoutLabel(layoutType: number): string {
-  return layoutType === 0 ? '📐 仅适合单栏' : '📏 单双栏均可';
+  return layoutType === 0 ? '单' : '双';
+}
+
+export function layoutFullLabel(layoutType: number): string {
+  return layoutType === 0 ? '仅适合单栏' : '单双栏均可';
 }

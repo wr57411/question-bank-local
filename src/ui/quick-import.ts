@@ -10,13 +10,16 @@ import {
   saveQuickLayoutType,
   toggleLayoutType,
   layoutLabel,
+  layoutFullLabel,
   type GalleryMediaLite,
   type QuickPair,
 } from '../services/quick-import';
 import {
   resolveActiveCombo,
   comboVersionNames,
+  comboPreviewText,
   getComboById,
+  getComboDisplayText,
   getActiveComboId,
   loadVersionCombos,
   createVersionCombo,
@@ -115,7 +118,7 @@ function render(): void {
   const el = bar();
   if (!el) return;
   el.style.display = quickMode ? '' : 'none';
-  document.body.style.paddingTop = quickMode ? '150px' : '';
+  document.body.style.paddingTop = quickMode ? '196px' : '';
   if (!quickMode) return;
 
   const q = document.getElementById('qi-thumb-question') as HTMLImageElement | null;
@@ -125,12 +128,7 @@ function render(): void {
 
   renderQuickSelectedTags();
 
-  const comboBtn = document.getElementById('qi-combo-btn');
-  if (comboBtn) {
-    const combo = getComboById(getActiveComboId());
-    const names = comboVersionNames(combo, (id) => getAppVersions().find((v) => v.id === id)?.name ?? null);
-    comboBtn.textContent = (combo?.name || '组合') + (names.length ? '：' + names.join('+') : '') + ' ▾';
-  }
+  syncComboButton();
 
   const layoutBtn = document.getElementById('qi-layout-btn');
   if (layoutBtn) layoutBtn.textContent = layoutLabel(loadQuickLayoutType());
@@ -151,6 +149,15 @@ function render(): void {
     });
     tagInput.addEventListener('keydown', onQuickTagKeydown);
   }
+}
+
+function syncComboButton(): void {
+  const comboBtn = document.getElementById('qi-combo-btn');
+  if (!comboBtn) return;
+  const combo = getComboById(getActiveComboId());
+  const names = comboVersionNames(combo, (id) => getAppVersions().find((v) => v.id === id)?.name ?? null);
+  comboBtn.textContent = (getComboDisplayText(combo) || '组合') + ' ▾';
+  comboBtn.title = combo?.name ? combo.name + '：' + names.join('、') : '点击新建版本组合';
 }
 
 export async function confirmQuickImport(): Promise<void> {
@@ -403,11 +410,22 @@ function comboRow(combo: VersionCombo, active: boolean): HTMLDivElement {
 
   head.append(title, rename, del);
 
+  const displayInput = document.createElement('input');
+  displayInput.type = 'text';
+  displayInput.value = combo.displayName || '';
+  displayInput.placeholder = '显示名（留空用组合名）';
+  displayInput.autocomplete = 'off';
+  displayInput.style.cssText = 'display:block;width:100%;box-sizing:border-box;margin:8px 0 2px;padding:7px 9px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:13px;background:var(--surface);color:var(--text)';
+  displayInput.oninput = () => {
+    updateVersionCombo(combo.id, { displayName: displayInput.value.trim() });
+    syncComboButton();
+  };
+
   const chips = document.createElement('div');
   chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:8px';
   for (const v of getAppVersions()) chips.appendChild(versionChip(combo, v));
 
-  row.append(head, chips);
+  row.append(head, displayInput, chips);
   return row;
 }
 
@@ -457,7 +475,10 @@ export function createComboFromPanel(): void {
     showStatus('请输入组合名称', 'error');
     return;
   }
-  const combo = createVersionCombo(name, [getCurrentVersionId()].filter(Boolean));
+  const currentVersionId = getCurrentVersionId();
+  const combo = createVersionCombo(name, currentVersionId ? [currentVersionId] : []);
+  const suggested = comboPreviewText(combo, (id) => getAppVersions().find((v) => v.id === id)?.name ?? null);
+  if (suggested) updateVersionCombo(combo.id, { displayName: suggested });
   setActiveComboId(combo.id);
   if (input) input.value = '';
   renderComboList();
@@ -470,7 +491,7 @@ export function toggleQuickLayout(): void {
   saveQuickLayoutType(next);
   syncFormLayoutRadio(next);
   render();
-  showStatus('已设为' + (next === 1 ? '单双栏均可' : '仅适合单栏'), 'success');
+  showStatus('已设为' + layoutFullLabel(next), 'success');
 }
 
 function syncFormLayoutRadio(layoutType: number): void {
