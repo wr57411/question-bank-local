@@ -1314,6 +1314,21 @@
     </div>
 </div>
 
+<!-- 全局错误提示弹窗 -->
+<div id="error-modal" class="modal" style="z-index:2000">
+    <div class="modal-content" style="max-width:340px;text-align:center">
+        <div style="font-size:44px;line-height:1;margin-bottom:8px">⚠️</div>
+        <h3 style="margin-bottom:var(--space-sm)">操作失败</h3>
+        <p id="error-modal-msg" style="color:var(--text-secondary);font-size:14px;margin-bottom:var(--space-lg);word-break:break-word"></p>
+        <button id="error-modal-close-btn" onclick="closeErrorModal()" style="width:100%;padding:12px;font-size:15px;background:var(--danger);color:#fff;border:none;border-radius:var(--radius-md);font-weight:700">知道了</button>
+    </div>
+</div>
+
+<!-- 操作反馈 toast（成功/信息） -->
+<div id="toast" style="display:none;position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);left:50%;transform:translateX(-50%);z-index:1200;max-width:calc(100vw - 32px);pointer-events:none;border-radius:var(--radius-xl)">
+    <div id="toast-msg" style="padding:10px 18px;border-radius:var(--radius-xl);font-size:14px;font-weight:600;box-shadow:var(--shadow-lg);text-align:center;word-break:break-word;pointer-events:auto"></div>
+</div>
+
 <script src="/db.js"></script>
 <script src="/ai.js"></script>
 <script type="module" src="/main.ts"></script>

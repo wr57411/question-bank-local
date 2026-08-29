@@ -9,3 +9,4 @@ export * from './pdf-doc';
 export * from './wiki';
 export * from './wiki-mvp';
 export * from './local-ocr';
+export * from './pdf';

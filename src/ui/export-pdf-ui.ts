@@ -59,7 +59,7 @@ export async function previewExportPDF(): Promise<void> {
   if (!qs || !qs.length) { w.showStatus('没有可导出的题目', 'error'); return; }
   w.showStatus('正在生成预览，请稍候...', 'success');
   const spc = w.exportSpacing === 'large' ? parseFloat((document.getElementById('spc-large') as HTMLInputElement).value) : w.exportSpacing === 'small' ? parseFloat((document.getElementById('spc-small') as HTMLInputElement).value) : 0;
-  const doc = await w.generatePDF(qs, { mode: w.exportMode, spacing: w.exportSpacing, spacingCm: spc, title: getExportFileName(), noSave: true });
+  const doc = await w.generatePDF(qs, { mode: w.exportMode || 'single', spacing: w.exportSpacing, spacingCm: spc, title: getExportFileName(), noSave: true });
   if (!doc) { w.showStatus('生成失败', 'error'); return; }
   const isNative = !!(w.Capacitor && w.Capacitor.isNativePlatform && w.Capacitor.isNativePlatform());
   if (isNative && w.Capacitor?.Plugins?.Filesystem) {
@@ -109,6 +109,6 @@ export async function doExportPDF(): Promise<void> {
   closeExportModal();
   w.showStatus('正在生成 PDF...', 'success');
   const spc = w.exportSpacing === 'large' ? parseFloat((document.getElementById('spc-large') as HTMLInputElement).value) : w.exportSpacing === 'small' ? parseFloat((document.getElementById('spc-small') as HTMLInputElement).value) : 0;
-  await w.generatePDF(qs, { mode: w.exportMode, spacing: w.exportSpacing, spacingCm: spc, title: getExportFileName() });
+  await w.generatePDF(qs, { mode: w.exportMode || 'single', spacing: w.exportSpacing, spacingCm: spc, title: getExportFileName() });
   w.showStatus('PDF 已生成', 'success');
 }

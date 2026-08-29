@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PDF 文字归一化排版原型 — 产品需求文档 (PRD)</title>
+<style>
+:root{--bg:#fafbfc;--surface:#fff;--border:#e1e4e8;--text:#1f2328;--text2:#656d76;--text3:#8f959e;--accent:#0969da;--accent-bg:#e6f0fc;--ok:#1a7f37;--ok-bg:#e6f6ea;--warn:#bf8700;--warn-bg:#fff8e5;--err:#cf222e;--err-bg:#ffebe9;--r:8px;--code-bg:#f6f8fa}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans SC',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;max-width:960px;margin:0 auto;padding:20px 24px}
+header{padding:32px 0 20px;border-bottom:2px solid var(--border);margin-bottom:28px}
+h1{font-size:26px;font-weight:800;letter-spacing:-0.5px;margin-bottom:8px}
+h1 .v{display:inline-block;background:var(--accent);color:#fff;font-size:13px;font-weight:700;padding:2px 10px;border-radius:12px;vertical-align:middle;margin-left:8px}
+.meta{display:flex;gap:18px;flex-wrap:wrap;color:var(--text3);font-size:12.5px;margin-top:6px}
+.badge{display:inline-block;padding:3px 11px;border-radius:12px;font-size:11.5px;font-weight:600}
+.badge-draft{background:var(--warn-bg);color:var(--warn)}
+section{margin-bottom:30px}
+h2{font-size:19px;font-weight:700;margin-bottom:14px;padding-bottom:7px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:7px}
+h3{font-size:15.5px;font-weight:600;margin:16px 0 9px;color:var(--text)}
+h4{font-size:13.5px;font-weight:600;margin:12px 0 7px;color:var(--text2)}
+p,li{margin-bottom:7px;font-size:14px;color:var(--text2)}
+ul,ol{padding-left:22px;margin-bottom:11px}li{margin-bottom:4px}
+table{width:100%;border-collapse:collapse;margin:13px 0;font-size:13px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+th{background:#f1f3f5;text-align:left;padding:9px 13px;font-weight:600;color:var(--text);border-bottom:2px solid var(--border);font-size:11.5px;text-transform:uppercase;letter-spacing:.3px}
+td{padding:8px 13px;border-bottom:1px solid var(--border);vertical-align:top}
+tr:last-child td{border-bottom:none}tr:hover{background:#f6f8fa}
+.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:600}
+.t-p0{background:var(--err-bg);color:var(--err)}.t-p1{background:var(--warn-bg);color:var(--warn)}.t-p2{background:var(--accent-bg);color:var(.accent)}.t-p3{background:var(--ok-bg);color:var(--ok)}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:14px 0}
+.info-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 15px}
+.info-card .lbl{font-size:10.5px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+.info-card .val{font-size:16px;font-weight:700;color:var(--text)}
+pre{background:var(--code-bg);border:1px solid var(--border);border-radius:var(--r);padding:12px 16px;overflow-x:auto;font-size:12.5px;line-height:1.5;margin:11px 0}
+code{font-family:'SF Mono',Consolas,'Courier New',monospace;font-size:12.5px;background:var(--code-bg);padding:1px 5px;border-radius:3px}
+pre code{background:none;padding:0}
+.callout{border-radius:var(--r);padding:12px 16px;margin:14px 0;border-left:4px solid}
+.callout-warn{background:var(--warn-bg);border-color:var(--warn)}.callout-info{background:var(--accent-bg);border-color:var(.accent)}.callout-ok{background:var(--ok-bg);border-color:var(.ok)}
+.wf{display:flex;align-items:center;gap:5px;flex-wrap:wrap;margin:14px 0;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r)}
+.wf-s{background:var(--accent-bg);color:var(.accent);padding:7px 12px;border-radius:6px;font-size:12px;font-weight:600;text-align:center;min-width:82px}
+.wf-a{color:var(--text3);font-size:17px;font-weight:bold}
+footer{text-align:center;padding:28px 16px;color:var(--text3);font-size:11.5px;border-top:1px solid var(--border);margin-top:36px}
+@media print{body{padding:0;max-width:none;font-size:10pt} header,.no-print{display:none!important} section{page-break-inside:avoid;margin-bottom:20pt} h2{font-size:15pt} table{font-size:8.5pt}}
+</style>
+</head>
+<body>
+
+<header>
+<h1>PDF 文字归一化 + 智能排版原型 <span class="v">v4</span></h1>
+<div class="meta">
+<span><strong>文档类型：</strong>产品需求文档 (PRD)</span>
+<span><strong>状态：</strong><span class="badge badge-draft">原型验证中</span></span>
+<span><strong>创建日期：</strong>2026-08-14</span>
+<span><strong>所属项目：</strong>question-bank-local</span>
+</div>
+</header>
+
+<!-- ===== 一、产品概述 ===== -->
+<section id="overview">
+<h2>📋 一、产品概述</h2>
+
+<h3>1.1 背景与动机</h3>
+<p>当前项目的 <code>src/data/pdf.ts</code> 模块负责将题目图片导出为 PDF 文档。核心逻辑是：获取图片原始尺寸 → 按页面宽度等比缩放 → 调用 <code>jsPDF.addImage()</code> 写入。</p>
+
+<div class="callout callout-warn">
+<strong>⚠️ 核心问题：</strong>不同拍摄距离/缩放级别的题目照片在导出后文字大小差异巨大。近距离拍摄的照片文字很大，远距离拍摄/截图放小的照片文字很小。当前代码只做等比缩放（所有图铺满 A4 宽度），完全没有考虑图片内部文字的"有效分辨率"。
+</div>
+
+<h3>1.2 目标用户与场景</h3>
+<ul>
+<li><strong>主要用户：</strong>使用 question-bank-local 应用的教师/学生，需要批量导出题目图片为可打印的 PDF 文档</li>
+<li><strong>使用场景：</strong>手机拍照或截图录入题目 → 批量选择导出 → 打印/分享 PDF</li>
+<li><strong>痛点：</strong>导出的 PDF 中不同题目的文字大小不一致，影响阅读体验和打印效果</li>
+</ul>
+
+<h3>1.3 产品目标</h3>
+<div class="info-grid">
+<div class="info-card"><div class="lbl">核心目标</div><div class="val">文字大小一致性</div></div>
+<div class="info-card"><div class="lbl">质量指标</div><div class="val">偏差 &lt; ±15%</div></div>
+<div class="info-card"><div class="lbl">性能要求</div><div class="val">&lt; 500ms / 张</div></div>
+<div class="info-card"><div class="lbl">交付形态</div><div class="val">独立原型 HTML</div></div>
+</div>
+</section>
+
+<!-- ===== 二、功能需求 ===== -->
+<section id="requirements">
+<h2>🎯 二、功能需求</h2>
+
+<h3>2.1 P0 — 必须实现（MVP）</h3>
+<table>
+<tr><th style="width:35px">ID</th><th style="width:26%">需求</th><th>描述</th><th style="width:55px">优先级</th><th style="width:55px">状态</th></tr>
+<tr>
+<td><strong>R01</strong></td>
+<td><strong>文字高度检测</strong></td>
+<td>自动检测每张题目图片中的文字行高（像素值）。支持两种模式：<br>① Canvas 启发式（无需外部服务，O(n) 快速算法）<br>② OCR 服务（localhost:8766，返回 bounding box 高度）
+</td>
+<td><span class="tag t-p0">P0</span></td>
+<td>✅ 已实现</td>
+</tr>
+<tr>
+<td><strong>R02</strong></td>
+<td><strong>归一化缩放</strong></td>
+<td>基于检测结果计算每张图的缩放系数，使最终 PDF 中所有图片的文字行高落在目标范围内（默认 4mm ≈ 11pt）。取中位数作为基准线，各图相对基准线调整。
+</td>
+<td><span class="tag t-p0">P0</span></td>
+<td>✅ 已实现</td>
+</tr>
+<tr>
+<td><strong>R03</strong></td>
+<td><strong>A4 实时预览</strong></td>
+<td>上传/分析后立即在浏览器中渲染 A4 页面预览，展示实际排版效果。支持翻页查看多页结果。所见即所得。
+</td>
+<td><span class="tag t-p0">P0</span></td>
+<td>✅ 已实现</td>
+</tr>
+<tr>
+<td><strong>R04</strong></td>
+<td><strong>PDF 导出</strong></td>
+<td>基于 jsPDF 生成标准 A4 PDF 文件，可直接下载/打印。包含页码、切割标记等元信息。
+</td>
+<td><span class="tag t-p0">P0</span></td>
+<td>✅ 已实现</td>
+</tr>
+</table>
+
+<h3>2.2 P1 — 重要增强</h3>
+<table>
+<tr><th>ID</th><th style="width:26%">需求</th><th>描述</th><th style="width:55px">优先级</th><th style="width:55px">状态</th></tr>
+<tr>
+<td><strong>R05</strong></td>
+<td><strong>单栏/双栏布局</strong></td>
+<td>每张图片独立设置布局模式：<br>
+• <strong>单栏 📄</strong>：占满 A4 可用宽度（190mm），适合大图/复杂题目<br>
+• <strong>双栏 📑</strong>：占半宽（~77mm），适合简单选择题<br>
+支持单独切换和批量设置<br>
+• <strong>自动分组</strong>：排版时同版式题目自动归到一起——单栏组在前、双栏组在后，组内保持上传顺序，两组之间自动翻页，同一页不混排
+</td>
+<td><span class="tag t-p1">P1</span></td>
+<td>✅ 已实现</td>
+</tr>
+<tr>
+<td><strong>R06</strong></td>
+<td><strong>智能图片切割</strong></td>
+<td>当图片渲染高度超过当前栏剩余空间时自动切割：<br>
+• 切割点靠近文字行边界（避免从中间切断文字）<br>
+• 剩余部分优先放入旁边栏（双栏模式），否则放到下一页<br>
+• 最小切割片段 ≥ 25mm；切割处显示 ✂ 可视化标记
+</td>
+<td><span class="tag t-p1">P1</span></td>
+<td>✅ 已实现</td>
+</tr>
+<tr>
+<td><strong>R07</strong></td>
+<td><strong>对比视图</strong></td>
+<td>并排展示「原始模式 vs 归一化模式」的排版效果
+</td>
+<td><span class="tag t-p1">P1</span></td>
+<td>⏳ 待增强</td>
+</tr>
+</table>
+
+<h3>2.3 P2 — 锦上添花</h3>
+<table>
+<tr><th>ID</th><th>需求</th><th>描述</th><th>优先级</th></tr>
+<tr><td>R08</td><td>OCR 精确检测</td><td>对接本地 OCR 服务获得更精确的文字尺寸估计</td><td><span class="tag t-p2">P2</span></td></tr>
+<tr><td>R09</td><td>目标文字可调</td><td>允许调整目标文字高度（2–10mm），适应不同打印场景</td><td><span class="tag t-p2">P2</span></td></tr>
+<tr><td>R10</td><td>批量导入</td><td>支持拖拽上传文件夹/批量选择</td><td><span class="tag t-p2">P2</span></td></tr>
+<tr><td>R11</td><td>排版模板</td><td>预设模板（试卷/练习册/答案解析），一键应用配置</td><td><span class="tag t-p2">P2</span></td></tr>
+</table>
+</section>
+
+<!-- ===== 三、技术方案 ===== -->
+<section id="tech">
+<h2>🔧 三、技术方案</h2>
+
+<h3>3.1 核心算法流程</h3>
+<div class="wf">
+<div class="wf-s">上传图片</div><div class="wf-a">→</div>
+<div class="wf-s">检测文字高</div><div class="wf-a">→</div>
+<div class="wf-s">计算缩放系数</div><div class="wf-a">→</div>
+<div class="wf-s">基准线归一化</div><div class="wf-a">→</div>
+<div class="wf-s">A4 排版渲染</div><div class="wf-a">→</div>
+<div class="wf-s">导出 PDF</div>
+</div>
+
+<h4>步骤详解</h4>
+<ol>
+<li><strong>文字高度检测</strong>（O(n) 快速算法）
+<ul><li>降采样至最长边 ≤ 800px</li><li>全局均值亮度阈值二值化（threshold = mean × 0.88）</li><li>行采样水平投影（每 ~200 列采一个点，4× 加速）</li><li>检测文字行段 → 取中位数作为该图文字行高</li><li><strong>性能：</strong>&lt;80ms/张（1400×1050 图片）</li></ul>
+</li>
+<li><strong>缩放系数计算</strong>
+<pre><code>// 对每张图片 i：
+usableWidth_i = layoutMode == 'single' ? 190mm : 77mm
+textHeightAtFull = (detectedPx / imgWidth) * usableWidth_i
+rawScale_i     = targetTextMM / textHeightAtFull
+
+// 归一化：以中位数为基准
+baselineScale  = median(rawScale_1, ..., rawScale_n)
+normScale_i    = clamp(0.35, 1.0, rawScale_i / baselineScale)</code></pre>
+</li>
+<li><strong>布局引擎</strong>（纯迭代，队列驱动）
+<ul><li>维护「当前页面状态」：左栏剩余高度 / 右栏剩余高度</li><li>对队列中每个图片项：尝试放入当前栏 → 放不下则切割 → 剩余部分重新入队</li><li>最大迭代次数保护（300 次）防止死循环</li></ul>
+</li>
+</ol>
+
+<h3>3.2 布局参数定义</h3>
+<table>
+<tr><th>参数</th><th>符号</th><th>默认值</th><th>说明</th></tr>
+<tr><td>A4 宽度</td><td>AW</td><td>210 mm</td><td>ISO A4 标准宽度</td></tr>
+<tr><td>A4 高度</td><td>AH</td><td>297 mm</td><td>ISO A4 标准高度</td></tr>
+<tr><td>外边距</td><td>MG</td><td>10 mm</td><td>上下左右统一边距</td></tr>
+<tr><td>单栏可用宽度</td><td>uws()</td><td>190 mm</td><td>AW - 2×MG</td></tr>
+<tr><td>双栏可用宽度</td><td>uwd()</td><td>≈77 mm</td><td>(uws - 栏间距) ÷ 2 - 2×内边距</td></tr>
+<tr><td>栏间距</td><td>CGAP</td><td>4 mm</td><td>双栏之间的间隙</td></tr>
+<tr><td>单元格内边距</td><td>CPAD</td><td>6 mm</td><td>图片与栏边缘的距离</td></tr>
+<tr><td>最小切割高度</td><td>MSP</td><td>25 mm</td><td>切割碎片的最小允许高度</td></tr>
+<tr><td>目标文字高度</td><td>tgtMM</td><td>4 mm</td><td>≈ 11pt，可调范围 2–10mm</td></tr>
+</table>
+
+<h3>3.3 技术栈</h3>
+<table>
+<tr><th>组件</th><th>技术选型</th><th>理由</th></tr>
+<tr><td>前端框架</td><td>原生 HTML/CSS/JS（无框架）</td><td>单文件原型，零依赖，直接打开可用</td></tr>
+<tr><td>PDF 生成</td><td>jsPDF 2.5.1 (CDN)</td><td>纯客户端生成，无需后端服务</td></tr>
+<tr><td>图像处理</td><td>Canvas API (getImageData)</td><td>用于文字高度检测和图片切割</td></tr>
+<tr><td>OCR 服务（可选）</td><td>localhost:8766</td><td>项目已有的本地 OCR 服务</td></tr>
+</table>
+</section>
+
+<!-- ===== 四、交互设计 ===== -->
+<section id="ux">
+<h2>🎨 四、交互设计</h2>
+
+<h3>4.1 界面布局：左右分栏</h3>
+<ul>
+<li><strong>左侧面板（340px）</strong>：控制区 + 图片列表 + 日志
+  <ul><li>上传区域（拖拽/点击）</li><li>控制栏：检测方式、目标文字大小、批量布局按钮</li><li>操作按钮：分析+排版、测试图、导出 PDF、清空</li><li>统计信息：图片数、单/双栏分布、页数、切割次数</li><li>图片列表：每项含缩略图、名称、尺寸、文字高度、布局切换、删除</li><li>日志区域：实时输出处理过程</li></ul>
+</li>
+<li><strong>右侧面板（弹性）</strong>：A4 实时预览
+  <ul><li>页码导航（◀ 第 N / M 页 ▶）</li><li>A4 画布（595pt × 842pt 白色区域）</li><li>列参考线 + 切割标记（金色横线 + ✂ 标签）</li></ul>
+</li>
+</ul>
+
+<h3>4.2 用户操作流程</h3>
+<div class="callout callout-info">
+<strong>典型流程（首次使用）：</strong>
+<ol>
+<li>打开 <code>pdf-text-normalize-prototype.html</code></li>
+<li>点击「🧪 测试图」加载 4 张模拟图片（或自行上传真实题目照片）</li>
+<li>根据需要切换各图片的单栏/双栏布局（默认全部单栏）</li>
+<li>点击「🔍 分析+排版」→ 等待 &lt;2 秒</li>
+<li>右侧 A4 画布实时呈现排版结果，可翻页浏览</li>
+<li>观察统计数据：文字高度范围、最大偏差、归一化后范围、切割次数</li>
+<li>满意后点击「📄 导出 PDF」下载文件</li>
+</ol>
+</div>
+
+<h3>4.3 视觉规范</h3>
+<ul>
+<li><strong>配色</strong>：深色主题（#0f1117 背景），减少长时间使用的视觉疲劳</li>
+<li><strong>状态色</strong>：成功 #34d399 / 警告 #fbbf24 / 错误 #f87171 / 主色 #6c8cff</li>
+<li><strong>A4 预览</strong>：白色画布 + 微阴影，模拟真实纸张效果</li>
+</ul>
+</section>
+
+<!-- ===== 五、数据模型 ===== -->
+<section id="data">
+<h2>📊 五、数据模型</h2>
+
+<h3>5.1 内部状态结构</h3>
+<pre><code>{
+  imgs: [{
+    id: string,           // 唯一标识
+    f: File,               // 原始 File 对象
+    url: string,           // Data URL (base64 JPEG)
+    name: string,          // 文件名
+    w: number, h: number,  // 原始像素尺寸
+    tH: number | null,     // 检测到的文字行高 (px)
+    lm: 'single' | 'double',
+    rawScale: number,      // 原始缩放系数
+    normScale: number      // 归一化后的缩放系数 [0.35, 1.0]
+  }],
+  pages: [{
+    L: Array&lt;Cell&gt;, R: Array&lt;Cell&gt;,
+    yL: number, yR: number  // 左/右栏剩余高度 (mm)
+  }],
+  cp: number,              // 当前预览页码
+  done: boolean,
+  tgtMM: number,           // 目标文字高度 (mm)
+  nSplit: number           // 总切割次数
+}
+
+interface Cell {
+  x: number, y: number, w: number, h: number,  // 位置+尺寸(mm)
+  iid: string, src: string | Promise&lt;string&gt;,
+  isSp: boolean, si: number, p: number|string, t: number|string
+}</code></pre>
+</section>
+
+<!-- ===== 六、验收标准 ===== -->
+<section id="qa">
+<h2>✅ 六、验收标准</h2>
+
+<h3>6.1 功能验收</h3>
+<table>
+<tr><th>#</th><th>测试场景</th><th>预期结果</th><th>优先级</th></tr>
+<tr><td>T01</td><td>上传 3 张不同拍摄距离的题目图片</td><td>A4 预览中各图文字大小目测一致</td><td>P0</td></tr>
+<tr><td>T02</td><td>上传 1 张超长图片（高度 > 2 倍 A4 可用高度）</td><td>自动切割为 2+ 页/栏，切割处有 ✂ 标记</td><td>P1</td></tr>
+<tr><td>T03</td><td>将某张图切为双栏模式</td><td>该图在 A4 中仅占右半部分宽度</td><td>P1</td></tr>
+<tr><td>T04</td><td>点击「导出 PDF」</td><td>下载的 PDF 与 A4 预览一致</td><td>P0</td></tr>
+<tr><td>T05</td><td>点击「加载测试图」→「分析」</td><td>4 张测试图在 &lt;2s 内完成全流程</td><td>P0</td></tr>
+</table>
+
+<h3>6.2 性能验收</h3>
+<table>
+<tr><th>指标</th><th>目标</th><th>测量方法</th></tr>
+<tr><td>文字检测速度</td><td>&lt; 200ms / 张（1400×1050 图）</td><td>performance.now()</td></tr>
+<tr><td>排版计算速度</td><td>&lt; 100ms / 10 张图</td><td>同上</td></tr>
+<tr><td>PDF 导出速度</td><td>&lt; 3s / 10 页</td><td>从点击到下载完成</td></tr>
+</table>
+
+<h3>6.3 兼容性</h3>
+<p>Chrome 90+ ✅ | Firefox 90+ ✅ | Safari 15+ ✅ | Edge 90+ ✅ | 不支持 IE</p>
+</section>
+
+<!-- ===== 七、路线图 ===== -->
+<section id="roadmap">
+<h2>🛣️ 七、后续路线图</h2>
+
+<table>
+<tr><th>阶段</th><th>内容</th><th>预计</th></tr>
+<tr><td><strong>v4 当前</strong></td><td>✅ 原型验证：Canvas 启发式检测 + 迭代布局引擎 + A4 预览 + PDF 导出</td><td>✅ Done</td></tr>
+<tr><td><strong>v4.1</strong></td><td>修复 IIFE 作用域 bug（确保 onclick 能调用内部函数）</td><td>立即</td></tr>
+<tr><td><strong>v4.2</strong></td><td>接入 OCR 服务（localhost:8766）作为精确检测模式</td><td>+1 天</td></tr>
+<tr><td><strong>v5</strong></td><td>集成到 question-bank-local 项目，替换 src/data/pdf.ts</td><td>+2-3 天</td></tr>
+<tr><td><strong>v5.1</strong></td><td>Web Worker 中运行检测算法，不阻塞 UI</td><td>+1 天</td></tr>
+<tr><td><strong>v5.2</strong></td><td>排版模板、批量预设、水印等高级功能</td><td>+2-3 天</td></tr>
+</table>
+</section>
+
+<!-- ===== 八、附录 ===== -->
+<section id="appendix">
+<h2>📎 八、附录</h2>
+
+<h3>8.1 文件清单</h3>
+<table>
+<tr><th>文件</th><th>说明</th></tr>
+<tr><td><code>pdf-text-normalize-prototype.html</code></td><td>主原型文件（v4），单文件，浏览器直接打开</td></tr>
+<tr><td><code>pdf-text-normalize-prototype-PRD.html</code></td><td>本 PRD 文档</td></tr>
+<tr><td><code>src/data/pdf.ts</code></td><td>待替换的原 PDF 导出逻辑</td></tr>
+<tr><td><code>src/services/local-ocr.ts</code></td><td>本地 OCR 服务（可选检测模式）</td></tr>
+</table>
+
+<h3>8.2 术语表</h3>
+<table>
+<tr><th>术语</th><th>说明</th></tr>
+<tr><td>文字行高</td><td>一行文字从基线到下一行基线的距离（px 或 mm）</td></tr>
+<tr><td>可用宽度</td><td>A4 页面宽度减去边距后可用于放置内容的宽度</td></tr>
+<tr><td>归一化</td><td>将不同尺度的输入映射到统一的输出尺度</td></tr>
+<tr><td>切割 (split)</td><td>当图片超出容器高度时截断为多个片段分别放置</td></tr>
+<tr><td>基准线 (baseline)</td><td>所有图片缩放系数的中位数，归一化的参考点</td></tr>
+</table>
+
+<div class="callout callout-ok" style="margin-top:20px">
+<strong>📌 文档状态：</strong>本 PRD 为 v4 原型的配套文档，处于「原型验证中」状态。核心功能（R01-R06）已实现并通过代码审查，待用户视觉验证后确认是否进入 v5 集成阶段。
+</div>
+</section>
+
+<footer>
+<p>PDF 文字归一化排版原型 — Product Requirements Document v4</p>
+<p>question-bank-local project · 2026-08-14</p>
+</footer>
+
+</body>
+</html>
