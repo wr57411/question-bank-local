@@ -22,7 +22,11 @@ async function _migrateQuestionNotes(): Promise<void> {
 }
 
 export async function refreshAll(): Promise<void> {
-  await _migrateQuestionNotes();
+  if (!localStorage.getItem('questionNotesMigratedV1')) {
+    void _migrateQuestionNotes()
+      .then(() => { localStorage.setItem('questionNotesMigratedV1', '1'); })
+      .catch((e) => console.error('笔记迁移失败:', e));
+  }
   await Promise.all([
     ui.loadTags(),
     w.isFormDirty ? Promise.resolve() : ui.loadQuestions(),

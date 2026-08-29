@@ -154,6 +154,7 @@ assignIfMissing({
   APP_VERSION_NAME: services.APP_VERSION_NAME,
   // ui
   showStatus: ui.showStatus,
+  closeErrorModal: ui.closeErrorModal,
   escapeHtml: ui.escapeHtml,
   showTab: ui.showTab,
   renderMarkdown: ui.renderMarkdown,
@@ -272,6 +273,7 @@ assignIfMissing({
 });
 
 assignToWindow({
+  generatePDF: data.generatePDF,
   renderVersionSwitcher: ui.renderVersionSwitcher,
   renameCurrentVersion: ui.renameCurrentVersion,
   setAppVersion: ui.setAppVersion,

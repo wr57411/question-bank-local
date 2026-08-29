@@ -1,12 +1,36 @@
+const TOAST_DURATION_MS = 3000;
+
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function showToast(msg: string, type: 'success' | 'info'): void {
+  const wrap = document.getElementById('toast');
+  const box = document.getElementById('toast-msg');
+  if (!wrap || !box) return;
+  box.textContent = msg;
+  box.style.background = type === 'success' ? 'var(--mint-light)' : 'var(--sky-light)';
+  box.style.color = type === 'success' ? 'var(--mint-dark)' : 'var(--sky-dark)';
+  wrap.style.background = type === 'success' ? 'var(--mint-light)' : 'var(--sky-light)';
+  wrap.style.color = 'var(--text)';
+  wrap.style.display = 'block';
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { wrap.style.display = 'none'; toastTimer = null; }, TOAST_DURATION_MS);
+}
+
+export function showErrorModal(msg: string): void {
+  const m = document.getElementById('error-modal');
+  const t = document.getElementById('error-modal-msg');
+  if (!m || !t) return;
+  t.textContent = msg;
+  openModal('error-modal');
+}
+
+export function closeErrorModal(): void {
+  closeModal('error-modal');
+}
+
 export function showStatus(msg: string, type: 'success' | 'error' | 'info'): void {
-  const c = document.getElementById('status-message');
-  if (!c) return;
-  c.replaceChildren();
-  const d = document.createElement('div');
-  d.className = 'status ' + type;
-  d.textContent = msg;
-  c.appendChild(d);
-  if (type === 'success') setTimeout(() => c.replaceChildren(), 3000);
+  if (type === 'error') { showErrorModal(msg); return; }
+  showToast(msg, type);
 }
 
 export function escapeHtml(s: string | null | undefined): string {

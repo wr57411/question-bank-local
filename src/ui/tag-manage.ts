@@ -29,6 +29,7 @@ export async function loadTags(): Promise<void> {
   w.activeFilterTags = w.activeFilterTags.filter((id: string) => w.allTags.some((t: any) => t.id === id));
   renderTags(); updateTagSelects(); renderFilterTags();
   if (document.getElementById('form-tag-results')) onFormTagSearch();
+  renderFormSelectedTags();
 }
 
 export function renderTags(): void {
@@ -127,7 +128,13 @@ export function onFormTagKeydown(event: KeyboardEvent): void {
 export function addFormTag(tagId: string): void {
   if (formSelectedTagIds.includes(tagId)) return;
   formSelectedTagIds.push(tagId);
+  const div = document.getElementById('form-tag-selected');
+  const before = div?.childElementCount ?? 0;
   renderFormSelectedTags();
+  const after = document.getElementById('form-tag-selected')?.childElementCount ?? 0;
+  if (after <= before) {
+    setTimeout(() => renderFormSelectedTags(), 50);
+  }
 }
 
 export function removeFormTag(tagId: string): void {
@@ -150,16 +157,18 @@ export async function createTagFromSearch(): Promise<void> {
 
 export function renderFormSelectedTags(): void {
   const div = document.getElementById('form-tag-selected');
-  if (!div) return;
+  if (!div) { console.warn('[renderFormSelectedTags] #form-tag-selected 元素不存在，跳过渲染'); return; }
   div.innerHTML = '';
+  const missingIds: string[] = [];
   formSelectedTagIds.forEach(tagId => {
     const tag = w.allTags.find((t: any) => t.id === tagId);
-    if (!tag) return;
+    if (!tag) { missingIds.push(tagId); return; }
     const el = document.createElement('span');
     el.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 10px;background:' + tag.color + '15;border:1px solid ' + tag.color + '40;border-radius:var(--radius-xl);font-size:12px;font-weight:500;color:var(--text)';
     el.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:' + tag.color + '"></span> ' + tag.name + ' <span style="cursor:pointer;color:var(--text-tertiary);margin-left:2px" onclick="removeFormTag(\'' + tag.id + '\')">✕</span>';
     div.appendChild(el);
   });
+  if (missingIds.length) console.warn('[renderFormSelectedTags] 以下 tagId 在 allTags 中未找到:', missingIds);
 }
 
 export function toggleFilterTags(): void {

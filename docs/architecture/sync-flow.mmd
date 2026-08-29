@@ -1,0 +1,43 @@
+flowchart TD
+    U[("教师\n用户")]
+    T["sync-ui.ts\nfullSyncToCloud / runSync\n用户或自动触发"]
+    A{"服务器可达?\ncheckServerConnection"}
+    W["showSyncWarning\n风险警告弹窗"]
+    B["dbBuildSyncPayload\n构建本地全量数据包"]
+    C["apiCall\nPOST /api/sync\n(带 JWT Bearer)"]
+    D["server/src/routes/sync.ts\n接收数据包"]
+    E["sync-upsert.ts\n按表 upsert + 时间戳比对"]
+    F[("server/data.db\nSQLite WAL")]
+    G["返回远程快照\n(合并结果)"]
+    H["dbApplyRemoteSnapshot\n覆盖式应用远程数据"]
+    I["setSyncStatus / updateSyncBar\n更新顶部状态条"]
+    J["更新同步游标\n+ 本地 IndexedDB"]
+    K["完成提示"]
+    L["handleAuthError / showSyncStatus\n失败状态追踪"]
+    M["可重试或切备用服务器\nswitchToBackupServer"]
+
+    U --> T
+    T --> A
+    A -- 否 --> W
+    A -- 是 --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+    J --> K
+    C -- HTTP 错误/401 --> L
+    L --> M
+    M --> T
+
+    classDef client fill:#DBEAFE,stroke:#2563EB;
+    classDef server fill:#DCFCE7,stroke:#16A34A;
+    classDef data fill:#FEF3C7,stroke:#D97706;
+    classDef warn fill:#FEE2E2,stroke:#DC2626;
+    class T,A,B,C,H,I,J,M client;
+    class D,E server;
+    class F data;
+    class W,L warn;

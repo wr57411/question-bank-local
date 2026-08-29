@@ -1,0 +1,120 @@
+digraph client_layers {
+    rankdir=TB;
+    label="本地题库 App 客户端模块依赖图（当前状态，evidence-backed）";
+    labelloc=t;
+    fontsize=14;
+    nodesep=0.35;
+    ranksep=0.5;
+    node [fontname="Helvetica, PingFang SC", shape=box, style="rounded,filled", fillcolor="#EFF6FF", color="#2563EB"];
+
+    subgraph cluster_runtime {
+        label="运行时 glue (public/)";
+        style=filled; color="#E2E8F0"; fillcolor="#F8FAFC";
+        appjs [label="app.js\n运行时 glue：读取 window 全局函数\n调用 ui.* 完成页面交互", fillcolor="#F1F5F9"];
+    }
+
+    subgraph cluster_main {
+        label="入口 src/main.ts";
+        style=filled; color="#E2E8F0"; fillcolor="#F8FAFC";
+        main [label="main.ts\n静态导入四层，600+ 函数挂载到 window", fillcolor="#DBEAFE"];
+    }
+
+    subgraph cluster_ui {
+        label="UI 层 src/ui/（42 个文件）";
+        style=filled; color="#FCE7F3"; fillcolor="#FDF2F8";
+        sync_ui [label="sync-ui.ts\n登录/同步状态/服务器切换"];
+        question_ui [label="question-core.ts\n题目表单/筛选/列表"];
+        pdf_ui [label="pdf-doc-ops.ts + pdf-preview.ts\nPDF 书库/预览/下载"];
+        wiki_ui [label="wiki.ts + wiki-mvp.ts\nWiki 面板/编译入口"];
+        teaching_ui [label="teaching-ui.ts\n教学节点/队列/验证"];
+        camera_ui [label="camera.ts + crop.ts\n拍摄/裁剪交互"];
+        backup_ui [label="backup.ts\n备份/恢复 UI"];
+        baidu_ui [label="baidu-netdisk.ts\n百度网盘自动备份"];
+        ai_ui [label="ai-model-ui.ts + provider-manage.ts\nAI 配置/模型管理"];
+    }
+
+    subgraph cluster_services {
+        label="服务层 src/services/";
+        style=filled; color="#DCFCE7"; fillcolor="#F0FDF4";
+        ai_svc [label="ai.ts\ncallCloudAIStream 流式 LLM"];
+        vision_svc [label="vision.ts\n视觉模型调用"];
+        ocr_svc [label="local-ocr.ts\n本地 OCR 客户端"];
+        pdf_svc [label="pdf-cloud.ts\nPDF 云上传/页/下载"];
+        wiki_svc [label="wiki-compiler.ts\nWiki 知识编译流水线"];
+        wiki_mvp_svc [label="wiki-mvp.ts\nMVP 提取会话"];
+        image_svc [label="image.ts\n压缩/合并图片"];
+        update_svc [label="app-update.ts\n版本检查"];
+    }
+
+    subgraph cluster_data {
+        label="数据层 src/data/（IndexedDB 封装）";
+        style=filled; color="#FEF3C7"; fillcolor="#FFFBEB";
+        stores [label="stores.ts\nlocalForage 实例", shape=box3d];
+        questions_data [label="questions.ts\n题目 CRUD/软删除", shape=box3d];
+        sync_data [label="sync.ts\n增量备份 changelog", shape=box3d];
+        pdf_data [label="pdf.ts + pdf-docs.ts\nPDF 文档/类目", shape=box3d];
+        wiki_data [label="wiki.ts\nWiki 页面/链接/任务", shape=box3d];
+        backup_data [label="backup.ts\n智能备份/恢复", shape=box3d];
+        tags_data [label="tags.ts + papers.ts\n标签/试卷", shape=box3d];
+    }
+
+    subgraph cluster_types {
+        label="类型层 src/types/";
+        style=filled; color="#E0E7FF"; fillcolor="#EEF2FF";
+        types [label="13 个类型文件\n共享契约", shape=note, style="rounded,filled", fillcolor="#EEF2FF"];
+    }
+
+    subgraph cluster_external {
+        label="外部依赖";
+        style=filled; color="#FECACA"; fillcolor="#FEF2F2";
+        openrouter [label="OpenRouter\n流式 LLM / 视觉模型", shape=box, style="rounded,filled,dashed", fillcolor="#FEF2F2"];
+        ocrserver [label="本地 OCR 服务\nFastAPI /ocr", shape=box, style="rounded,filled,dashed", fillcolor="#FEF2F2"];
+        serverapi [label="题库服务器\nREST API", shape=box, style="rounded,filled,dashed", fillcolor="#FEF2F2"];
+        baidudrive [label="百度网盘\n备份目标", shape=box, style="rounded,filled,dashed", fillcolor="#FEF2F2"];
+        localforage [label="IndexedDB\n(localForage)", shape=box3d, style="rounded,filled,dashed", fillcolor="#FEF2F2"];
+    }
+
+    appjs -> main [label="script 顺序加载", style=dashed];
+    main -> sync_ui [label="静态导入 + window 挂载", style=dotted];
+    main -> question_ui [label="静态导入 + window 挂载", style=dotted];
+    main -> wiki_svc [label="静态导入 + window 挂载", style=dotted];
+    main -> stores [label="静态导入", style=dotted];
+
+    sync_ui -> ai_svc [label="静态导入调用"];
+    sync_ui -> pdf_svc [label="静态导入调用"];
+    question_ui -> ai_svc [label="静态导入调用"];
+    question_ui -> image_svc [label="静态导入调用"];
+    pdf_ui -> pdf_svc [label="静态导入调用"];
+    wiki_ui -> wiki_svc [label="静态导入调用"];
+    wiki_ui -> wiki_mvp_svc [label="静态导入调用"];
+    teaching_ui -> wiki_svc [label="静态导入调用"];
+    teaching_ui -> ai_svc [label="静态导入调用"];
+    backup_ui -> backup_data [label="静态导入调用"];
+    baidu_ui -> backup_data [label="静态导入调用"];
+    ai_ui -> ai_svc [label="静态导入调用"];
+    camera_ui -> image_svc [label="静态导入调用"];
+
+    ai_svc -> openrouter [label="runtime-call HTTPS 流式", color="#DC2626"];
+    vision_svc -> openrouter [label="runtime-call 多模态", color="#DC2626"];
+    ocr_svc -> ocrserver [label="runtime-call HTTP /ocr", color="#DC2626"];
+    wiki_svc -> ai_svc [label="复用流式管线"];
+    wiki_mvp_svc -> vision_svc [label="复用视觉管线"];
+    wiki_mvp_svc -> ocr_svc [label="复用 OCR 管线"];
+    sync_ui -> serverapi [label="runtime-call REST", color="#DC2626"];
+    pdf_svc -> serverapi [label="runtime-call REST", color="#DC2626"];
+    wiki_svc -> serverapi [label="runtime-call REST", color="#DC2626"];
+    baidu_ui -> baidudrive [label="runtime-call OAuth/上传", color="#DC2626"];
+    update_svc -> serverapi [label="runtime-call REST 版本检查", color="#DC2626"];
+
+    sync_ui -> sync_data [label="读取 changelog"];
+    sync_ui -> stores [label="读写"];
+    pdf_ui -> pdf_data [label="读写"];
+    wiki_ui -> wiki_data [label="读写"];
+    question_ui -> questions_data [label="读写"];
+    question_ui -> tags_data [label="读写"];
+    backup_ui -> sync_data [label="读取"];
+    sync_ui -> types [label="类型依赖", style=dashed, color="#64748B"];
+    pdf_svc -> types [label="类型依赖", style=dashed, color="#64748B"];
+    wiki_svc -> types [label="类型依赖", style=dashed, color="#64748B"];
+    stores -> localforage [label="runtime-call IndexedDB", color="#DC2626"];
+}

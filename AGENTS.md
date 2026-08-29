@@ -161,6 +161,8 @@ npx playwright test --reporter=list --output=test-results-<新目录名>
 | 修复 LLM Wiki 知识编译流水线 | UI编译入口未接通+接口割裂+links不持久化+预算/队列死代码+实体去重失真+图谱随机连线+JSON静默失败+服务端无CRDT等12项 | docs/fix-llm-wiki-pipeline.md | 2026-07-31 | LLM Wiki, 编译流水线, 视觉OCR, 实体对齐, 服务端合并 |
 | 修复 UI 迁移回归（相册缩略图+原生门控+双重初始化） | window原生标志未赋值+initApp被注释+app.js/main.ts双重绑定submit导致一次创建两条+Playwright数据污染，13个commit修复 | docs/fix-migration-native-gating-regression.md | 2026-08-27 | 相册缩略图, 原生门控, 双重初始化, app.js移除, Playwright隔离 |
 | 修复 Android 端输入框光标失效（文字总插入到末尾） | android.captureInput:true 使 WebView 返回 dummy BaseInputConnection，输入法拿不到光标位置，文字只能追加到末尾；移除该配置恢复 Chromium 真实输入连接 | docs/fix-android-cursor-jump-to-end.md | 2026-08-28 | Capacitor 配置, Android WebView, 输入框, IME |
+| 修复后台恢复后已选标签不显示 | loadTags() 替换 allTags 引用后未刷新已选区+renderFormSelectedTags 静默失败无日志；loadTags 末尾同步刷新+防御性 warn+addFormTag 渲染后验证重试 | docs/fix-form-tag-selected-after-resume.md | 2026-08-29 | 添加题目表单, 标签选择, loadTags |
+| 状态提示统一化（错误弹窗+操作反馈 toast） | showStatus 写入藏在添加题目卡片内的 #status-message，其他栏目/滚动后不可见且 error 不消失；收口点分流：error→#error-modal 全局弹窗（z-index 2000，手动关闭），success/info→#toast 顶部悬浮 3 秒自动消失 | docs/fix-status-feedback-unified.md | 2026-08-29 | showStatus, 全局弹窗, toast, UI 提示 |
 
 ### 功能设计文档
 
