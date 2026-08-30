@@ -48,6 +48,68 @@ function bar(): HTMLElement | null {
   return document.getElementById('quick-import-bar');
 }
 
+// ========== 文字笔记（设计：docs/plans/2026-08-30-quick-import-text-note.md） ==========
+// 设计决策（已确认）：复用 question_notes 体系，文字写入 text_note 字段，不在题目记录上新增 note 字段
+// 交互决策（2026-08-30 用户确认）：输入区默认展开——默认场景就是写文字笔记；确认后清空文字并保持展开
+
+const NOTE_MAX = 500;
+
+function noteInput(): HTMLTextAreaElement | null {
+  return document.getElementById('qi-note-input') as HTMLTextAreaElement | null;
+}
+
+function noteDot(): HTMLElement | null {
+  return document.getElementById('qi-note-dot');
+}
+
+function applyNoteBodyPadding(): void {
+  // 设计风险项「展开时顶部栏增高遮挡内容」：展开态动态补偿正文 padding-top
+  document.body.style.paddingTop = quickMode ? (isQuickNoteExpanded() ? '312px' : '196px') : '';
+}
+
+export function isQuickNoteExpanded(): boolean {
+  const area = document.getElementById('qi-note-area');
+  return !!area && area.style.display !== 'none';
+}
+
+export function toggleQuickNote(): void {
+  const area = document.getElementById('qi-note-area');
+  if (!area) return;
+  area.style.display = isQuickNoteExpanded() ? 'none' : 'block';
+  if (isQuickNoteExpanded()) noteInput()?.focus();
+  applyNoteBodyPadding();
+}
+
+export function onQuickNoteInput(): void {
+  const input = noteInput();
+  if (!input) return;
+  if (input.value.length > NOTE_MAX) input.value = input.value.slice(0, NOTE_MAX);
+  const count = document.getElementById('qi-note-count');
+  if (count) count.textContent = input.value.length + '/' + NOTE_MAX;
+  // 设计 Task 2：已有笔记时按钮显示圆点标记
+  const dot = noteDot();
+  if (dot) dot.style.display = input.value.trim() ? 'inline-block' : 'none';
+}
+
+export function readQuickNoteText(): string {
+  const value = noteInput()?.value ?? '';
+  return value.trim().slice(0, NOTE_MAX);
+}
+
+export function resetQuickNote(): void {
+  const input = noteInput();
+  if (input) input.value = '';
+  const count = document.getElementById('qi-note-count');
+  if (count) count.textContent = '0/' + NOTE_MAX;
+  const dot = noteDot();
+  if (dot) dot.style.display = 'none';
+  // 默认展开：重置后保持展开，便于连续录入下一条笔记
+  const area = document.getElementById('qi-note-area');
+  if (area) area.style.display = 'block';
+  applyNoteBodyPadding();
+}
+// ========== 文字笔记结束 ==========
+
 export function isQuickMode(): boolean {
   return quickMode;
 }
@@ -60,6 +122,8 @@ export function toggleQuickImportMode(): void {
   render();
   if (quickMode) void refreshGalleryPair();
   showStatus(quickMode ? '快速导入已开启' : '快速导入已关闭', 'success');
+  // 设计 Task 2：退出快速导入模式时清空并收起笔记输入
+  if (!quickMode) resetQuickNote();
 }
 
 export async function refreshGalleryPair(): Promise<void> {
@@ -118,7 +182,7 @@ function render(): void {
   const el = bar();
   if (!el) return;
   el.style.display = quickMode ? '' : 'none';
-  document.body.style.paddingTop = quickMode ? '196px' : '';
+  applyNoteBodyPadding();
   if (!quickMode) return;
 
   const q = document.getElementById('qi-thumb-question') as HTMLImageElement | null;
@@ -149,6 +213,14 @@ function render(): void {
     });
     tagInput.addEventListener('keydown', onQuickTagKeydown);
   }
+
+  // 设计 Task 2：笔记输入绑定字数统计与圆点标记
+  const noteArea = document.getElementById('qi-note-area');
+  const noteField = noteInput();
+  if (noteArea && noteField && !noteField.dataset.qiBound) {
+    noteField.dataset.qiBound = '1';
+    noteField.addEventListener('input', onQuickNoteInput);
+  }
 }
 
 function syncComboButton(): void {
@@ -164,6 +236,8 @@ export async function confirmQuickImport(): Promise<void> {
   if (!pair || loading) return;
   const combo = resolveActiveCombo(() => getAppVersions().map((v) => v.id));
   const ids = [pair.question.identifier, pair.answer.identifier];
+  // 设计 Task 2：确认前读取笔记文本；空白时为空串（空值不产生文本，沿用既有空「笔记 v1」行为）
+  const noteText = readQuickNoteText();
   loading = true;
   renderHint('正在导入...');
   try {
@@ -180,13 +254,16 @@ export async function confirmQuickImport(): Promise<void> {
       args.bookInfo
     );
     if (created?.question_image_url) {
-      await w.dbAddQuestionNote(created.id, created.question_image_url, '笔记 v1', '');
+      // 设计决策：文字写入既有 question_notes 的 text_note 字段（笔记体系已纳入同步，无需改同步链路）
+      await w.dbAddQuestionNote(created.id, created.question_image_url, '笔记 v1', noteText);
     }
     markImportedIds(ids);
     quickTagIds = [];
     pair = null;
     questionThumb = '';
     answerThumb = '';
+    // 设计 Task 2：确认成功后清空笔记输入（默认展开语义：保持展开，便于连续录入）
+    resetQuickNote();
     showStatus('题目已导入', 'success');
     await Promise.resolve(w.loadQuestions?.());
     await Promise.resolve(w.loadBookFilter?.());

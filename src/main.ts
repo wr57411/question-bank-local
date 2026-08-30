@@ -642,6 +642,9 @@ assignToWindow({
   closeComboPanel: ui.closeComboPanel,
   createComboFromPanel: ui.createComboFromPanel,
   toggleQuickLayout: ui.toggleQuickLayout,
+  // 快速导入文字笔记（设计：docs/plans/2026-08-30-quick-import-text-note.md）
+  toggleQuickNote: ui.toggleQuickNote,
+  onQuickNoteInput: ui.onQuickNoteInput,
 });
 
 // Batch 2: expose native import alias

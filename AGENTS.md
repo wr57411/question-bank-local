@@ -181,3 +181,4 @@ npx playwright test --reporter=list --output=test-results-<新目录名>
 | E2E 隔离测试账号与数据快照 | 专用测试账号 + 主账号标签/题目快照复制脚本 + 测试数据与真实账号隔离 | docs/e2e-test-account.md | 2026-08-28 | 测试基建, 数据隔离, 服务端 |
 | PDF 排版引擎 v5 集成 | planLayout 纯函数引擎替换 pdf.ts + 单双栏自动分组 + 长图切割 + 修复试卷导出空白 | docs/pdf-layout-engine-v5.md | 2026-08-28 | PDF 生成, 排版引擎, generatePDF, 试卷导出 |
 | 快速导入题目模式 | 顶部悬浮确认条 + 相册最新两张自动配对（第1张=答案/第2张=题目）+ 版本组合 + 栏数切换 + 切回前台自动刷新 | docs/quick-import-mode.md | 2026-08-28 | 快速导入, 相册, 版本组合, UI |
+| 快速导入「添加文字笔记」 | 确认左侧「📝 笔记」按钮展开输入区（≤500字），文字写入既有 question_notes.text_note（复用笔记体系，同步零改动）；含版本皮肤下对比度修复与展开态 padding 补偿 | docs/quick-import-text-note.md | 2026-08-30 | 快速导入, 题目笔记, UI, 可见性测试 |

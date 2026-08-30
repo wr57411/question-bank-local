@@ -77,3 +77,46 @@ test.describe('快速导入 - 顶部条实际可见性', () => {
     expect(eighteen.scrollWidth, '18 字超长名称才允许省略号').toBeGreaterThan(eighteen.clientWidth);
   });
 });
+
+test.describe('快速导入 - 文字笔记入口可见性（设计：docs/plans/2026-08-30-quick-import-text-note.md）', () => {
+  test('笔记按钮与输入区默认展开可见（手机视口 390px，对比度达标、无遮挡）', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openQuickImportWithCombo(page);
+
+    await assertVisiblyRendered(page, '#qi-note-btn', '笔记按钮');
+    // 默认展开：输入区直接可见可写
+    await assertVisiblyRendered(page, '#qi-note-area', '笔记输入区');
+    await assertVisiblyRendered(page, '#qi-note-input', '笔记文本框');
+    await captureForReview(page, 'quick-import-note-default-open');
+  });
+
+  test('点击可收起再展开（字数统计 + 圆点标记随输入更新）', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openQuickImportWithCombo(page);
+
+    await page.fill('#qi-note-input', '本题用换元法简化');
+    await expect(page.locator('#qi-note-count')).toHaveText('8/500');
+    await expect(page.locator('#qi-note-dot')).toBeVisible();
+
+    await captureForReview(page, 'quick-import-note-expanded');
+
+    // 点击收起 → 再点展开
+    await page.click('#qi-note-btn');
+    await expect(page.locator('#qi-note-area')).toBeHidden();
+    await page.click('#qi-note-btn');
+    await expect(page.locator('#qi-note-area')).toBeVisible();
+  });
+
+  test('默认展开态正文 padding-top 已补偿，收起后回落', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openQuickImportWithCombo(page);
+    const barHeight = await page.evaluate(
+      () => document.getElementById('quick-import-bar').offsetHeight
+    );
+    const paddingOpen = await page.evaluate(() => document.body.style.paddingTop);
+    expect(parseInt(paddingOpen, 10), '默认展开后 padding 应覆盖整条栏高').toBeGreaterThanOrEqual(barHeight);
+    await page.click('#qi-note-btn');
+    const paddingClosed = await page.evaluate(() => document.body.style.paddingTop);
+    expect(parseInt(paddingClosed, 10), '收起后 padding 应回落').toBeLessThan(parseInt(paddingOpen, 10));
+  });
+});
