@@ -1,3 +1,5 @@
+import { getQuickImportAnchorRect, applyModalPosition } from './modal-anchor';
+
 const TOAST_DURATION_MS = 3000;
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
@@ -39,12 +41,28 @@ export function escapeHtml(s: string | null | undefined): string {
 
 export function openModal(id: string): void {
   const el = document.getElementById(id);
-  if (el) el.classList.add('active');
+  if (!el) return;
+  el.classList.add('active');
+  const content = el.querySelector('.modal-content') as HTMLElement | null;
+  if (content) {
+    const anchor = getQuickImportAnchorRect();
+    applyModalPosition(el as HTMLElement, content, anchor);
+  }
 }
 
 export function closeModal(id: string): void {
   const el = document.getElementById(id);
-  if (el) el.classList.remove('active');
+  if (!el) return;
+  el.classList.remove('active');
+  const content = el.querySelector('.modal-content') as HTMLElement | null;
+  if (content) {
+    content.style.maxHeight = '';
+    content.style.overflowY = '';
+  }
+  (el as HTMLElement).style.top = '';
+  (el as HTMLElement).style.height = '';
+  (el as HTMLElement).style.alignItems = '';
+  (el as HTMLElement).style.paddingTop = '';
 }
 
 export function showTab(tabName: string, btn?: HTMLElement): void {

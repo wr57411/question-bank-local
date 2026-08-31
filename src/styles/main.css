@@ -171,6 +171,9 @@
         .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(46,42,59,.4);backdrop-filter:blur(6px);z-index:1000;-webkit-overflow-scrolling:touch}
         .modal.active{display:flex;align-items:center;justify-content:center}
         .modal-content{background:var(--surface);padding:var(--space-lg);border-radius:var(--radius-lg);max-width:500px;width:94%;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;box-shadow:var(--shadow-xl)}
+        .modal--anchored{ /* 仅作语义钩子，实际几何由 JS 写入；不改 z-index/动画 */ }
+        .modal--anchored.active{ align-items:flex-start; }
+        .modal-content--anchored{ overflow-y:auto; -webkit-overflow-scrolling:touch; }
         .modal-content h2,.modal-content h3{font-size:20px;margin-bottom:var(--space-md);font-weight:800;color:var(--text)}
         .hidden{display:none!important}
 

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { computeAnchoredPosition, getQuickImportAnchorRect, applyModalPosition, bindModalToAnchor, isQuickImportBarVisible } from '../src/ui/modal-anchor';
+import { openModal, closeModal } from '../src/ui/common';
 
 function setBar(height: number, visible: boolean) {
   document.body.innerHTML = `
@@ -124,5 +125,30 @@ describe('bindModalToAnchor - 同步', () => {
     await new Promise(r => setTimeout(r, 50));
     expect(modal.style.top).toBe('312px');
     h.destroy();
+  });
+});
+
+describe('common.openModal 锚点集成', () => {
+  beforeEach(() => {
+    document.body.innerHTML = `
+      <div id="quick-import-bar" style="display:block;position:fixed;top:0;height:312px"></div>
+      <div id="test-modal" class="modal"><div class="modal-content" style="height:300px"></div></div>
+    `;
+    const bar = document.getElementById('quick-import-bar') as HTMLElement;
+    bar.getBoundingClientRect = () => ({ top: 0, bottom: 312, left: 0, right: 375, width: 375, height: 312 } as any);
+    Object.defineProperty(window, 'innerHeight', { value: 844, writable: true });
+  });
+  it('openModal 后 modal.top 被设为 anchorBottom', () => {
+    openModal('test-modal');
+    const modal = document.getElementById('test-modal') as HTMLElement;
+    expect(modal.classList.contains('active')).toBe(true);
+    expect(modal.style.top).toBe('312px');
+  });
+  it('closeModal 后 top 被清空（回落）', () => {
+    openModal('test-modal');
+    closeModal('test-modal');
+    const modal = document.getElementById('test-modal') as HTMLElement;
+    expect(modal.classList.contains('active')).toBe(false);
+    expect(modal.style.top).toBe('');
   });
 });

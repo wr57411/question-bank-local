@@ -4,6 +4,7 @@ import * as data from './data';
 import * as services from './services';
 import * as ui from './ui';
 import { initApp } from './init-app';
+import { initAnchoredModals } from './ui/modal-anchor';
 
 const w = window as unknown as Record<string, unknown>;
 
@@ -670,8 +671,12 @@ ui.initProviderList();
 ui.initIssueFeedbackListener();
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initApp);
+  document.addEventListener('DOMContentLoaded', () => {
+    initAnchoredModals();
+    initApp();
+  });
 } else {
+  initAnchoredModals();
   initApp();
 }
 
