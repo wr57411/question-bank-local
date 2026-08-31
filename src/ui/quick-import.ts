@@ -608,13 +608,14 @@ export function initQuickImportMode(): void {
 
 export function getQuickImportBarRect(): DOMRect | null {
   const barEl = document.getElementById('quick-import-bar');
-  if (!barEl) return null;
-  const cs = getComputedStyle(barEl);
-  if (cs.display === 'none') return null;
+  if (!barEl || !isQuickImportBarVisible()) return null;
   return barEl.getBoundingClientRect();
 }
 export function isQuickImportBarVisible(): boolean {
   const barEl = document.getElementById('quick-import-bar');
   if (!barEl) return false;
-  return getComputedStyle(barEl).display !== 'none' && barEl.getBoundingClientRect().height > 0;
+  const cs = getComputedStyle(barEl);
+  if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+  const rect = barEl.getBoundingClientRect();
+  return rect.height > 0 && rect.width > 0;
 }

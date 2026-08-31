@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { computeAnchoredPosition, getQuickImportAnchorRect, applyModalPosition, bindModalToAnchor } from '../src/ui/modal-anchor';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { computeAnchoredPosition, getQuickImportAnchorRect, applyModalPosition, bindModalToAnchor, isQuickImportBarVisible } from '../src/ui/modal-anchor';
 
 function setBar(height: number, visible: boolean) {
   document.body.innerHTML = `
@@ -98,6 +98,18 @@ describe('applyModalPosition', () => {
     applyModalPosition(modal, content, getQuickImportAnchorRect());
     expect(modal.style.zIndex).toBe('1000');
     expect(modal.classList.contains('active')).toBe(true);
+  });
+});
+
+describe('isQuickImportBarVisible', () => {
+  beforeEach(() => { setBar(312, true); });
+  it('bar 可见时返回 true', () => {
+    expect(isQuickImportBarVisible()).toBe(true);
+  });
+  it('visibility:hidden 时返回 false', () => {
+    const bar = document.getElementById('quick-import-bar') as HTMLElement;
+    bar.style.visibility = 'hidden';
+    expect(isQuickImportBarVisible()).toBe(false);
   });
 });
 

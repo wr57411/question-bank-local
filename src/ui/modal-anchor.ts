@@ -78,6 +78,7 @@ export function applyModalPosition(modal: HTMLElement, content: HTMLElement, anc
     modal.style.height = '';
     modal.style.alignItems = '';
     modal.style.paddingTop = '';
+    modal.style.boxSizing = '';
     content.style.maxHeight = '';
     content.style.overflowY = '';
     content.style.marginTop = '';
@@ -105,10 +106,17 @@ export function applyModalPosition(modal: HTMLElement, content: HTMLElement, anc
   content.style.marginTop = '0';
 }
 
-let rafId: number | null = null;
-function schedule(fn: () => void): void {
-  if (rafId !== null) cancelAnimationFrame(rafId);
-  rafId = requestAnimationFrame(() => { rafId = null; fn(); });
+function createSchedule(): ((fn: () => void) => void) & { cancel: () => void } {
+  let rafId: number | null = null;
+  const schedule = (fn: () => void): void => {
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(() => { rafId = null; fn(); });
+  };
+  (schedule as unknown as { cancel: () => void }).cancel = (): void => {
+    if (rafId !== null) cancelAnimationFrame(rafId);
+    rafId = null;
+  };
+  return schedule as ((fn: () => void) => void) & { cancel: () => void };
 }
 
 export function bindModalToAnchor(modalId: string): { destroy(): void } {
@@ -118,6 +126,7 @@ export function bindModalToAnchor(modalId: string): { destroy(): void } {
   if (!content) return { destroy() {} };
 
   let destroyed = false;
+  const schedule = createSchedule();
 
   const sync = () => {
     if (destroyed) return;
@@ -150,23 +159,32 @@ export function bindModalToAnchor(modalId: string): { destroy(): void } {
       mo.disconnect();
       window.removeEventListener('resize', onResize);
       window.removeEventListener('scroll', onScroll);
-      if (rafId !== null) cancelAnimationFrame(rafId);
+      schedule.cancel();
     },
   };
 }
 
+let _initHandles: Array<{ destroy(): void }> = [];
+let _initComboCleanup: (() => void) | null = null;
+
 export function initAnchoredModals(): void {
+  _initHandles.forEach((h) => h.destroy());
+  _initHandles = [];
+  if (_initComboCleanup) { _initComboCleanup(); _initComboCleanup = null; }
+
   const modals = document.querySelectorAll('.modal');
   modals.forEach((m) => {
     const el = m as HTMLElement;
     if (EXCLUDED_IDS.has(el.id)) return;
-    bindModalToAnchor(el.id);
+    const h = bindModalToAnchor(el.id);
+    _initHandles.push(h);
   });
   const combo = document.getElementById('quick-combo-panel');
   if (combo) {
     const panelCard = combo.querySelector('div[onclick="event.stopPropagation()"]') as HTMLElement | null;
     if (panelCard) {
-      const syncCombo = () => {
+      const scheduleCombo = createSchedule();
+      const syncCombo = (): void => {
         const anchor = getQuickImportAnchorRect();
         if (!anchor) {
           panelCard.style.top = '';
@@ -177,14 +195,21 @@ export function initAnchoredModals(): void {
         panelCard.style.maxHeight = (window.innerHeight - anchor.bottom - 24) + 'px';
         panelCard.style.overflowY = 'auto';
       };
-      const RO2: any = typeof ResizeObserver !== 'undefined' ? ResizeObserver : class { observe() {} disconnect() {} };
-      const ro = new RO2(() => schedule(syncCombo));
+      const RO2: any = typeof ResizeObserver !== 'undefined' ? ResizeObserver : class { observe() {} disconnect() {} unobserve() {} };
+      const ro = new RO2(() => scheduleCombo(syncCombo));
       const bar = document.getElementById(ANCHOR_ID);
       if (bar) ro.observe(bar);
-      window.addEventListener('resize', () => schedule(syncCombo));
-      const mo = new MutationObserver(() => schedule(syncCombo));
+      const onComboResize = (): void => scheduleCombo(syncCombo);
+      window.addEventListener('resize', onComboResize);
+      const mo = new MutationObserver(() => scheduleCombo(syncCombo));
       if (bar) mo.observe(bar, { attributes: true, attributeFilter: ['style', 'class'] });
       mo.observe(combo, { attributes: true, attributeFilter: ['style'] });
+      _initComboCleanup = (): void => {
+        ro.disconnect();
+        mo.disconnect();
+        window.removeEventListener('resize', onComboResize);
+        scheduleCombo.cancel();
+      };
     }
   }
 }
