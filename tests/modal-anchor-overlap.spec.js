@@ -85,3 +85,40 @@ test.describe('锚点定位迁移 - PDF/版本', () => {
     expect(scrollable).toBe('auto');
   });
 });
+
+test.describe('锚点定位迁移 - 反馈/同步/备份/组合', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enableQuickImport(page, true);
+  });
+  test('issue-feedback-modal 在锚点展开态无重叠且可提交', async ({ page }) => {
+    await page.evaluate(() => document.getElementById('issue-feedback-modal')?.classList.add('active'));
+    const { overlap } = await noOverlap(page, '#issue-feedback-modal .modal-content');
+    expect(overlap).toBe(false);
+    await page.click('#feedback-title');
+    await expect(page.locator('#feedback-title')).toBeFocused();
+  });
+  test('quick-combo-panel 动态 top = barBottom + 12', async ({ page }) => {
+    await page.click('#qi-combo-btn');
+    await expect(page.locator('#quick-combo-panel')).toBeVisible();
+    const topOk = await page.evaluate(() => {
+      const bar = document.getElementById('quick-import-bar')?.getBoundingClientRect();
+      const card = document.getElementById('quick-combo-panel-card') || document.querySelector('#quick-combo-panel > div');
+      if (!bar || !card) return false;
+      const t = card.getBoundingClientRect().top;
+      return Math.abs(t - (bar.bottom + 12)) < 2;
+    });
+    expect(topOk).toBe(true);
+  });
+  test('login-modal / backup-modal 无重叠', async ({ page }) => {
+    await page.evaluate(() => document.getElementById('login-modal')?.classList.add('active'));
+    let r = await noOverlap(page, '#login-modal .modal-content');
+    expect(r.overlap).toBe(false);
+    await page.evaluate(() => {
+      document.getElementById('login-modal')?.classList.remove('active');
+      document.getElementById('backup-modal')?.classList.add('active');
+    });
+    r = await noOverlap(page, '#backup-modal .modal-content');
+    expect(r.overlap).toBe(false);
+  });
+});

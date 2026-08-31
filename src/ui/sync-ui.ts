@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal, closeModal } from './common';
+
 const w = window as any;
 
 // ---------- Module-level state ----------
@@ -164,11 +166,11 @@ export function showLoginModal(): void {
   (document.getElementById('server-url') as HTMLInputElement).value = serverUrl;
   (document.getElementById('login-phone') as HTMLInputElement).value = localStorage.getItem('lastPhone') || '';
   (document.getElementById('login-error') as HTMLElement).style.display = 'none';
-  document.getElementById('login-modal')!.classList.add('active');
+  openModal('login-modal');
 }
 
 export function closeLoginModal(): void {
-  document.getElementById('login-modal')!.classList.remove('active');
+  closeModal('login-modal');
 }
 
 export function showSyncModal(): void {
@@ -178,12 +180,12 @@ export function showSyncModal(): void {
   (document.getElementById('backup-server-url') as HTMLInputElement).value = serverUrl;
   const lastSync = localStorage.getItem('lastSyncTime');
   (document.getElementById('sync-status') as HTMLElement).textContent = lastSync ? '上次同步: ' + new Date(lastSync).toLocaleString() : '尚未同步';
-  document.getElementById('sync-modal')!.classList.add('active');
+  openModal('sync-modal');
   checkRecoveryStatus();
 }
 
 export function closeSyncModal(): void {
-  document.getElementById('sync-modal')!.classList.remove('active');
+  closeModal('sync-modal');
 }
 
 export function showSyncWarning(warnings: any[]): void {
@@ -196,7 +198,7 @@ export function showSyncWarning(warnings: any[]): void {
   msgEl.textContent = hasCritical
     ? '同步过程中检测到严重数据丢失，部分题目可能未同步成功。'
     : '同步过程中检测到部分数据量减少，可能存在数据丢弃。';
-  document.getElementById('sync-warning-modal')!.classList.add('active');
+  openModal('sync-warning-modal');
   const log = JSON.parse(localStorage.getItem('syncWarningLog') || '[]');
   log.push({ time: new Date().toISOString(), warnings });
   if (log.length > 50) log.splice(0, log.length - 50);
@@ -204,7 +206,7 @@ export function showSyncWarning(warnings: any[]): void {
 }
 
 export function closeSyncWarning(): void {
-  document.getElementById('sync-warning-modal')!.classList.remove('active');
+  closeModal('sync-warning-modal');
 }
 
 export function handleAuthError(e: any): void {

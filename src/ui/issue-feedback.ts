@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { compressImage } from '../services/image';
 import { submitFeedback, queueFeedback, flushFeedbackQueue, normalizeFeedbackTitle } from '../services/issue-feedback';
+import { openModal, closeModal } from './common';
 
 const w = window as any;
 
@@ -73,12 +74,12 @@ export function openIssueFeedbackModal(fromScreenshot: boolean): void {
   status.textContent = fromScreenshot ? '检测到你刚截了图，可添加截图作为附件' : '';
   status.style.color = 'var(--text-secondary)';
   setFeedbackScreenshot(null);
-  document.getElementById('issue-feedback-modal')!.classList.add('active');
+  openModal('issue-feedback-modal');
   setTimeout(() => (document.getElementById('feedback-title') as HTMLInputElement).focus(), 100);
 }
 
 export function closeIssueFeedbackModal(): void {
-  document.getElementById('issue-feedback-modal')!.classList.remove('active');
+  closeModal('issue-feedback-modal');
 }
 
 function setFeedbackScreenshot(dataUrl: string | null): void {

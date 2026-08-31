@@ -1,5 +1,5 @@
 import { getChangelogCount, shouldForceFullSnapshot, smartBackup, importBackupData, exportFullBackup } from '../data/backup';
-import { showStatus } from './common';
+import { showStatus, openModal, closeModal } from './common';
 
 declare const Filesystem: unknown;
 
@@ -95,11 +95,11 @@ export function showBackupModal(): void {
     const custom = localStorage.getItem('backupPath');
     info.innerHTML = custom ? '备份到 <b>' + custom + '/</b> 目录下' : '文件将保存在 <b>Documents/question-bank-backup.json</b>';
   }
-  document.getElementById('backup-modal')!.classList.add('active');
+  openModal('backup-modal');
 }
 
 export function closeBackupModal(): void {
-  document.getElementById('backup-modal')!.classList.remove('active');
+  closeModal('backup-modal');
 }
 
 export function toggleAutoBackup(enabled: boolean): void {

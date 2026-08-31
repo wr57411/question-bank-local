@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal, closeModal } from './common';
+
 const w = window as any;
 
 // ---------- Module-level state ----------
@@ -44,11 +46,11 @@ export function updateBaiduUI(): void {
 }
 
 export function showBaiduAuthModal(): void {
-  document.getElementById('baidu-auth-modal')!.classList.add('active');
+  openModal('baidu-auth-modal');
 }
 
 export function closeBaiduAuthModal(): void {
-  document.getElementById('baidu-auth-modal')!.classList.remove('active');
+  closeModal('baidu-auth-modal');
 }
 
 export function openBaiduAuth(): void {

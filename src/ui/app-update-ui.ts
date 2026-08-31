@@ -1,5 +1,5 @@
 import { APP_VERSION_CODE, APP_VERSION_NAME } from '../services/app-update';
-import { showStatus } from './common';
+import { showStatus, openModal, closeModal } from './common';
 
 interface UpdateInfo {
   has_update: boolean;
@@ -77,11 +77,11 @@ function showUpdateModal(data: UpdateInfo): void {
   (document.getElementById('update-progress') as HTMLElement).style.display = 'none';
   (document.getElementById('update-btn') as HTMLButtonElement).disabled = false;
   (document.getElementById('update-btn') as HTMLButtonElement).textContent = '下载更新';
-  document.getElementById('update-modal')!.classList.add('active');
+  openModal('update-modal');
 }
 
 export function dismissUpdate(): void {
-  document.getElementById('update-modal')!.classList.remove('active');
+  closeModal('update-modal');
   if (_updateInfo) localStorage.setItem('skip_version_code', String(_updateInfo.version_code));
 }
 

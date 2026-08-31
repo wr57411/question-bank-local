@@ -1,4 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal, closeModal } from './common';
+
 const w = window as any;
 
 // ========== 悬浮窗截图 ==========
@@ -104,7 +106,7 @@ export function showFloatingImageList(images: any[], target: string): void {
     });
   }
 
-  document.getElementById('floating-modal')!.classList.add('active');
+  openModal('floating-modal');
   console.log("[Floating] modal activated");
 }
 
@@ -165,7 +167,7 @@ export async function clearFloatingImages(): Promise<void> {
 }
 
 export function closeFloatingModal(): void {
-  document.getElementById('floating-modal')!.classList.remove('active');
+  closeModal('floating-modal');
 }
 
 // ========== 悬浮窗截屏保存 ==========
@@ -181,7 +183,7 @@ export async function pollFloatingEvents(): Promise<void> {
       // Show save dialog
       const lastNum = (await FloatingWindow.getLastQuestionNum()).questionNum;
       (document.getElementById('floating-save-qnum') as HTMLInputElement).value = lastNum;
-      document.getElementById('floating-save-modal')!.classList.add('active');
+      openModal('floating-save-modal');
     } else if (event && event.event === 'previewClicked') {
       // Open floating image list preview
       pickFromFloating('question');
@@ -196,7 +198,7 @@ export function initFloatingPoll(): void {
 export async function confirmFloatingSave(type: string): Promise<void> {
   const FloatingWindow = getFloatingWindow();
   const qnum = parseInt((document.getElementById('floating-save-qnum') as HTMLInputElement).value) || 1;
-  document.getElementById('floating-save-modal')!.classList.remove('active');
+  closeModal('floating-save-modal');
 
   if (FloatingWindow) {
     await FloatingWindow.setQuestionNum({ questionNum: qnum });
@@ -220,7 +222,7 @@ export async function confirmFloatingSave(type: string): Promise<void> {
 
 export function cancelFloatingSave(): void {
   const FloatingWindow = getFloatingWindow();
-  document.getElementById('floating-save-modal')!.classList.remove('active');
+  closeModal('floating-save-modal');
   // Remove the last captured image since user cancelled
   if (FloatingWindow) {
     FloatingWindow.getImages().then((result: any) => {
