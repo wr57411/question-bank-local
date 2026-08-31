@@ -181,7 +181,7 @@ export function initAnchoredModals(): void {
   });
   const combo = document.getElementById('quick-combo-panel');
   if (combo) {
-    const panelCard = combo.querySelector('div[onclick="event.stopPropagation()"]') as HTMLElement | null;
+    const panelCard = (document.getElementById('quick-combo-panel-card') as HTMLElement | null) ?? (combo.querySelector('div[onclick="event.stopPropagation()"]') as HTMLElement | null);
     if (panelCard) {
       const scheduleCombo = createSchedule();
       const syncCombo = (): void => {
@@ -189,6 +189,7 @@ export function initAnchoredModals(): void {
         if (!anchor) {
           panelCard.style.top = '';
           panelCard.style.maxHeight = '';
+          panelCard.style.overflowY = '';
           return;
         }
         panelCard.style.top = (anchor.bottom + 12) + 'px';

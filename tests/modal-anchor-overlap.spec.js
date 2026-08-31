@@ -122,3 +122,28 @@ test.describe('锚点定位迁移 - 反馈/同步/备份/组合', () => {
     expect(r.overlap).toBe(false);
   });
 });
+
+test.describe('锚点定位迁移 - 剩余长尾与白名单', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enableQuickImport(page, true);
+  });
+  const REMAINING = ['teaching-verify-modal','node-question-picker-modal','pending-blank-modal','pending-photos-modal','process-photo-modal','version-modal','system-password-modal','sync-warning-modal'];
+  for (const id of REMAINING) {
+    test(`${id} 无重叠`, async ({ page }) => {
+      await page.evaluate((mid) => document.getElementById(mid)?.classList.add('active'), id);
+      const { overlap } = await noOverlap(page, `#${id} .modal-content`);
+      expect(overlap).toBe(false);
+    });
+  }
+  test('crop-modal 白名单：保持全屏，不被锚点偏移', async ({ page }) => {
+    await page.evaluate(() => document.getElementById('crop-modal')?.classList.add('active'));
+    const top = await page.evaluate(() => document.getElementById('crop-modal')?.style.top);
+    expect(top).toBe('');
+  });
+  test('projection-overlay 白名单：保持全屏，不被锚点偏移', async ({ page }) => {
+    await page.evaluate(() => document.getElementById('projection-overlay')?.classList.add('active'));
+    const top = await page.evaluate(() => document.getElementById('projection-overlay')?.style.top);
+    expect(top).toBe('');
+  });
+});

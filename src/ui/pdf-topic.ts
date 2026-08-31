@@ -1,7 +1,7 @@
 import {
   dbGetAllPdfTopics, dbCreatePdfTopic, dbUpdatePdfTopic, dbDeletePdfTopic
 } from '../data/pdf-docs';
-import { escapeHtml, showStatus } from './common';
+import { escapeHtml, showStatus, openModal } from './common';
 import { getExpanded, setExpanded } from './pdf-tree-state';
 import { renderPdfLibrary } from './pdf-render';
 import { closePdfManageModal } from './pdf-category';
@@ -20,7 +20,7 @@ export async function showAddTopicModal(parentId?: string): Promise<void> {
       <button onclick="confirmAddTopic('${parentId || ''}')" style="flex:1;padding:10px;background:var(--accent);box-shadow:none;font-size:13px">✔️ 创建</button>
       <button onclick="closePdfManageModal()" class="secondary" style="padding:10px;font-size:13px">取消</button>
     </div>`;
-  modal.style.display = 'flex';
+  openModal('pdf-manage-modal');
   setTimeout(() => document.getElementById('topic-name-input')?.focus(), 100);
 }
 
@@ -56,7 +56,7 @@ export async function showPdfTopicMenu(topicId: string): Promise<void> {
       <button onclick="deletePdfTopic('${topicId}')" style="padding:10px;background:var(--danger);box-shadow:none;color:#fff;font-size:13px">🗑 删除专题</button>
       <button onclick="closePdfManageModal()" class="secondary" style="padding:10px;font-size:13px">取消</button>
     </div>`;
-  modal.style.display = 'flex';
+  openModal('pdf-manage-modal');
 }
 
 export async function renamePdfTopic(topicId: string): Promise<void> {

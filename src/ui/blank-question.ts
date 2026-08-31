@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { dbQuestions } from '../data/stores';
+import { openModal, closeModal } from './common';
 
 const w = window as any;
 
@@ -11,7 +12,7 @@ export async function showPendingBlankList(): Promise<void> {
 
   if (!_pendingBlankList.length) {
     container.innerHTML = '<div style="text-align:center;color:#999;padding:20px">暂无待补拍题目</div>';
-    document.getElementById('pending-blank-modal')!.classList.add('active');
+    openModal('pending-blank-modal');
     return;
   }
 
@@ -59,11 +60,11 @@ export async function showPendingBlankList(): Promise<void> {
     }
   }
 
-  document.getElementById('pending-blank-modal')!.classList.add('active');
+  openModal('pending-blank-modal');
 }
 
 export function closePendingBlankModal(): void {
-  document.getElementById('pending-blank-modal')!.classList.remove('active');
+  closeModal('pending-blank-modal');
 }
 
 export function removeFromPendingBlank(questionId: string): void {

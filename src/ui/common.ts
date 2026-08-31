@@ -58,11 +58,13 @@ export function closeModal(id: string): void {
   if (content) {
     content.style.maxHeight = '';
     content.style.overflowY = '';
+    content.style.marginTop = '';
   }
   (el as HTMLElement).style.top = '';
   (el as HTMLElement).style.height = '';
   (el as HTMLElement).style.alignItems = '';
   (el as HTMLElement).style.paddingTop = '';
+  (el as HTMLElement).style.boxSizing = '';
 }
 
 export function showTab(tabName: string, btn?: HTMLElement): void {

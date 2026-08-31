@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal, closeModal } from './common';
 const w = window as any;
 
 // ========== 待处理照片 ==========
@@ -103,7 +104,7 @@ export async function openProcessPhotoModal(photoId: string): Promise<void> {
     tSelect.appendChild(opt);
   });
 
-  document.getElementById("process-photo-modal")!.classList.add("active");
+  openModal("process-photo-modal");
 }
 
 export function openBatchProcessModal(groupId: string): void {
@@ -129,7 +130,7 @@ export function openBatchProcessModal(groupId: string): void {
     tSelect.appendChild(opt);
   });
 
-  document.getElementById("process-photo-modal")!.classList.add("active");
+  openModal("process-photo-modal");
 }
 
 export async function confirmProcessPhoto(): Promise<void> {
@@ -195,7 +196,7 @@ export async function confirmProcessPhoto(): Promise<void> {
 }
 
 export function closeProcessPhotoModal(): void {
-  document.getElementById("process-photo-modal")!.classList.remove("active");
+  closeModal("process-photo-modal");
   currentProcessPhotoId = null;
 }
 
@@ -216,5 +217,5 @@ export async function deletePendingPhotoById(photoId: string): Promise<void> {
 }
 
 export function closePendingPhotosModal(): void {
-  document.getElementById("pending-photos-modal")!.classList.remove("active");
+  closeModal("pending-photos-modal");
 }

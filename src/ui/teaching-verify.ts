@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal, closeModal } from './common';
 const w = window as any;
 
 // ========== 校验界面 ==========
@@ -38,7 +39,7 @@ export async function openVerifyModal(nodeId: string) {
     contentEl.style.display = 'block';
     document.getElementById('verify-edit-toolbar')!.style.display = 'none';
     document.getElementById('verify-actions')!.style.display = 'flex';
-    document.getElementById('teaching-verify-modal')!.classList.add('active');
+    openModal('teaching-verify-modal');
     loadLinkedQuestions(nodeId);
 }
 
@@ -236,7 +237,7 @@ export function cancelWysiwygEdit() {
 }
 
 export function closeVerifyModal() {
-    document.getElementById('teaching-verify-modal')!.classList.remove('active');
+    closeModal('teaching-verify-modal');
     currentVerifyNodeId = null;
 }
 
@@ -320,11 +321,11 @@ export function openNodeQuestionPicker() {
             container.appendChild(label);
         });
     }
-    document.getElementById('node-question-picker-modal')!.classList.add('active');
+    openModal('node-question-picker-modal');
 }
 
 export function closeNodeQuestionPicker() {
-    document.getElementById('node-question-picker-modal')!.classList.remove('active');
+    closeModal('node-question-picker-modal');
 }
 
 export async function confirmNodeQuestionLinks() {

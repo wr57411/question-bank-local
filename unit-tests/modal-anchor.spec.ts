@@ -152,3 +152,18 @@ describe('common.openModal 锚点集成', () => {
     expect(modal.style.top).toBe('');
   });
 });
+
+describe('EXCLUDED_IDS', () => {
+  it('crop-modal 与 projection-overlay 不被锚点化', () => {
+    document.body.innerHTML = `
+      <div id="quick-import-bar" style="display:block;height:312px"></div>
+      <div id="crop-modal" class="modal active"><div class="modal-content"></div></div>
+    `;
+    const bar = document.getElementById('quick-import-bar') as HTMLElement;
+    bar.getBoundingClientRect = () => ({ top: 0, bottom: 312 } as any);
+    const modal = document.getElementById('crop-modal') as HTMLElement;
+    const content = modal.querySelector('.modal-content') as HTMLElement;
+    applyModalPosition(modal, content, bar.getBoundingClientRect());
+    expect(modal.style.top).toBe('');
+  });
+});
