@@ -65,6 +65,7 @@ function noteDot(): HTMLElement | null {
 function applyNoteBodyPadding(): void {
   // 设计风险项「展开时顶部栏增高遮挡内容」：展开态动态补偿正文 padding-top
   document.body.style.paddingTop = quickMode ? (isQuickNoteExpanded() ? '312px' : '196px') : '';
+  window.dispatchEvent(new CustomEvent('quickImportBarChange', { detail: { height: bar()?.offsetHeight ?? 0, visible: isQuickMode() } }));
 }
 
 export function isQuickNoteExpanded(): boolean {
@@ -221,6 +222,7 @@ function render(): void {
     noteField.dataset.qiBound = '1';
     noteField.addEventListener('input', onQuickNoteInput);
   }
+  window.dispatchEvent(new CustomEvent('quickImportBarChange', { detail: { height: bar()?.offsetHeight ?? 0, visible: isQuickMode() } }));
 }
 
 function syncComboButton(): void {
@@ -602,4 +604,17 @@ export function initQuickImportMode(): void {
   window.addEventListener('pageshow', onForeground);
 
   if (quickMode) void refreshGalleryPair();
+}
+
+export function getQuickImportBarRect(): DOMRect | null {
+  const barEl = document.getElementById('quick-import-bar');
+  if (!barEl) return null;
+  const cs = getComputedStyle(barEl);
+  if (cs.display === 'none') return null;
+  return barEl.getBoundingClientRect();
+}
+export function isQuickImportBarVisible(): boolean {
+  const barEl = document.getElementById('quick-import-bar');
+  if (!barEl) return false;
+  return getComputedStyle(barEl).display !== 'none' && barEl.getBoundingClientRect().height > 0;
 }
