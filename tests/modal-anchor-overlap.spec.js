@@ -45,3 +45,26 @@ test.describe('基线：锚点展开时弹窗与 quick-import-bar 重叠（重�
     expect(overlap, `barBottom=${barBottom} contentTop=${contentTop} 应不重叠`).toBe(false);
   });
 });
+
+test.describe('锚点定位迁移 - 核心弹窗', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enableQuickImport(page, true);
+  });
+  test('question-modal 锚点下方渲染，无重叠', async ({ page }) => {
+    await page.evaluate(() => document.getElementById('question-modal')?.classList.add('active'));
+    const { overlap } = await noOverlap(page, '#question-modal .modal-content');
+    expect(overlap).toBe(false);
+    await expect(page.locator('#question-modal .modal-content')).toBeVisible();
+  });
+  test('basket-modal', async ({ page }) => {
+    await page.evaluate(() => document.getElementById('basket-modal')?.classList.add('active'));
+    const { overlap } = await noOverlap(page, '#basket-modal .modal-content');
+    expect(overlap).toBe(false);
+  });
+  test('export-modal', async ({ page }) => {
+    await page.evaluate(() => document.getElementById('export-modal')?.classList.add('active'));
+    const { overlap } = await noOverlap(page, '#export-modal .modal-content');
+    expect(overlap).toBe(false);
+  });
+});

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal, closeModal } from './common';
 const w = window as any;
 
 // Module-level state (mirrors app.js locals, TS functions use these)
@@ -223,12 +224,12 @@ export function initTagForm(): void {
 // 新建标签弹窗
 export function showNewTagModal(ctx: string): void {
   w.newTagContext = ctx;
-  document.getElementById('new-tag-modal')!.classList.add('active');
+  openModal('new-tag-modal');
   (document.getElementById('new-tag-name') as HTMLInputElement).focus();
 }
 
 export function closeNewTagModal(): void {
-  document.getElementById('new-tag-modal')!.classList.remove('active');
+  closeModal('new-tag-modal');
   (document.getElementById('new-tag-name') as HTMLInputElement).value = '';
 }
 

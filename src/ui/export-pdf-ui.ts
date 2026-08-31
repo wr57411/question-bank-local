@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal, closeModal } from './common';
 const w = window as any;
 
 export function exportSelectedOrAll(): void {
@@ -14,7 +15,7 @@ export function showExportModal(questions: any[]): void {
   const ts = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + '_' + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
   (document.getElementById('export-filename') as HTMLInputElement).value = '题库导出_' + ts;
   loadExportFolders();
-  document.getElementById('export-modal')!.classList.add('active');
+  openModal('export-modal');
 }
 
 export async function loadExportFolders(): Promise<void> {
@@ -89,7 +90,7 @@ export async function previewExportPDF(): Promise<void> {
   }
 }
 
-export function closeExportModal(): void { document.getElementById('export-modal')!.classList.remove('active'); }
+export function closeExportModal(): void { closeModal('export-modal'); }
 
 export function selectExportMode(el: HTMLElement, mode: string): void {
   w.exportMode = mode;

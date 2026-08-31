@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal, closeModal } from './common';
 const w = window as any;
 
 // Module-level state
@@ -14,7 +15,7 @@ export function showQuestionDetail(qId: string): void {
   w.detailIndex = w.filteredList.findIndex((q: any) => q.id === qId);
   if (w.detailIndex < 0) w.detailIndex = 0;
   renderDetailContent(w.filteredList[w.detailIndex]);
-  document.getElementById('question-modal')!.classList.add('active');
+  openModal('question-modal');
   w.updatePendingLinkBtnStyle(qId);
 }
 
@@ -129,7 +130,7 @@ export function navigateDetail(dir: number): void {
 }
 
 export function closeQuestionModal(): void {
-  document.getElementById('question-modal')!.classList.remove('active');
+  closeModal('question-modal');
   w.currentQuestionId = null;
 }
 
@@ -247,13 +248,13 @@ export async function openSimilarModal(): Promise<void> {
   });
   similarAiReasons = new Map();
   document.getElementById('similar-ai-reason')!.style.display = 'none';
-  document.getElementById('similar-modal')!.classList.add('active');
+  openModal('similar-modal');
   document.getElementById('btn-pending-similar-count')!.textContent = String(w.getPendingLinkList().length);
   await renderSimilarCandidates();
 }
 
 export function closeSimilarModal(): void {
-  document.getElementById('similar-modal')!.classList.remove('active');
+  closeModal('similar-modal');
   similarCandidates = [];
   similarAiReasons = new Map();
 }
@@ -348,7 +349,7 @@ export async function loadPendingLinkCandidates(): Promise<void> {
     row.append(checkbox, img, body);
     list.appendChild(row);
   });
-  document.getElementById('similar-modal')!.classList.add('active');
+  openModal('similar-modal');
 }
 
 export function parseSimilarAIResult(text: string): { ids: string[]; reasons: Record<string, string>; summary: string } {

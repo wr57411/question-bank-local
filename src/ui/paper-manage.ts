@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal, closeModal } from './common';
 const w = window as any;
 
 let currentAIRecommendedIds: string[] = [];
@@ -51,10 +52,10 @@ export async function showPaperDetail(pId: string): Promise<void> {
       c.appendChild(d);
     });
   }
-  document.getElementById('paper-modal')!.classList.add('active');
+  openModal('paper-modal');
 }
 
-export function closePaperModal(): void { document.getElementById('paper-modal')!.classList.remove('active'); }
+export function closePaperModal(): void { closeModal('paper-modal'); }
 
 export function exportPaperAsPDF(): void {
   if (!w.currentPaperId) return;
@@ -67,7 +68,7 @@ export function exportPaperAsImages(): void {
   (document.getElementById('export-images-folder') as HTMLInputElement).value = title || '';
   document.getElementById('export-images-summary')!.textContent = '';
   document.getElementById('export-images-progress')!.style.display = 'none';
-  document.getElementById('export-images-modal')!.classList.add('active');
+  openModal('export-images-modal');
 }
 
 export function getExportImgMode(): string { return localStorage.getItem('exportImgMode') || 'manual'; }
@@ -95,7 +96,7 @@ export function _doExportImagesModalConfirm(): void {
   }
 }
 
-export function closeExportImagesModal(): void { document.getElementById('export-images-modal')!.classList.remove('active'); }
+export function closeExportImagesModal(): void { closeModal('export-images-modal'); }
 
 export async function exportImagesToFolder(imageList: any[], folderName: string, answerImageList?: any[]): Promise<boolean> {
   if (!imageList || !imageList.length) { alert('没有可导出的图片'); return false; }
@@ -148,7 +149,7 @@ export async function doExportImagesFromBasket(): Promise<void> {
     (document.getElementById('export-images-folder') as HTMLInputElement).value = '';
     document.getElementById('export-images-summary')!.textContent = '';
     document.getElementById('export-images-progress')!.style.display = 'none';
-    document.getElementById('export-images-modal')!.classList.add('active');
+    openModal('export-images-modal');
   }
 }
 
@@ -253,10 +254,10 @@ export function renderAIRecommendations(ids: string[], reason: string): void {
     });
   }
   document.getElementById('ai-create-paper-btn')!.onclick = () => createPaperFromAI(ids);
-  modal.classList.add('active');
+  openModal('ai-recommend-modal');
 }
 
-export function closeAIRecommendModal(): void { document.getElementById('ai-recommend-modal')!.classList.remove('active'); }
+export function closeAIRecommendModal(): void { closeModal('ai-recommend-modal'); }
 
 export async function createPaperFromAI(ids: string[]): Promise<void> {
   if (!ids || ids.length === 0) return;
