@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal, closeModal } from './common';
 const w = window as any;
 
 // ========== 模型服务商管理 ==========
@@ -148,7 +149,7 @@ export function showAddProviderModal() {
     (document.getElementById('provider-auth-scheme') as HTMLInputElement).value = 'Bearer';
     (document.getElementById('provider-endpoint') as HTMLInputElement).value = '';
     document.getElementById('provider-delete-btn')!.style.display = 'none';
-    document.getElementById('provider-modal')!.classList.add('active');
+    openModal('provider-modal');
 }
 
 // 编辑服务商
@@ -166,12 +167,12 @@ export function editProvider(providerId: string) {
     (document.getElementById('provider-auth-scheme') as HTMLInputElement).value = provider.authScheme != null ? provider.authScheme : 'Bearer';
     (document.getElementById('provider-endpoint') as HTMLInputElement).value = provider.endpoint || '';
     document.getElementById('provider-delete-btn')!.style.display = 'inline-block';
-    document.getElementById('provider-modal')!.classList.add('active');
+    openModal('provider-modal');
 }
 
 // 关闭服务商弹窗
 export function closeProviderModal() {
-    document.getElementById('provider-modal')!.classList.remove('active');
+    closeModal('provider-modal');
     editingProviderId = null;
 }
 

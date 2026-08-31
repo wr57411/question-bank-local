@@ -25,7 +25,7 @@ export function showReviewReminder(questions: Record<string, any>[]): void {
       <div style="display:flex;gap:8px;margin-top:16px">
           <button onclick="document.getElementById('review-reminder-modal').remove()" class="secondary" style="flex:1">关闭</button>
       </div>
-   </div>`;
+  </div>`;
   document.body.appendChild(modal);
   openModal('review-reminder-modal');
   const list = document.getElementById('review-reminder-list')!;
