@@ -147,3 +147,57 @@ test.describe('锚点定位迁移 - 剩余长尾与白名单', () => {
     expect(top).toBe('');
   });
 });
+
+test.describe('边界处理', () => {
+  test('小视口 390×600：锚点 312 + 内容 500 -> 限高滚动，不溢出', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 600 });
+    await enableQuickImport(page, true);
+    await page.evaluate(() => {
+      const m = document.getElementById('question-modal');
+      const c = m.querySelector('.modal-content');
+      c.style.height = '500px';
+      m.classList.add('active');
+    });
+    // 等待 rAF 调度的 applyModalPosition 落盘（Task5 首帧竞态惯例），再进断言
+    await page.waitForFunction(() => {
+      const c = document.querySelector('#question-modal .modal-content');
+      if (!c) return false;
+      if (getComputedStyle(c).overflowY !== 'auto') return false;
+      if (!c.style.maxHeight) return false;
+      return c.getBoundingClientRect().bottom <= window.innerHeight;
+    });
+    const { overlap } = await noOverlap(page, '#question-modal .modal-content');
+    expect(overlap).toBe(false);
+    const overflow = await page.evaluate(() => {
+      const c = document.querySelector('#question-modal .modal-content');
+      const r = c.getBoundingClientRect();
+      return { overflowY: getComputedStyle(c).overflowY, bottom: r.bottom, vh: window.innerHeight, scrollH: c.scrollHeight, clientH: c.clientHeight };
+    });
+    expect(overflow.overflowY).toBe('auto');
+    expect(overflow.bottom).toBeLessThanOrEqual(overflow.vh + 1);
+    expect(overflow.scrollH).toBeGreaterThan(overflow.clientH); // 触发内部滚动
+    await captureForReview(page, 'anchor-boundary-small-viewport');
+  });
+
+  test('锚点隐藏时弹窗回落居中且不溢出', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.evaluate(() => localStorage.setItem('quickImportMode', '0'));
+    await page.reload();
+    await page.evaluate(() => document.getElementById('question-modal')?.classList.add('active'));
+    // 等待 rAF 同步收敛（锚点 null -> 样式回落清空）
+    await page.waitForFunction(() => {
+      const m = document.getElementById('question-modal');
+      return !!m && m.classList.contains('active') && !m.style.alignItems;
+    });
+    const { overlap } = await noOverlap(page, '#question-modal .modal-content');
+    expect(overlap).toBe(false); // bar 隐藏，无重叠概念
+    const centered = await page.evaluate(() => {
+      const m = document.getElementById('question-modal');
+      return getComputedStyle(m).alignItems;
+    });
+    // 回落时 alignItems 应为 center 或空（默认居中）
+    expect(['center','', 'normal']).toContain(centered);
+    await captureForReview(page, 'anchor-boundary-hidden-anchor-center');
+  });
+});
