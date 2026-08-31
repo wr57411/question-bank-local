@@ -63,6 +63,8 @@ test.describe('基线：锚点展开时弹窗与 quick-import-bar 重叠（重�
     // 打开一个典型弹窗（若无数据则退化为直接 active）
     await page.evaluate(() => document.getElementById('question-modal')?.classList.add('active'));
     await expect(page.locator('#question-modal')).toBeVisible();
+    // top 由 rAF 调度的 applyModalPosition 写入，先等收敛再断言（消除首测冷启动竞态）
+    await waitModalSynced(page);
     const { overlap, barBottom, contentTop } = await noOverlap(page, '#question-modal .modal-content');
     await captureForReview(page, 'baseline-overlap-question-modal');
     expect(overlap, `barBottom=${barBottom} contentTop=${contentTop} 应不重叠`).toBe(false);
@@ -348,5 +350,50 @@ test.describe('同步更新', () => {
     expect(s.overlap).toBe(false);
     expect(s.inView).toBe(true);
     await captureForReview(page, 'sync-scroll-inview');
+  });
+});
+
+test.describe('可访问性/动画/层级回归', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enableQuickImport(page, true);
+  });
+
+  test('弹窗仍可通过 Esc/点击遮罩关闭，焦点管理不变', async ({ page }) => {
+    await page.evaluate(() => document.getElementById('question-modal')?.classList.add('active'));
+    await expect(page.locator('#question-modal')).toBeVisible();
+    await page.keyboard.press('Escape');
+    // 若项目未实现 Esc 关闭，则退化为点击遮罩
+    const stillVisible = await page.locator('#question-modal').isVisible();
+    if (stillVisible) {
+      await page.click('#question-modal', { position: { x: 5, y: 5 } });
+    }
+    await expect(page.locator('#question-modal')).toBeHidden();
+    // 焦点管理不变：重新打开后内部输入框仍可正常聚焦
+    await page.evaluate(() => document.getElementById('question-modal')?.classList.add('active'));
+    await expect(page.locator('#question-modal')).toBeVisible();
+    await page.click('#modal-question-text-note');
+    await expect(page.locator('#modal-question-text-note')).toBeFocused();
+    await captureForReview(page, 'a11y-close-and-focus');
+  });
+
+  test('动画与层级未被改动（z-index 与 backdrop）', async ({ page }) => {
+    await page.evaluate(() => document.getElementById('question-modal')?.classList.add('active'));
+    await expect(page.locator('#question-modal')).toBeVisible();
+    const z = await page.evaluate(() => getComputedStyle(document.getElementById('question-modal')).zIndex);
+    expect(parseInt(z, 10)).toBe(1000);
+    const backdrop = await page.evaluate(() => getComputedStyle(document.getElementById('question-modal')).backdropFilter);
+    expect(backdrop).not.toBe('none');
+    // 锚点定位只改几何（top/height/maxHeight/overflow），不得触碰动画相关属性
+    const anim = await page.evaluate(() => {
+      const m = document.getElementById('question-modal');
+      const cs = getComputedStyle(m);
+      return { opacity: cs.opacity, transform: cs.transform, transition: cs.transition };
+    });
+    expect(anim.opacity).toBe('1');
+    expect(anim.transform).toBe('none');
+    const { overlap } = await noOverlap(page, '#question-modal .modal-content');
+    expect(overlap).toBe(false);
+    await captureForReview(page, 'a11y-zindex-backdrop');
   });
 });

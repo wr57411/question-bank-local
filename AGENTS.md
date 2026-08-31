@@ -182,3 +182,4 @@ npx playwright test --reporter=list --output=test-results-<新目录名>
 | PDF 排版引擎 v5 集成 | planLayout 纯函数引擎替换 pdf.ts + 单双栏自动分组 + 长图切割 + 修复试卷导出空白 | docs/pdf-layout-engine-v5.md | 2026-08-28 | PDF 生成, 排版引擎, generatePDF, 试卷导出 |
 | 快速导入题目模式 | 顶部悬浮确认条 + 相册最新两张自动配对（第1张=答案/第2张=题目）+ 版本组合 + 栏数切换 + 切回前台自动刷新 | docs/quick-import-mode.md | 2026-08-28 | 快速导入, 相册, 版本组合, UI |
 | 快速导入「添加文字笔记」 | 确认左侧「📝 笔记」按钮展开输入区（≤500字），文字写入既有 question_notes.text_note（复用笔记体系，同步零改动）；含版本皮肤下对比度修复与展开态 padding 补偿 | docs/quick-import-text-note.md | 2026-08-30 | 快速导入, 题目笔记, UI, 可见性测试 |
+| 弹窗锚点定位重构 | 以 quick-import-bar 为锚点正下方渲染的统一锚点定位，翻转/限高滚动，resize/scroll/显隐同步 | docs/modal-anchor-reposition.md | 2026-08-31 | 弹窗, 锚点定位, quick-import, 可见性 |
