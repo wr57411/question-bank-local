@@ -2,7 +2,7 @@
 
 > 日期：2026-08-31 ｜ 分支：`f640/main2` ｜ 关联：`docs/quick-import-mode.md`、`docs/plans/2026-08-31-fix-quick-import-overlap-feedback.md`（被本方案替代的旧方案）
 >
-> **结论：全部 31 个锚点化弹窗（+2 个白名单全屏层）均无重叠遮挡、无功能回归。** 单测 237 通过、E2E 61 通过、typecheck/build 通过。
+> **结论：全部 33 个锚点化弹窗（32 静态 + 1 动态，另有 2 个白名单全屏层）均无重叠遮挡、无功能回归。** 单测 237 通过、E2E 61 通过、typecheck/build 通过。
 
 ## 需求与约束（用户原文 5 条）
 
@@ -79,7 +79,7 @@
 
 ## 验证矩阵
 
-弹窗共 33 个 `.modal`（+ `projection-overlay`）。白名单 2 个（`crop-modal`、`projection-overlay`，有意全屏）保持原样；其余 **31 个全部经同一代码路径锚点化**。
+弹窗共 **34 个 `.modal`**：index.html 静态 33 个 + 运行时动态创建的 `review-reminder-modal` 1 个（`review-ui.ts:16` `className='modal'`，经 `openModal` 统一入口锚点化）；`projection-overlay` 为独立 class，**不计入 `.modal`**。白名单 2 个（`crop-modal`、`projection-overlay`，有意全屏）保持原样；其余 **33 个（静态 32 + 动态 1）全部经同一代码路径锚点化**。
 
 | 弹窗 | 展开无重叠 | 收起无重叠 | 隐藏回落 | 小视口感滚动 | resize 同步 | 截图 |
 |---|---|---|---|---|---|---|
@@ -91,7 +91,8 @@
 | quick-combo-panel | ✅（top=barBottom+12） | ✅ | ✅ | ✅（maxHeight） | ✅ | quick_import_combo_panel |
 | login / backup-modal | ✅ | 同路径 | — | — | — | — |
 | teaching-verify / node-question-picker / pending-blank / pending-photos / process-photo / version / system-password / sync-warning | ✅（8 个逐一断言） | 同路径 | — | — | — | — |
-| 其余 15 个（similar/new-tag/paper/topic-detail/export-images/version-delete/update/baidu-auth/sync/floating/floating-save/error/pdf-manage/pdf-action/add-note-version） | 统一路径覆盖（同一 `bindModalToAnchor`，无独立实现） | 同路径 | 同路径 | 同路径 | 同路径 | — |
+| 其余 16 个（similar/new-tag/paper/topic-detail/export-images/version-delete/update/baidu-auth/sync/floating/floating-save/error/pdf-manage/pdf-action/add-note-version/ai-recommend） | 统一路径覆盖（同一 `bindModalToAnchor`，无独立实现） | 同路径 | 同路径 | 同路径 | 同路径 | — |
+| review-reminder-modal（动态创建） | ✅（openModal 统一入口锚点化） | 同路径 | — | — | — | — |
 | crop-modal / projection-overlay | 白名单：全屏不变（`style.top` 为空断言） | — | — | — | — | — |
 | provider-modal | ✅（迁移回归 a5b7c77） | 同路径 | — | — | — | — |
 
