@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { closeModal, openModal } from './common';
 const w = window as any;
 
 let currentTopicId: string | null = null;
@@ -82,11 +83,11 @@ export async function showTopicDetail(topicId: string): Promise<void> {
       d.append(header, img, commentLabel, textarea, saveBtn); c.appendChild(d);
     });
   }
-  document.getElementById('topic-detail-modal')!.classList.add('active');
+  openModal('topic-detail-modal');
 }
 
 export function closeTopicDetailModal(): void {
-  document.getElementById('topic-detail-modal')!.classList.remove('active');
+  closeModal('topic-detail-modal');
   currentTopicId = null;
 }
 

@@ -1,7 +1,7 @@
 import {
   dbGetAllPdfCategories, dbCreatePdfCategory, dbUpdatePdfCategory, dbDeletePdfCategory
 } from '../data/pdf-docs';
-import { escapeHtml, showStatus } from './common';
+import { closeModal, escapeHtml, openModal, showStatus } from './common';
 import { getExpanded, setExpanded, toggleExpand } from './pdf-tree-state';
 import { renderPdfLibrary } from './pdf-render';
 import type { PdfCategory } from '../types';
@@ -30,7 +30,7 @@ export async function showPdfCategoryMenu(catId: string): Promise<void> {
       <button onclick="deletePdfCategory('${catId}')" style="padding:10px;background:var(--danger);box-shadow:none;color:#fff;font-size:13px">🗑 删除分类${children.length > 0 ? '（含子分类）' : ''}</button>
       <button onclick="closePdfManageModal()" class="secondary" style="padding:10px;font-size:13px">取消</button>
     </div>`;
-  modal.style.display = 'flex';
+  openModal('pdf-manage-modal');
 }
 
 export async function addPdfSubCategory(parentId: string): Promise<void> {
@@ -77,6 +77,5 @@ export async function deletePdfCategory(catId: string): Promise<void> {
 }
 
 export function closePdfManageModal(): void {
-  const modal = document.getElementById('pdf-manage-modal');
-  if (modal) modal.style.display = 'none';
+  closeModal('pdf-manage-modal');
 }

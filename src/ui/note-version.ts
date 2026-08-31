@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { closeModal, openModal } from './common';
 const w = window as any;
 
 let currentNoteVersions: any[] = [];
@@ -68,11 +69,11 @@ export function showAddNoteVersionModal(): void {
   (document.getElementById('note-version-label') as HTMLInputElement).value = '';
   (document.getElementById('note-version-text') as HTMLInputElement).value = '';
   document.getElementById('note-version-preview-wrap')!.style.display = 'none';
-  document.getElementById('add-note-version-modal')!.classList.add('active');
+  openModal('add-note-version-modal');
 }
 
 export function closeAddNoteVersionModal(): void {
-  document.getElementById('add-note-version-modal')!.classList.remove('active');
+  closeModal('add-note-version-modal');
   addNoteVersionImage = null;
 }
 

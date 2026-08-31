@@ -2,7 +2,7 @@ import {
   dbGetAllPdfCategories, dbGetAllPdfDocs, dbUpdatePdfDoc
 } from '../data/pdf-docs';
 import { uploadPdfToServer, downloadPdfToLocal, deleteRemotePdf, updateRemotePdfMeta } from '../services/pdf-cloud';
-import { escapeHtml, showStatus } from './common';
+import { closeModal, escapeHtml, openModal, showStatus } from './common';
 import { renderPdfLibrary } from './pdf-render';
 import type { PdfCategory, PdfDoc } from '../types';
 
@@ -73,7 +73,7 @@ async function showPdfUploadConfirm(file: File): Promise<void> {
       <button id="confirm-upload-btn" onclick="doConfirmUpload()" style="flex:1;padding:12px;background:var(--accent);box-shadow:none" ${serverReady ? '' : 'disabled'}>📤 确认上传</button>
       <button onclick="closePdfUploadConfirm()" class="secondary" style="padding:12px">取消</button>
     </div>`;
-  modal.style.display = 'flex';
+  openModal('pdf-action-modal');
 
   const previewContainer = document.getElementById('pdf-upload-preview');
   if (previewContainer) {
@@ -142,12 +142,11 @@ export async function showPdfActions(pdfId: string): Promise<void> {
       <button onclick="doDeletePdf('${doc.id}')" style="padding:12px;background:var(--danger);box-shadow:none;color:#fff">🗑 删除</button>
       <button onclick="closePdfActionModal()" class="secondary" style="padding:12px">取消</button>
     </div>`;
-  modal.style.display = 'flex';
+  openModal('pdf-action-modal');
 }
 
 export function closePdfActionModal(): void {
-  const modal = document.getElementById('pdf-action-modal');
-  if (modal) modal.style.display = 'none';
+  closeModal('pdf-action-modal');
 }
 
 export async function showMovePdfModal(pdfId: string): Promise<void> {
@@ -174,7 +173,7 @@ export async function showMovePdfModal(pdfId: string): Promise<void> {
       <button onclick="confirmMovePdf('${pdfId}')" style="flex:1;padding:12px;background:var(--accent);box-shadow:none">✔️ 确认</button>
       <button onclick="closePdfActionModal()" class="secondary" style="padding:12px">取消</button>
     </div>`;
-  modal.style.display = 'flex';
+  openModal('pdf-action-modal');
 }
 
 export async function confirmMovePdf(pdfId: string): Promise<void> {

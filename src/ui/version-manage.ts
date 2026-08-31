@@ -5,7 +5,7 @@ import {
   saveAppVersions,
   applyVersionTheme,
 } from '../services/version-skin';
-import { showStatus } from './common';
+import { closeModal, openModal, showStatus } from './common';
 import { renderVersionSwitcher, renderVersionCheckboxes, renderVersionFilterTags, DEFAULT_VERSION_ID } from './version-skin';
 
 const w = window as unknown as Record<string, unknown>;
@@ -20,7 +20,7 @@ export function showAddVersionModal(): void {
   (document.getElementById('version-emoji-input') as HTMLInputElement).value = '';
   (document.getElementById('version-tagline-input') as HTMLInputElement).value = '';
   (document.getElementById('version-delete-btn') as HTMLElement).style.display = 'none';
-  document.getElementById('version-modal')!.classList.add('active');
+  openModal('version-modal');
 }
 
 export function showEditVersionModal(versionId: string): void {
@@ -32,11 +32,11 @@ export function showEditVersionModal(versionId: string): void {
   (document.getElementById('version-emoji-input') as HTMLInputElement).value = version.emoji;
   (document.getElementById('version-tagline-input') as HTMLInputElement).value = version.tagline || '';
   (document.getElementById('version-delete-btn') as HTMLElement).style.display = 'inline-block';
-  document.getElementById('version-modal')!.classList.add('active');
+  openModal('version-modal');
 }
 
 export function closeVersionModal(): void {
-  document.getElementById('version-modal')!.classList.remove('active');
+  closeModal('version-modal');
   editingVersionId = null;
 }
 
@@ -95,11 +95,11 @@ export function deleteVersion(): void {
   deletingVersionId = editingVersionId;
   (document.getElementById('version-delete-password') as HTMLInputElement).value = '';
   (document.getElementById('version-delete-error') as HTMLElement).style.display = 'none';
-  document.getElementById('version-delete-modal')!.classList.add('active');
+  openModal('version-delete-modal');
 }
 
 export function closeVersionDeleteModal(): void {
-  document.getElementById('version-delete-modal')!.classList.remove('active');
+  closeModal('version-delete-modal');
   deletingVersionId = null;
 }
 
@@ -142,11 +142,11 @@ export function showSystemPasswordModal(): void {
   (document.getElementById('system-password-input') as HTMLInputElement).value = '';
   (document.getElementById('system-password-confirm') as HTMLInputElement).value = '';
   (document.getElementById('system-password-error') as HTMLElement).style.display = 'none';
-  document.getElementById('system-password-modal')!.classList.add('active');
+  openModal('system-password-modal');
 }
 
 export function closeSystemPasswordModal(): void {
-  document.getElementById('system-password-modal')!.classList.remove('active');
+  closeModal('system-password-modal');
 }
 
 export function saveSystemPassword(): void {

@@ -68,3 +68,20 @@ test.describe('锚点定位迁移 - 核心弹窗', () => {
     expect(overlap).toBe(false);
   });
 });
+
+test.describe('锚点定位迁移 - PDF/版本', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await enableQuickImport(page, true);
+  });
+  test('pdf-preview-modal 锚点下方且内部可滚动', async ({ page }) => {
+    await page.evaluate(() => document.getElementById('pdf-preview-modal')?.classList.add('active'));
+    const { overlap } = await noOverlap(page, '#pdf-preview-modal .modal-content');
+    expect(overlap).toBe(false);
+    const scrollable = await page.evaluate(() => {
+      const c = document.querySelector('#pdf-preview-modal .modal-content');
+      return c ? getComputedStyle(c).overflowY : '';
+    });
+    expect(scrollable).toBe('auto');
+  });
+});

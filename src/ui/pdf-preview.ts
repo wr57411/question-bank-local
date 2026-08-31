@@ -1,6 +1,7 @@
 import { dbGetAllPdfDocs } from '../data/pdf-docs';
 import { downloadPdfToLocal } from '../services/pdf-cloud';
 import { showPdfActions } from './pdf-doc-ops';
+import { closeModal, openModal } from './common';
 
 let currentPreviewLoadingTask: { destroy: () => Promise<void> } | null = null;
 let previewPdfId = '';
@@ -19,7 +20,7 @@ export async function startPdfPreview(pdfId: string): Promise<void> {
   previewLoadedPages = 0;
   previewTotalPages = 0;
   container.innerHTML = '<p style="text-align:center;color:var(--text-tertiary)">加载中...</p>';
-  modal.style.display = 'flex';
+  openModal('pdf-preview-modal');
 
   await loadMorePreviewPages();
 
@@ -56,8 +57,7 @@ async function loadMorePreviewPages(): Promise<void> {
 }
 
 export function closePdfPreview(): void {
-  const modal = document.getElementById('pdf-preview-modal');
-  if (modal) modal.style.display = 'none';
+  closeModal('pdf-preview-modal');
   if (currentPreviewLoadingTask) {
     currentPreviewLoadingTask.destroy().catch(() => { /* ignore */ });
     currentPreviewLoadingTask = null;
@@ -140,6 +140,5 @@ async function renderPdfPreviewOnCanvas(file: File | Blob, container: HTMLElemen
 }
 
 function closePdfActionModal(): void {
-  const modal = document.getElementById('pdf-action-modal');
-  if (modal) modal.style.display = 'none';
+  closeModal('pdf-action-modal');
 }
