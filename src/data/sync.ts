@@ -7,6 +7,7 @@ import {
   nowIso
 } from './stores';
 import type { SyncPayload, DataFingerprint } from '../types';
+import { adoptRemoteQuickFavTags, pendingQuickFavCount } from '../services/quick-fav-tags';
 
 let _serverUrl = '';
 let _apiToken = '';
@@ -133,6 +134,9 @@ export async function dbApplyRemoteSnapshot(snapshot: any): Promise<void> {
   }
   if (snapshot.question_notes) {
     for (const n of snapshot.question_notes) { await dbQuestionNotes.setItem(n.id, n); }
+  }
+  if (snapshot.settings && typeof snapshot.settings === 'object' && snapshot.settings.quickFavoriteTags) {
+    if (pendingQuickFavCount() === 0) adoptRemoteQuickFavTags(snapshot.settings.quickFavoriteTags);
   }
 }
 

@@ -6,6 +6,7 @@ import {
   upsertTeachingNode, upsertTeachingVersion, upsertNodeQuestion,
   upsertPdfBook, upsertPdfChapter, upsertPdfTopic, upsertPdfDoc, upsertPdfCategory
 } from './sync-upsert.js';
+import { mergeUserSettings } from './user-settings.js';
 
 let primaryUrl = '';
 let primaryToken = '';
@@ -258,15 +259,11 @@ async function pullFromPrimary(retryCount = 0): Promise<{ applied: string[]; cou
     }
     if (data.settings) {
       const existingSettings = db.prepare('SELECT settings FROM user_settings WHERE user_id = ?').get(primaryUserId) as { settings: string } | undefined;
-      const prev = existingSettings ? JSON.parse(existingSettings.settings) : {};
-      const merged = { ...data.settings };
-      if ((!merged.cloud_providers || (merged.cloud_providers as unknown[]).length === 0) && prev.cloud_providers && (prev.cloud_providers as unknown[]).length > 0) {
-        merged.cloud_providers = prev.cloud_providers;
-        merged.current_provider_id = prev.current_provider_id || '';
+      let prev: Record<string, unknown> = {};
+      if (existingSettings?.settings) {
+        try { prev = JSON.parse(existingSettings.settings); } catch { prev = {}; }
       }
-      if ((!merged.appVersions || (merged.appVersions as unknown[]).length === 0) && prev.appVersions && (prev.appVersions as unknown[]).length > 0) {
-        merged.appVersions = prev.appVersions;
-      }
+      const merged = mergeUserSettings(prev, (data.settings ?? {}) as Record<string, unknown>);
       db.prepare('INSERT OR REPLACE INTO user_settings (user_id, settings) VALUES (?, ?)').run(primaryUserId, JSON.stringify(merged));
     }
 

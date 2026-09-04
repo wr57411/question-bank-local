@@ -3,6 +3,8 @@ import db from '../db/connection.js';
 import { authMiddleware, AuthRequest } from '../middleware/auth.js';
 import { normalizeTimestamp, toMillis, parseAiMetadata, nowIso } from '../utils/helpers.js';
 import { replicateToSupabase } from '../services/replicate.js';
+import { mergeUserSettings } from '../services/user-settings.js';
+import { mergeQuickFavTags, type QuickFavSnapshot } from '../services/quick-fav-merge.js';
 import {
   createAppliedResult, upsertTag, upsertQuestion, upsertPaper,
   upsertSimilarLink, upsertTopic, upsertQuestionNote,
@@ -69,15 +71,11 @@ router.post('/push', (req, res) => {
     db.prepare('UPDATE users SET pending_link_list = ? WHERE id = ?').run(JSON.stringify(pending_link_list), userId);
     if (settings) {
       const existingSettings = db.prepare('SELECT settings FROM user_settings WHERE user_id = ?').get(userId) as { settings: string } | undefined;
-      const prev = existingSettings ? JSON.parse(existingSettings.settings) : {};
-      const merged = { ...settings };
-      if ((!settings.cloud_providers || settings.cloud_providers.length === 0) && prev.cloud_providers && prev.cloud_providers.length > 0) {
-        merged.cloud_providers = prev.cloud_providers;
-        merged.current_provider_id = prev.current_provider_id || '';
+      let prev: Record<string, unknown> = {};
+      if (existingSettings?.settings) {
+        try { prev = JSON.parse(existingSettings.settings); } catch { prev = {}; }
       }
-      if ((!settings.appVersions || settings.appVersions.length === 0) && prev.appVersions && prev.appVersions.length > 0) {
-        merged.appVersions = prev.appVersions;
-      }
+      const merged = mergeUserSettings(prev, (settings ?? {}) as Record<string, unknown>);
       db.prepare('INSERT OR REPLACE INTO user_settings (user_id, settings) VALUES (?, ?)').run(userId, JSON.stringify(merged));
     }
   });
@@ -208,6 +206,61 @@ router.get('/pull', (req, res) => {
     res.json({ now: nowIso(), tags, questions, papers, similar_links, pending_link_list, topics: topicsList, question_notes: questionNotes, teaching_nodes: teachingNodes, teaching_versions: teachingVersions, node_questions: nodeQuestions, pdf_books: pdfBooks, pdf_chapters: pdfChapters, pdf_topics: pdfTopics, pdf_docs: pdfDocs, pdf_categories: pdfCategories, settings: userSettings });
   } catch (e) {
     res.status(500).json({ error: '同步 pull 失败', detail: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+router.get('/settings', (req, res) => {
+  try {
+    const userId = (req as AuthRequest).userId;
+    const row = db.prepare('SELECT settings FROM user_settings WHERE user_id = ?').get(userId) as { settings: string } | undefined;
+    let settings: Record<string, unknown> = {};
+    if (row?.settings) {
+      try { settings = JSON.parse(row.settings); } catch { settings = {}; }
+    }
+    res.json({ settings });
+  } catch (e) {
+    res.status(500).json({ error: '读取设置失败', detail: e instanceof Error ? e.message : String(e) });
+  }
+});
+
+router.post('/favorite-tags', (req, res) => {
+  try {
+    const userId = (req as AuthRequest).userId;
+    const { items, order, rev } = req.body || {};
+    if (!items || typeof items !== 'object' || Array.isArray(items) || items === null) {
+      res.status(400).json({ error: 'items 格式不合法' });
+      return;
+    }
+    const row = db.prepare('SELECT settings FROM user_settings WHERE user_id = ?').get(userId) as { settings: string } | undefined;
+    let prev: Record<string, unknown> = {};
+    if (row?.settings) {
+      try { prev = JSON.parse(row.settings); } catch { prev = {}; }
+    }
+    const cur = (prev as Record<string, QuickFavSnapshot | undefined>).quickFavoriteTags;
+    const local: QuickFavSnapshot = {
+      items,
+      order: order || { ids: [], at: '' },
+      rev: Number(rev) || 0,
+    };
+    const result = mergeQuickFavTags(local, cur);
+    if (result.conflicts.length > 0) {
+      res.json({
+        conflict: true,
+        conflicts: result.conflicts,
+        serverRev: Number(cur?.rev) || 0,
+      });
+      return;
+    }
+    const next = {
+      items: result.merged.items,
+      order: result.merged.order,
+      rev: (Number(cur?.rev) || 0) + 1,
+    };
+    const mergedSettings = { ...prev, quickFavoriteTags: next };
+    db.prepare('INSERT OR REPLACE INTO user_settings (user_id, settings) VALUES (?, ?)').run(userId, JSON.stringify(mergedSettings));
+    res.json({ conflict: false, rev: next.rev, items: next.items, order: next.order });
+  } catch (e) {
+    res.status(500).json({ error: '保存常用标签失败', detail: e instanceof Error ? e.message : String(e) });
   }
 });
 

@@ -1,5 +1,5 @@
 import { fetchLatestMedias, getGalleryImageDataUrl } from './camera';
-import { showStatus } from './common';
+import { showStatus, openModal, closeModal } from './common';
 import {
   pickQuestionAnswerPair,
   countFreshMedias,
@@ -29,6 +29,19 @@ import {
   type VersionCombo,
 } from '../services/version-combo';
 import { getAppVersions, getCurrentVersionId, type AppVersion } from '../services/version-skin';
+import {
+  loadQuickFavTags,
+  visibleQuickFavIds,
+  setQuickFavOn,
+  reorderQuickFavIds,
+  pendingQuickFavCount,
+  adoptRemoteQuickFavTags,
+  resolveQuickFavConflicts,
+  markQuickFavSynced,
+  beginQuickFavPush,
+  endQuickFavPush,
+  type QuickFavConflict,
+} from '../services/quick-fav-tags';
 
 const w = window as unknown as Record<string, any>;
 const MODE_KEY = 'quickImportMode';
@@ -62,10 +75,19 @@ function noteDot(): HTMLElement | null {
   return document.getElementById('qi-note-dot');
 }
 
-function applyNoteBodyPadding(): void {
-  // 设计风险项「展开时顶部栏增高遮挡内容」：展开态动态补偿正文 padding-top
-  document.body.style.paddingTop = quickMode ? (isQuickNoteExpanded() ? '312px' : '196px') : '';
-  window.dispatchEvent(new CustomEvent('quickImportBarChange', { detail: { height: bar()?.offsetHeight ?? 0, visible: isQuickMode() } }));
+function applyQuickBarBodyPadding(): void {
+  // 设计 Task 7：栏高从硬编码 312px/196px 改为动态测量。
+  // 包 rAF：展开/收起后 DOM 尚未重排，同步读 offsetHeight 会拿到旧值（与 modal-anchor 竞态同一病根）
+  if (!quickMode || !bar()) {
+    document.body.style.paddingTop = '';
+    window.dispatchEvent(new CustomEvent('quickImportBarChange', { detail: { height: 0, visible: false } }));
+    return;
+  }
+  requestAnimationFrame(() => {
+    const h = bar()?.offsetHeight ?? 0;
+    document.body.style.paddingTop = h ? h + 'px' : '';
+    window.dispatchEvent(new CustomEvent('quickImportBarChange', { detail: { height: h, visible: true } }));
+  });
 }
 
 export function isQuickNoteExpanded(): boolean {
@@ -78,7 +100,7 @@ export function toggleQuickNote(): void {
   if (!area) return;
   area.style.display = isQuickNoteExpanded() ? 'none' : 'block';
   if (isQuickNoteExpanded()) noteInput()?.focus();
-  applyNoteBodyPadding();
+  applyQuickBarBodyPadding();
 }
 
 export function onQuickNoteInput(): void {
@@ -107,7 +129,7 @@ export function resetQuickNote(): void {
   // 默认展开：重置后保持展开，便于连续录入下一条笔记
   const area = document.getElementById('qi-note-area');
   if (area) area.style.display = 'block';
-  applyNoteBodyPadding();
+  applyQuickBarBodyPadding();
 }
 // ========== 文字笔记结束 ==========
 
@@ -183,7 +205,7 @@ function render(): void {
   const el = bar();
   if (!el) return;
   el.style.display = quickMode ? '' : 'none';
-  applyNoteBodyPadding();
+  applyQuickBarBodyPadding();
   if (!quickMode) return;
 
   const q = document.getElementById('qi-thumb-question') as HTMLImageElement | null;
@@ -192,6 +214,8 @@ function render(): void {
   if (a) a.src = answerThumb;
 
   renderQuickSelectedTags();
+
+  renderQuickFavTags();
 
   syncComboButton();
 
@@ -208,7 +232,10 @@ function render(): void {
   if (tagInput && !tagInput.dataset.qiBound) {
     tagInput.dataset.qiBound = '1';
     tagInput.addEventListener('input', onQuickTagInput);
-    tagInput.addEventListener('focus', startQuickTagPoll);
+    tagInput.addEventListener('focus', () => {
+      startQuickTagPoll();
+      collapseQuickFavPanel();
+    });
     tagInput.addEventListener('blur', () => {
       stopQuickTagPoll();
     });
@@ -222,7 +249,6 @@ function render(): void {
     noteField.dataset.qiBound = '1';
     noteField.addEventListener('input', onQuickNoteInput);
   }
-  window.dispatchEvent(new CustomEvent('quickImportBarChange', { detail: { height: bar()?.offsetHeight ?? 0, visible: isQuickMode() } }));
 }
 
 function syncComboButton(): void {
@@ -619,3 +645,339 @@ export function isQuickImportBarVisible(): boolean {
   const rect = barEl.getBoundingClientRect();
   return rect.height > 0 && rect.width > 0;
 }
+
+// ========== 常见标签（设计：docs/plans/2026-09-03-quick-import-favorite-tags.md） ==========
+// 设计决策（v3）：逐项状态合并 + rev 判「是否知情」+ 按标签粒度冲突弹窗。
+// 离线可改、永不静默丢弃；门禁已降级为状态条提示。
+
+const FAV_PUSH_DEBOUNCE_MS = 800;
+
+let favPushTimer: number | null = null;
+let favConflictServerRev = 0;
+
+function favPanel(): HTMLElement | null {
+  return document.getElementById('qi-fav-panel');
+}
+
+function isQuickFavPanelOpen(): boolean {
+  const panel = favPanel();
+  return !!panel && panel.style.display !== 'none';
+}
+
+export function renderQuickFavTags(): void {
+  const div = document.getElementById('qi-fav-tags');
+  if (!div) return;
+  div.innerHTML = '';
+  const all: any[] = w.allTags || [];
+  const tagById = new Map(all.map((t: any) => [t.id, t]));
+  const ids = visibleQuickFavIds().filter((id) => tagById.has(id));
+  if (ids.length === 0) {
+    const empty = document.createElement('span');
+    empty.style.cssText = 'font-size:11px;color:var(--text-tertiary);flex-shrink:0;white-space:nowrap';
+    empty.textContent = '（无常见标签，点右侧 ＋ 添加）';
+    div.appendChild(empty);
+    return;
+  }
+  for (const id of ids) div.appendChild(quickFavChip(tagById.get(id)));
+}
+
+function quickFavChip(tag: any): HTMLSpanElement {
+  const selected = quickTagIds.includes(tag.id);
+  const el = document.createElement('span');
+  el.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 9px;flex:0 0 auto;max-width:88px;border:1.5px solid var(--border);background:var(--surface);color:var(--text);border-radius:var(--radius-xl);font-size:11px;font-weight:500;white-space:nowrap;cursor:pointer'
+    + (selected ? ';border-color:' + tag.color + ';background:' + tag.color + '15' : '');
+  const name = document.createElement('span');
+  name.textContent = tag.name;
+  name.style.cssText = 'overflow:hidden;text-overflow:ellipsis';
+  el.appendChild(name);
+  el.onclick = () => {
+    if (quickTagIds.includes(tag.id)) removeQuickTag(tag.id);
+    else addQuickTag(tag.id);
+    renderQuickFavTags();
+  };
+  return el;
+}
+
+export function toggleQuickFavPanel(): void {
+  const panel = favPanel();
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  panel.style.display = opening ? 'block' : 'none';
+  if (!opening) {
+    applyQuickBarBodyPadding();
+    return;
+  }
+  renderQuickFavSortList();
+  renderQuickFavCandidates();
+  renderQuickFavSyncState();
+  applyQuickBarBodyPadding();
+  void fetchQuickFavRemote();
+}
+
+function collapseQuickFavPanel(): void {
+  const panel = favPanel();
+  if (!panel || panel.style.display === 'none') return;
+  panel.style.display = 'none';
+  applyQuickBarBodyPadding();
+}
+
+async function fetchQuickFavRemote(): Promise<void> {
+  if (typeof w.apiCall !== 'function') {
+    renderQuickFavSyncState();
+    return;
+  }
+  try {
+    const resp = await w.apiCall('/api/sync/settings', 'GET');
+    const remote = resp?.settings?.quickFavoriteTags;
+    if (remote && typeof remote === 'object') {
+      if (pendingQuickFavCount() === 0) adoptRemoteQuickFavTags(remote);
+      renderQuickFavSortList();
+      renderQuickFavTags();
+    }
+  } catch {
+    renderQuickFavSyncState();
+  }
+}
+
+export function renderQuickFavSyncState(): void {
+  const el = document.getElementById('qi-fav-sync-state');
+  if (!el) return;
+  const pending = pendingQuickFavCount();
+  if (pending > 0) {
+    el.textContent = '⚠️ 有 ' + pending + ' 项改动待同步，联网后会自动合并';
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function favOrderableIds(): string[] {
+  const state = loadQuickFavTags();
+  const on = new Set(Object.keys(state.items).filter((k) => state.items[k].on));
+  const ordered = state.order.ids.filter((id) => on.has(id));
+  const extras = visibleQuickFavIds().filter((id) => !ordered.includes(id));
+  return [...ordered, ...extras];
+}
+
+export function renderQuickFavSortList(): void {
+  const list = document.getElementById('qi-fav-sort-list');
+  if (!list) return;
+  const all: any[] = w.allTags || [];
+  const tagById = new Map(all.map((t: any) => [t.id, t]));
+  const ids = favOrderableIds().filter((id) => tagById.has(id));
+  renderQuickFavSortRows(list, ids);
+}
+
+function renderQuickFavSortRows(list: HTMLElement, ids: string[]): void {
+  list.innerHTML = '';
+  const all: any[] = w.allTags || [];
+  const tagById = new Map(all.map((t: any) => [t.id, t]));
+  ids.forEach((id) => {
+    const tag = tagById.get(id);
+    const row = document.createElement('div');
+    row.dataset.favId = id;
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border-light)';
+    const dot = document.createElement('span');
+    dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + tag.color;
+    const name = document.createElement('span');
+    name.textContent = tag.name;
+    name.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text)';
+    const handle = document.createElement('span');
+    handle.textContent = '☰';
+    handle.style.cssText = 'cursor:grab;touch-action:none;color:var(--text-tertiary);font-size:14px;padding:2px 6px;flex-shrink:0;user-select:none';
+    handle.addEventListener('pointerdown', (e) => startQuickFavDrag(e, list, id));
+    const rm = document.createElement('span');
+    rm.textContent = '移除';
+    rm.style.cssText = 'cursor:pointer;color:var(--danger);font-size:12px;flex-shrink:0';
+    rm.onclick = () => {
+      setQuickFavOn(id, false);
+      renderQuickFavSortList();
+      renderQuickFavCandidates();
+      renderQuickFavTags();
+      renderQuickFavSyncState();
+      scheduleQuickFavPush();
+    };
+    row.append(dot, name, handle, rm);
+    list.appendChild(row);
+  });
+}
+
+function startQuickFavDrag(event: PointerEvent, list: HTMLElement, id: string): void {
+  event.preventDefault();
+  const all = favOrderableIds();
+  const tagIds = new Set(((w.allTags || []) as any[]).map((t: any) => t.id));
+  const displayed = all.filter((x) => tagIds.has(x));
+  let ids = [...displayed];
+  const onMove = (e: PointerEvent) => {
+    const rows = Array.from(list.children) as HTMLElement[];
+    let target = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const rect = rows[i].getBoundingClientRect();
+      if (e.clientY >= rect.top && e.clientY <= rect.bottom && ids[i] !== id) {
+        target = i;
+        break;
+      }
+    }
+    if (target < 0) return;
+    const from = ids.indexOf(id);
+    if (from < 0) return;
+    ids.splice(from, 1);
+    ids.splice(target, 0, id);
+    renderQuickFavSortRows(list, ids);
+  };
+  const onUp = () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    if (ids.join(',') !== displayed.join(',')) {
+      const hidden = all.filter((x) => !displayed.includes(x));
+      reorderQuickFavIds([...ids, ...hidden]);
+      renderQuickFavTags();
+      renderQuickFavSyncState();
+      scheduleQuickFavPush();
+    }
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+export function renderQuickFavCandidates(): void {
+  const box = document.getElementById('qi-fav-candidates');
+  if (!box) return;
+  box.innerHTML = '';
+  const input = document.getElementById('qi-fav-search') as HTMLInputElement | null;
+  const query = (input?.value || '').trim().toLowerCase();
+  const all: any[] = w.allTags || [];
+  const inList = new Set(visibleQuickFavIds());
+  const matches = all
+    .filter((t: any) => !inList.has(t.id))
+    .filter((t: any) => !query || String(t.name).toLowerCase().includes(query))
+    .slice(0, 30);
+  if (matches.length === 0) {
+    const empty = document.createElement('span');
+    empty.style.cssText = 'font-size:11px;color:var(--text-tertiary)';
+    empty.textContent = '没有可添加的标签';
+    box.appendChild(empty);
+    return;
+  }
+  for (const t of matches) {
+    const chip = document.createElement('span');
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 9px;background:var(--surface);border:1px solid var(--border-light);border-radius:var(--radius-xl);font-size:12px;cursor:pointer;max-width:120px';
+    const dot = document.createElement('span');
+    dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + t.color;
+    const name = document.createElement('span');
+    name.textContent = t.name;
+    name.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)';
+    chip.append(dot, name);
+    chip.onclick = () => {
+      setQuickFavOn(t.id, true);
+      renderQuickFavSortList();
+      renderQuickFavCandidates();
+      renderQuickFavTags();
+      renderQuickFavSyncState();
+      scheduleQuickFavPush();
+    };
+    box.appendChild(chip);
+  }
+}
+
+function scheduleQuickFavPush(): void {
+  if (favPushTimer !== null) clearTimeout(favPushTimer);
+  favPushTimer = window.setTimeout(() => {
+    favPushTimer = null;
+    void pushQuickFavTags();
+  }, FAV_PUSH_DEBOUNCE_MS);
+}
+
+export async function pushQuickFavTags(): Promise<void> {
+  const local = loadQuickFavTags();
+  if (pendingQuickFavCount() === 0) return;
+  if (typeof w.apiCall !== 'function') {
+    renderQuickFavSyncState();
+    return;
+  }
+  if (!beginQuickFavPush()) {
+    renderQuickFavSyncState();
+    return;
+  }
+  try {
+    const resp = await w.apiCall('/api/sync/favorite-tags', 'POST', {
+      items: local.items,
+      order: local.order,
+      rev: local.rev,
+    });
+    if (resp?.conflict) {
+      endQuickFavPush();
+      showQuickFavConflict(resp.conflicts || [], Number(resp.serverRev) || 0);
+      renderQuickFavSyncState();
+      return;
+    }
+    markQuickFavSynced(resp.rev, resp.items, resp.order);
+    if (endQuickFavPush()) scheduleQuickFavPush();
+    renderQuickFavSyncState();
+  } catch {
+    endQuickFavPush();
+    renderQuickFavSyncState();
+  }
+}
+
+function fmtFavAt(at: string): string {
+  const t = new Date(at);
+  if (Number.isNaN(t.getTime())) return '未知时间';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (t.getMonth() + 1) + '月' + t.getDate() + '日 ' + pad(t.getHours()) + ':' + pad(t.getMinutes());
+}
+
+function quickFavConflictRow(c: QuickFavConflict): HTMLElement {
+  const all: any[] = w.allTags || [];
+  const tag = all.find((t: any) => t.id === c.id);
+  const wrap = document.createElement('div');
+  wrap.dataset.favId = c.id;
+  wrap.style.cssText = 'text-align:left;padding:10px;border:1px solid var(--border-light);border-radius:var(--radius-md);margin-bottom:8px;background:var(--surface)';
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px';
+  title.textContent = '「' + (tag ? tag.name : c.id) + '」在多台设备上被同时修改';
+  const localLine = document.createElement('div');
+  localLine.style.cssText = 'font-size:12px;color:var(--text-secondary);margin-bottom:2px';
+  localLine.textContent = '本机：' + (c.local.on ? '在列表' : '不在列表') + '（' + fmtFavAt(c.local.at) + '）';
+  const remoteLine = document.createElement('div');
+  remoteLine.style.cssText = 'font-size:12px;color:var(--text-secondary);margin-bottom:8px';
+  remoteLine.textContent = '云端：' + (c.remote.on ? '在列表' : '不在列表') + '（' + fmtFavAt(c.remote.at) + '）';
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:8px';
+  const useRemote = document.createElement('button');
+  useRemote.type = 'button';
+  useRemote.textContent = '用云端';
+  useRemote.style.cssText = 'flex:1;padding:8px 0;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);cursor:pointer;font-weight:600';
+  const useLocal = document.createElement('button');
+  useLocal.type = 'button';
+  useLocal.textContent = '用本机';
+  useLocal.style.cssText = 'flex:1;padding:8px 0;font-size:13px;border:none;border-radius:var(--radius-sm);background:var(--primary);color:#fff;cursor:pointer;font-weight:600';
+  useRemote.onclick = () => resolveQuickFavConflictPick(c.id, c.remote.on);
+  useLocal.onclick = () => resolveQuickFavConflictPick(c.id, c.local.on);
+  btnRow.append(useRemote, useLocal);
+  wrap.append(title, localLine, remoteLine, btnRow);
+  return wrap;
+}
+
+export function showQuickFavConflict(conflicts: QuickFavConflict[], serverRev: number): void {
+  const modal = document.getElementById('qi-fav-conflict-modal');
+  const list = document.getElementById('qi-fav-conflict-list');
+  if (!modal || !list) return;
+  favConflictServerRev = serverRev;
+  list.innerHTML = '';
+  for (const c of conflicts) list.appendChild(quickFavConflictRow(c));
+  openModal('qi-fav-conflict-modal');
+}
+
+function resolveQuickFavConflictPick(id: string, on: boolean): void {
+  resolveQuickFavConflicts({ [id]: on }, favConflictServerRev);
+  const list = document.getElementById('qi-fav-conflict-list');
+  if (!list) return;
+  const row = list.querySelector('[data-fav-id="' + CSS.escape(id) + '"]');
+  if (row) row.remove();
+  if (list.children.length === 0) {
+    closeModal('qi-fav-conflict-modal');
+    scheduleQuickFavPush();
+  }
+}
+

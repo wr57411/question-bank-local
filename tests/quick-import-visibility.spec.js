@@ -113,10 +113,13 @@ test.describe('快速导入 - 文字笔记入口可见性（设计：docs/plans/
     const barHeight = await page.evaluate(
       () => document.getElementById('quick-import-bar').offsetHeight
     );
-    const paddingOpen = await page.evaluate(() => document.body.style.paddingTop);
-    expect(parseInt(paddingOpen, 10), '默认展开后 padding 应覆盖整条栏高').toBeGreaterThanOrEqual(barHeight);
+    // 2026-09-04 起栏高改为 rAF 内动态测量，padding 下一帧才写入，需轮询
+    await expect
+      .poll(() => page.evaluate(() => parseInt(document.body.style.paddingTop, 10)))
+      .toBeGreaterThanOrEqual(barHeight);
     await page.click('#qi-note-btn');
-    const paddingClosed = await page.evaluate(() => document.body.style.paddingTop);
-    expect(parseInt(paddingClosed, 10), '收起后 padding 应回落').toBeLessThan(parseInt(paddingOpen, 10));
+    await expect
+      .poll(() => page.evaluate(() => parseInt(document.body.style.paddingTop, 10)))
+      .toBeLessThan(barHeight);
   });
 });

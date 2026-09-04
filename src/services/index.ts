@@ -13,3 +13,4 @@ export * from './wiki-diagnostic';
 export * from './wiki-mvp';
 export * from './local-ocr';
 export * from './issue-feedback';
+export * from './quick-fav-tags';

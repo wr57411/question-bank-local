@@ -25,7 +25,9 @@ test.describe("问题反馈", () => {
     await page.locator("#feedback-title").fill("测试反馈标题");
     await page.locator("#feedback-description").fill("E2E 自动化提交测试");
     await page.locator("#feedback-submit-btn").click();
-    await expect(page.locator("#status-message")).toContainText("反馈已提交");
+    // 2026-08-29 状态提示统一化（c2ffb0f）后，反馈成功走全局 toast（#toast/#toast-msg），
+    // #status-message 是「添加题目」表单的状态条，反馈流程不再写入
+    await expect(page.locator("#toast-msg")).toContainText("反馈已提交");
     await expect(page.locator("#issue-feedback-modal")).not.toBeVisible();
   });
 

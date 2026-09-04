@@ -646,6 +646,13 @@ assignToWindow({
   // 快速导入文字笔记（设计：docs/plans/2026-08-30-quick-import-text-note.md）
   toggleQuickNote: ui.toggleQuickNote,
   onQuickNoteInput: ui.onQuickNoteInput,
+  // 快速导入常见标签（设计：docs/plans/2026-09-03-quick-import-favorite-tags.md）
+  toggleQuickFavPanel: ui.toggleQuickFavPanel,
+  renderQuickFavCandidates: ui.renderQuickFavCandidates,
+  renderQuickFavTags: ui.renderQuickFavTags,
+  renderQuickFavSortList: ui.renderQuickFavSortList,
+  renderQuickFavSyncState: ui.renderQuickFavSyncState,
+  setQuickFavOn: services.setQuickFavOn,
 });
 
 // Batch 2: expose native import alias
