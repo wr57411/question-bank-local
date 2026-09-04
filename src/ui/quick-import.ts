@@ -654,6 +654,7 @@ const FAV_PUSH_DEBOUNCE_MS = 800;
 
 let favPushTimer: number | null = null;
 let favConflictServerRev = 0;
+let favPushFailReason: string | null = null;
 
 function favPanel(): HTMLElement | null {
   return document.getElementById('qi-fav-panel');
@@ -737,6 +738,15 @@ async function fetchQuickFavRemote(): Promise<void> {
   } catch {
     renderQuickFavSyncState();
   }
+  if (pendingQuickFavCount() > 0) void pushQuickFavTags();
+}
+
+function classifyQuickFavPushError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/非JSON|404|Cannot POST|Cannot GET/.test(msg)) return '服务端版本过旧，请升级服务端';
+  if (/未配置服务器/.test(msg)) return '未登录，登录后会自动同步';
+  if (/token|登录|401/.test(msg)) return '登录已过期，请重新登录';
+  return '无法连接服务器';
 }
 
 export function renderQuickFavSyncState(): void {
@@ -744,7 +754,9 @@ export function renderQuickFavSyncState(): void {
   if (!el) return;
   const pending = pendingQuickFavCount();
   if (pending > 0) {
-    el.textContent = '⚠️ 有 ' + pending + ' 项改动待同步，联网后会自动合并';
+    el.textContent = favPushFailReason
+      ? '⚠️ 有 ' + pending + ' 项改动待同步——' + favPushFailReason
+      : '⚠️ 有 ' + pending + ' 项改动待同步，联网后会自动合并';
     el.style.display = 'block';
   } else {
     el.style.display = 'none';
@@ -905,6 +917,7 @@ export async function pushQuickFavTags(): Promise<void> {
       order: local.order,
       rev: local.rev,
     });
+    favPushFailReason = null;
     if (resp?.conflict) {
       endQuickFavPush();
       showQuickFavConflict(resp.conflicts || [], Number(resp.serverRev) || 0);
@@ -914,7 +927,8 @@ export async function pushQuickFavTags(): Promise<void> {
     markQuickFavSynced(resp.rev, resp.items, resp.order);
     if (endQuickFavPush()) scheduleQuickFavPush();
     renderQuickFavSyncState();
-  } catch {
+  } catch (e) {
+    favPushFailReason = classifyQuickFavPushError(e);
     endQuickFavPush();
     renderQuickFavSyncState();
   }
