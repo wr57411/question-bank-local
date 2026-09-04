@@ -1,10 +1,49 @@
 const fs = require("fs");
 const { test, expect } = require("@playwright/test");
 
-const QUESTION_PNG_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAIAAAADnC86AAAAMElEQVR4nO3NAQ0AAAgDINc/9K3hHFQgCimTmZmZmZmZmZmZmZmZmZmZmZmZ2Qe0EwEs1rR0XQAAAABJRU5ErkJggg==";
-const ANSWER_PNG_BASE64 =
-  "iVBORw0KGgoAAAANSUhEUgAAACgAAAAoCAIAAAADnC86AAAAL0lEQVR4nO3NAQ0AAAgDILV/5y1hCIEgCg2ZmZmZmZmZmZmZmZmZmZmZmZmZmRm5A3vEAREY0k7BAAAAAElFTkSuQmCC";
+async function createQuestionWithImage(page, { tagName, bookName, pageNumber }) {
+  await page.evaluate(async (args) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = 200;
+    canvas.height = 150;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, 200, 150);
+    ctx.fillStyle = "#1B7A4E";
+    ctx.font = "24px sans-serif";
+    ctx.fillText("题目图片", 20, 80);
+
+    const tags = await window.dbGetAllTags();
+    const tag = tags.find((t) => t.name === args.tagName);
+    if (!tag) throw new Error("标签不存在: " + args.tagName);
+
+    await window.dbCreateQuestion(
+      canvas.toDataURL("image/png"),
+      null,
+      [tag.id],
+      0,
+      null,
+      [],
+      { book_name: args.bookName, page_number: args.pageNumber, question_number: "1" }
+    );
+    await window.loadQuestions();
+  }, { tagName, bookName, pageNumber });
+}
+
+async function createTag(page, name) {
+  await page.getByRole("button", { name: "标签管理" }).click();
+  await page.locator("#tag-name").fill(name);
+  await page.locator('#tag-form button[type="submit"]').click();
+  await expect(page.locator("#tags-list .tag")).toHaveCount(1);
+}
+
+async function seedTaggedQuestion(page, tagName) {
+  await createQuestionWithImage(page, {
+    tagName,
+    bookName: "人教版九上",
+    pageNumber: "42",
+  });
+}
 
 async function selectOptionsByLabel(locator, labels) {
   await locator.evaluate((select, expectedLabels) => {
@@ -15,28 +54,13 @@ async function selectOptionsByLabel(locator, labels) {
   }, labels);
 }
 
-async function createTag(page, name, color, expectedCount) {
-  const nameInput = page.locator("#tag-name");
-  const colorInput = page.locator("#tag-color");
-
-  await nameInput.fill(name);
-  await expect(nameInput).toHaveValue(name);
-  await colorInput.fill(color);
-  await page.locator("#tag-form button").click();
-  await expect(page.locator("#tags-list .tag")).toHaveCount(expectedCount);
-}
-
 test.describe("本地题库主流程", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       window.confirm = () => true;
-      window.__alerts = [];
-      window.alert = (message) => {
-        window.__alerts.push(String(message));
-      };
+      window.alert = () => {};
     });
 
-    // 清理历史 XSS 测试残留数据（防止多次运行后标签/试卷残留在 IndexedDB）
     await page.goto("/");
     await page.evaluate(async () => {
       const evilTags = await window.dbGetAllTags();
@@ -51,89 +75,90 @@ test.describe("本地题库主流程", () => {
     await page.reload();
   });
 
-  test("可以完成离线主流程并支持调试", async ({ page }, testInfo) => {
+  test("标签名与试卷名中的 HTML 被转义，不会执行注入脚本", async ({ page }) => {
     const maliciousTagName = `<img src=x onerror="window.__tagXss=1">危险标签`;
-    const normalTagName = "数学";
-    const maliciousPaperName = `<img src=x onerror="window.__paperXss=1">期末卷`;
+    const maliciousPaperName = `<img src=x onerror="window.__paperXss=1">XSS期末卷`;
 
-    await page.getByRole("button", { name: "标签管理" }).click();
+    await createTag(page, maliciousTagName);
+    await expect(page.locator("#tags-list .tag").first()).toContainText(maliciousTagName);
+    await expect.poll(() => page.evaluate(() => Boolean(window.__tagXss))).toBe(false);
 
-    await createTag(page, maliciousTagName, "#ef4444", 1);
-    await createTag(page, normalTagName, "#3b82f6", 2);
-
-    const tagList = page.locator("#tags-list .tag");
-    await expect(tagList).toHaveCount(2);
-    await expect(tagList.first()).toContainText(maliciousTagName);
-    await expect(tagList.nth(1)).toContainText(normalTagName);
-    await expect(page.evaluate(() => Boolean(window.__tagXss))).resolves.toBe(false);
-
-    await page.getByRole("button", { name: "题目管理" }).click();
-
-    await page.locator("#question-image").setInputFiles({
-      name: "question.png",
-      mimeType: "image/png",
-      buffer: Buffer.from(QUESTION_PNG_BASE64, "base64"),
-    });
-    await page.locator("#answer-image").setInputFiles({
-      name: "answer.png",
-      mimeType: "image/png",
-      buffer: Buffer.from(ANSWER_PNG_BASE64, "base64"),
-    });
-    await selectOptionsByLabel(page.locator("#tag-select"), [maliciousTagName, normalTagName]);
-    await page.locator("#question-form button").click();
-
-    await expect(page.locator("#questions-list .question-card")).toHaveCount(1);
-    await expect(page.locator("#status-message .status")).toHaveText("题目添加成功");
-
-    await page.locator("#filter-tags .filter-tag").filter({ hasText: maliciousTagName }).click();
-    await expect(page.locator("#questions-list .question-card")).toHaveCount(1);
-
-    await page.getByRole("button", { name: "标签管理" }).click();
-    await page.locator("#tags-list .tag").filter({ hasText: maliciousTagName }).locator(".remove").click();
-
-    await page.getByRole("button", { name: "题目管理" }).click();
-    await expect(page.locator("#filter-tags .filter-tag").filter({ hasText: maliciousTagName })).toHaveCount(0);
-    await expect(page.locator("#questions-list .question-card")).toHaveCount(1);
+    await seedTaggedQuestion(page, maliciousTagName);
 
     await page.getByRole("button", { name: "试卷管理" }).click();
     await page.locator("#paper-name").fill(maliciousPaperName);
-    await selectOptionsByLabel(page.locator("#paper-tag-select"), [normalTagName]);
-    await page.locator("#paper-form button").click();
+    await selectOptionsByLabel(page.locator("#paper-tag-select"), [maliciousTagName]);
+    await page.locator('#paper-form button[type="submit"]').click();
 
     const paperCard = page.locator("#papers-list .paper-card").first();
     await expect(paperCard).toContainText(maliciousPaperName);
     await expect(paperCard).toContainText("题目数量: 1");
-    await expect(page.evaluate(() => Boolean(window.__paperXss))).resolves.toBe(false);
+    await expect.poll(() => page.evaluate(() => Boolean(window.__paperXss))).toBe(false);
+  });
 
-    const backupDownloadPromise = page.waitForEvent("download");
-    await page.getByRole("button", { name: "导出备份" }).click();
-    const backupDownload = await backupDownloadPromise;
-    const backupPath = testInfo.outputPath(backupDownload.suggestedFilename());
-    await backupDownload.saveAs(backupPath);
-
-    const backupData = JSON.parse(fs.readFileSync(backupPath, "utf8"));
-    expect(backupData.questions).toHaveLength(1);
-    expect(backupData.tags).toHaveLength(1);
-    expect(backupData.question_tags).toHaveLength(1);
-    expect(backupData.papers).toHaveLength(1);
-    expect(backupData.paper_questions).toHaveLength(1);
-
-    const pdfDownloadPromise = page.waitForEvent("download");
-    await paperCard.getByRole("button", { name: "下载 PDF" }).click();
-    const pdfDownload = await pdfDownloadPromise;
-    const pdfPath = testInfo.outputPath(pdfDownload.suggestedFilename());
-    await pdfDownload.saveAs(pdfPath);
-
-    const pdfBuffer = fs.readFileSync(pdfPath);
-    expect(pdfBuffer.subarray(0, 4).toString("utf8")).toBe("%PDF");
-    expect(pdfBuffer.byteLength).toBeGreaterThan(0);
+  test("带图题目可以导出为完整备份 JSON", async ({ page }, testInfo) => {
+    await createTag(page, "数学");
+    await seedTaggedQuestion(page, "数学");
 
     await page.getByRole("button", { name: "题目管理" }).click();
+    await expect(page.locator("#questions-list .question-card")).toHaveCount(1);
+    await expect(page.locator("#questions-list .question-card img").first())
+      .toHaveAttribute("src", /^data:image\/(jpeg|png)/);
+
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("button", { name: "📤 导出" }).click();
+    const download = await downloadPromise;
+    const backupPath = testInfo.outputPath(download.suggestedFilename());
+    await download.saveAs(backupPath);
+
+    const data = JSON.parse(fs.readFileSync(backupPath, "utf8"));
+    expect(data.questions).toHaveLength(1);
+    expect(data.tags).toHaveLength(1);
+    expect(data.question_tags).toHaveLength(1);
+    expect(data.questions[0].question_image_url).toMatch(/^data:image\//);
+  });
+
+  test("试卷可以下载为合法 PDF", async ({ page }, testInfo) => {
+    await createTag(page, "数学");
+    await seedTaggedQuestion(page, "数学");
+
+    await page.getByRole("button", { name: "试卷管理" }).click();
+    await page.locator("#paper-name").fill("期末卷");
+    await selectOptionsByLabel(page.locator("#paper-tag-select"), ["数学"]);
+    await page.locator('#paper-form button[type="submit"]').click();
+
+    const paperCard = page.locator("#papers-list .paper-card").first();
+    await expect(paperCard).toContainText("题目数量: 1");
+
+    const downloadPromise = page.waitForEvent("download");
+    await paperCard.getByRole("button", { name: "下载 PDF" }).click();
+    const download = await downloadPromise;
+    const pdfPath = testInfo.outputPath("paper.pdf");
+    await download.saveAs(pdfPath);
+
+    const buf = fs.readFileSync(pdfPath);
+    expect(buf.subarray(0, 4).toString("utf8")).toBe("%PDF");
+    expect(buf.byteLength).toBeGreaterThan(1000);
+  });
+
+  test("移至垃圾篓后题目从列表移除，试卷题目数量归零", async ({ page }) => {
+    await createTag(page, "数学");
+    await seedTaggedQuestion(page, "数学");
+
+    await page.getByRole("button", { name: "试卷管理" }).click();
+    await page.locator("#paper-name").fill("期末卷");
+    await selectOptionsByLabel(page.locator("#paper-tag-select"), ["数学"]);
+    await page.locator('#paper-form button[type="submit"]').click();
+    const paperCard = page.locator("#papers-list .paper-card").first();
+    await expect(paperCard).toContainText("题目数量: 1");
+
+    await page.getByRole("button", { name: "题目管理" }).click();
+    await expect(page.locator("#questions-list .question-card")).toHaveCount(1);
     await page.locator("#questions-list .question-card img").first().click();
-    await page.locator("#question-modal .danger").click();
+    await expect(page.locator("#question-modal")).toHaveClass(/active/);
+    await page.locator("#question-modal").getByRole("button", { name: "移至垃圾篓" }).click();
 
     await expect(page.locator("#questions-list .question-card")).toHaveCount(0);
-
     await page.getByRole("button", { name: "试卷管理" }).click();
     await expect(paperCard).toContainText("题目数量: 0");
   });

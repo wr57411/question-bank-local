@@ -51,3 +51,6 @@ ocr-server/.ocr-test*
 .Codex/**/.DS_Store
 .agents/**/.DS_Store
 server/.env_副本
+
+# 测试产物归档目录（硬规则：产物不放在项目根目录）
+tmp/

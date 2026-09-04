@@ -30,9 +30,9 @@ function noOverlap(page, modalContentSelector) {
 // 同步收敛判定：modal.style.top 与 bar 实时 bottom 对齐（top 是容器顶，内容再经
 // paddingTop:12 下移）；bar 隐藏时回落为空。rAF 调度 + RO/MO 均有延迟，
 // 用 waitForFunction 轮询避免固定 timeout 的竞态。
-function waitModalSynced(page) {
-  return page.waitForFunction(() => {
-    const m = document.getElementById('question-modal');
+function waitModalSynced(page, modalId = 'question-modal') {
+  return page.waitForFunction((mid) => {
+    const m = document.getElementById(mid);
     const bar = document.getElementById('quick-import-bar');
     if (!m || !bar || !m.classList.contains('active')) return false;
     const cs = getComputedStyle(bar);
@@ -41,7 +41,7 @@ function waitModalSynced(page) {
     if (!visible) return m.style.top === '';
     const top = parseFloat(m.style.top);
     return !isNaN(top) && Math.abs(top - rect.bottom) < 1 && m.style.paddingTop === '12px';
-  });
+  }, modalId, { timeout: 5000 });
 }
 
 // modal 遮罩（z-index 1000）盖住工具栏的 quick-import-toggle，真实点击会被
@@ -78,17 +78,20 @@ test.describe('锚点定位迁移 - 核心弹窗', () => {
   });
   test('question-modal 锚点下方渲染，无重叠', async ({ page }) => {
     await page.evaluate(() => document.getElementById('question-modal')?.classList.add('active'));
+    await waitModalSynced(page, 'question-modal');
     const { overlap } = await noOverlap(page, '#question-modal .modal-content');
     expect(overlap).toBe(false);
     await expect(page.locator('#question-modal .modal-content')).toBeVisible();
   });
   test('basket-modal', async ({ page }) => {
     await page.evaluate(() => document.getElementById('basket-modal')?.classList.add('active'));
+    await waitModalSynced(page, 'basket-modal');
     const { overlap } = await noOverlap(page, '#basket-modal .modal-content');
     expect(overlap).toBe(false);
   });
   test('export-modal', async ({ page }) => {
     await page.evaluate(() => document.getElementById('export-modal')?.classList.add('active'));
+    await waitModalSynced(page, 'export-modal');
     const { overlap } = await noOverlap(page, '#export-modal .modal-content');
     expect(overlap).toBe(false);
   });
@@ -101,6 +104,7 @@ test.describe('锚点定位迁移 - PDF/版本', () => {
   });
   test('pdf-preview-modal 锚点下方且内部可滚动', async ({ page }) => {
     await page.evaluate(() => document.getElementById('pdf-preview-modal')?.classList.add('active'));
+    await waitModalSynced(page, 'pdf-preview-modal');
     const { overlap } = await noOverlap(page, '#pdf-preview-modal .modal-content');
     expect(overlap).toBe(false);
     const scrollable = await page.evaluate(() => {
@@ -118,6 +122,7 @@ test.describe('锚点定位迁移 - 反馈/同步/备份/组合', () => {
   });
   test('issue-feedback-modal 在锚点展开态无重叠且可提交', async ({ page }) => {
     await page.evaluate(() => document.getElementById('issue-feedback-modal')?.classList.add('active'));
+    await waitModalSynced(page, 'issue-feedback-modal');
     const { overlap } = await noOverlap(page, '#issue-feedback-modal .modal-content');
     expect(overlap).toBe(false);
     await page.click('#feedback-title');
@@ -137,12 +142,14 @@ test.describe('锚点定位迁移 - 反馈/同步/备份/组合', () => {
   });
   test('login-modal / backup-modal 无重叠', async ({ page }) => {
     await page.evaluate(() => document.getElementById('login-modal')?.classList.add('active'));
+    await waitModalSynced(page, 'login-modal');
     let r = await noOverlap(page, '#login-modal .modal-content');
     expect(r.overlap).toBe(false);
     await page.evaluate(() => {
       document.getElementById('login-modal')?.classList.remove('active');
       document.getElementById('backup-modal')?.classList.add('active');
     });
+    await waitModalSynced(page, 'backup-modal');
     r = await noOverlap(page, '#backup-modal .modal-content');
     expect(r.overlap).toBe(false);
   });
@@ -157,6 +164,7 @@ test.describe('锚点定位迁移 - 剩余长尾与白名单', () => {
   for (const id of REMAINING) {
     test(`${id} 无重叠`, async ({ page }) => {
       await page.evaluate((mid) => document.getElementById(mid)?.classList.add('active'), id);
+      await waitModalSynced(page, id);
       const { overlap } = await noOverlap(page, `#${id} .modal-content`);
       expect(overlap).toBe(false);
     });
