@@ -14,6 +14,8 @@ export function showExportModal(questions: any[]): void {
   const now = new Date();
   const ts = now.getFullYear() + String(now.getMonth() + 1).padStart(2, '0') + String(now.getDate()).padStart(2, '0') + '_' + String(now.getHours()).padStart(2, '0') + String(now.getMinutes()).padStart(2, '0');
   (document.getElementById('export-filename') as HTMLInputElement).value = '题库导出_' + ts;
+  const toPaper = document.getElementById('export-to-paper') as HTMLInputElement | null;
+  if (toPaper) toPaper.checked = false;
   loadExportFolders();
   openModal('export-modal');
 }
@@ -107,9 +109,43 @@ export function selectSpacing(el: HTMLElement, sp: string): void {
 export async function doExportPDF(): Promise<void> {
   const qs = w._exportQuestions;
   if (!qs || !qs.length) { w.showStatus('没有可导出的题目', 'error'); return; }
+  const addToPaper = !!(document.getElementById('export-to-paper') as HTMLInputElement | null)?.checked;
   closeExportModal();
   w.showStatus('正在生成 PDF...', 'success');
   const spc = w.exportSpacing === 'large' ? parseFloat((document.getElementById('spc-large') as HTMLInputElement).value) : w.exportSpacing === 'small' ? parseFloat((document.getElementById('spc-small') as HTMLInputElement).value) : 0;
-  await w.generatePDF(qs, { mode: w.exportMode || 'single', spacing: w.exportSpacing, spacingCm: spc, title: getExportFileName() });
+  const pdfPath = await w.generatePDF(qs, { mode: w.exportMode || 'single', spacing: w.exportSpacing, spacingCm: spc, title: getExportFileName() });
   w.showStatus('PDF 已生成', 'success');
+  if (addToPaper) await addExportToPaper(getExportFileName(), qs, typeof pdfPath === 'string' ? pdfPath : null);
+}
+
+async function addExportToPaper(name: string, qs: any[], pdfLocalPath: string | null): Promise<void> {
+  let pdfUrl: string | null = null;
+  const isNative = !!(w.Capacitor && w.Capacitor.isNativePlatform && w.Capacitor.isNativePlatform());
+  if (isNative && pdfLocalPath && w.Capacitor?.Plugins?.Filesystem) {
+    try {
+      const read = await w.Capacitor.Plugins.Filesystem.readFile({ path: pdfLocalPath, directory: 'DOCUMENTS' });
+      const b64 = typeof read.data === 'string' ? read.data : '';
+      const blob = base64ToBlob(b64, 'application/pdf');
+      const serverUrl = (localStorage.getItem('serverUrl') || '').replace(/\/+$/, '');
+      const token = localStorage.getItem('apiToken') || '';
+      if (serverUrl && token) {
+        const fd = new FormData();
+        fd.append('file', blob, name.endsWith('.pdf') ? name : name + '.pdf');
+        const resp = await fetch(serverUrl + '/api/upload-pdf', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: fd });
+        const data = await resp.json().catch(() => ({}));
+        if (resp.ok && data.url) pdfUrl = data.url;
+      }
+    } catch (_e) { pdfUrl = null; }
+  }
+  await w.dbCreatePaperFromExport(name, qs.map((q: any) => q.id), pdfUrl, pdfLocalPath);
+  if (pdfUrl) w.showStatus('已添加到试卷管理（云端）', 'success');
+  else if (isNative) w.showStatus('已加入试卷（网络未上传，仅本机可打开）', 'warning');
+  else w.showStatus('已添加到试卷管理', 'success');
+}
+
+function base64ToBlob(b64: string, mime: string): Blob {
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: mime });
 }

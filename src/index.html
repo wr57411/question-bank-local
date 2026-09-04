@@ -518,6 +518,7 @@
             <button class="secondary" onclick="closeExportModal()">取消</button>
             <div style="display:flex;gap:8px;align-items:center">
                 <button onclick="previewExportPDF()" style="padding:12px 18px">👁️ 预览</button>
+                <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;margin-bottom:10px"><input type="checkbox" id="export-to-paper" style="width:16px;height:16px;accent-color:var(--accent)" /> 完成后添加到试卷管理（云端）</label>
                 <button onclick="doExportPDF()" style="padding:12px 18px">📄 导出 PDF</button>
                 <button onclick="doExportImagesFromBasket()" class="btn-warn" style="padding:12px 18px">📁 导出图片</button>
                 <button id="export-img-mode-btn" onclick="toggleExportImgMode()" style="padding:6px 8px;font-size:11px;border:1px solid var(--border);background:var(--surface);color:var(--text-secondary);border-radius:var(--radius-sm);cursor:pointer" title="切换导出模式"></button>
@@ -552,6 +553,7 @@
 <div id="paper-modal" class="modal" onclick="if(event.target===this)closePaperModal()">
     <div class="modal-content" style="max-width:700px">
         <h3 id="paper-modal-title" style="margin:0 0 var(--space-md) 0"></h3>
+        <button id="paper-open-pdf-btn" class="btn-grape" style="display:none;width:100%;padding:12px;margin-bottom:var(--space-md);font-size:14px">📂 打开试卷 PDF</button>
         <div id="paper-modal-questions" style="max-height:60vh;overflow-y:auto;margin-bottom:var(--space-md)"></div>
         <div class="btn-group" style="justify-content:space-between">
             <button class="secondary" onclick="closePaperModal()">关闭</button>

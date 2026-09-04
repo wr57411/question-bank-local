@@ -280,7 +280,7 @@ async function generateLegacyDouble(questions: Question[], doc: JsPDFInstance, c
   }
 }
 
-export async function generatePDF(questions: Question[], options: PDFGenerateOptions = {}): Promise<JsPDFInstance | undefined> {
+export async function generatePDF(questions: Question[], options: PDFGenerateOptions = {}): Promise<JsPDFInstance | string | undefined> {
   const doc = new jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const cn = await registerCnFont(doc);
   const mode = options.mode || 'single';
@@ -320,8 +320,10 @@ export async function generatePDF(questions: Question[], options: PDFGenerateOpt
     try {
       await window.Capacitor.Plugins.Filesystem.writeFile({ path: filePath, data: pdfBase64, directory: 'DOCUMENTS' });
       alert('PDF 已保存: DOCUMENTS/' + filePath);
+      return filePath;
     } catch (e) {
       alert('保存失败: ' + (e instanceof Error ? e.message : String(e)));
+      return undefined;
     }
   } else {
     doc.save(fileName);

@@ -112,6 +112,9 @@ assignIfMissing({
   dbDeleteTag: data.dbDeleteTag,
   dbGetAllPapers: data.dbGetAllPapers,
   dbDeletePaper: data.dbDeletePaper,
+  dbGetPaperQuestions: data.dbGetPaperQuestions,
+  dbCreatePaperFromExport: data.dbCreatePaperFromExport,
+  dbEnsurePaperPdfLocal: data.dbEnsurePaperPdfLocal,
   dbGetQuestionNotes: data.dbGetQuestionNotes,
   dbAddQuestionNote: data.dbAddQuestionNote,
   generateId: data.generateId,
@@ -276,6 +279,7 @@ assignToWindow({
   // Batch 4: paper-manage (leaf functions)
   showPaperDetail: ui.showPaperDetail,
   closePaperModal: ui.closePaperModal,
+  openPaperPdf: ui.openPaperPdf,
   exportPaperAsPDF: ui.exportPaperAsPDF,
   exportPaperAsImages: ui.exportPaperAsImages,
   getExportImgMode: ui.getExportImgMode,

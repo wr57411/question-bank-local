@@ -4,7 +4,7 @@ import {
   dbTopics, dbQuestionNotes,
   nowIso
 } from './stores';
-import type { SyncPayload, DataFingerprint } from '../types';
+import type { SyncPayload, DataFingerprint, Paper } from '../types';
 import { adoptRemoteQuickFavTags, pendingQuickFavCount } from '../services/quick-fav-tags';
 
 let _serverUrl = '';
@@ -59,7 +59,11 @@ export async function dbBuildSyncPayload(): Promise<SyncPayload> {
   await dbQuestions.iterate((v: unknown) => { if (v) payload.questions.push(v); });
   await dbTags.iterate((v: unknown) => { if (v) payload.tags.push(v); });
   await dbQuestionTags.iterate((v: unknown) => { if (v) payload.question_tags.push(v); });
-  await dbPapers.iterate((v: unknown) => { if (v) payload.papers.push(v); });
+  await dbPapers.iterate((v: unknown) => {
+    if (!v) return;
+    const { pdf_local_path: _local, ...rest } = v as Record<string, unknown>;
+    payload.papers.push(rest);
+  });
   await dbPaperQuestions.iterate((v: unknown) => { if (v) payload.paper_questions.push(v); });
   await dbQuestionNotes.iterate((v: unknown) => { if (v) payload.question_notes.push(v); });
   return payload;
@@ -107,6 +111,12 @@ export async function dbApplyRemoteSnapshot(snapshot: any): Promise<void> {
   }
   if (snapshot.paper_questions) {
     for (const pq of snapshot.paper_questions) { await dbPaperQuestions.setItem(pq.id || `${pq.paper_id}_${pq.question_id}`, pq); }
+  }
+  if (snapshot.papers) {
+    for (const p of snapshot.papers) {
+      const local = await dbPapers.getItem<Paper & { pdf_local_path?: string | null }>(p.id);
+      await dbPapers.setItem(p.id, { ...p, pdf_local_path: local?.pdf_local_path ?? null });
+    }
   }
   if (snapshot.question_notes) {
     for (const n of snapshot.question_notes) { await dbQuestionNotes.setItem(n.id, n); }

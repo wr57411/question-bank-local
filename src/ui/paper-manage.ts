@@ -27,6 +27,10 @@ export async function showPaperDetail(pId: string): Promise<void> {
   if (!paper) return;
   document.getElementById('paper-modal-title')!.textContent = paper.name;
   const c = document.getElementById('paper-modal-questions')!;
+  const openBtn = document.getElementById('paper-open-pdf-btn')!;
+  const hasPdf = !!(paper.pdf_url || paper.pdf_local_path);
+  openBtn.style.display = hasPdf ? '' : 'none';
+  if (hasPdf) openBtn.onclick = () => openPaperPdf(paper);
   if (!questions.length) { c.innerHTML = '<p style="color:#999">该试卷暂无题目</p>'; }
   else {
     c.replaceChildren();
@@ -38,6 +42,28 @@ export async function showPaperDetail(pId: string): Promise<void> {
     });
   }
   openModal('paper-modal');
+}
+
+export async function openPaperPdf(paper: any): Promise<void> {
+  const isNative = !!(w.Capacitor && w.Capacitor.isNativePlatform && w.Capacitor.isNativePlatform());
+  const serverUrl = (localStorage.getItem('serverUrl') || '').replace(/\/+$/, '');
+  if (!isNative) {
+    if (paper.pdf_url && serverUrl) window.open(serverUrl + paper.pdf_url, '_blank');
+    else w.showStatus('Web 端需要先在手机上导出并同步该试卷', 'error');
+    return;
+  }
+  try {
+    const localPath = await w.dbEnsurePaperPdfLocal(paper);
+    if (!localPath) { w.showStatus('PDF 不可用（未上传云端且本地无缓存）', 'error'); return; }
+    const uriResult = await w.Capacitor.Plugins.Filesystem.getUri({ path: localPath, directory: 'DOCUMENTS' });
+    if (w.Capacitor.Plugins.FileOpener) {
+      await w.Capacitor.Plugins.FileOpener.open({ filePath: uriResult.uri, contentType: 'application/pdf' });
+    } else {
+      await w.Capacitor.Plugins.Browser.open({ url: uriResult.uri });
+    }
+  } catch (e: any) {
+    w.showStatus('打开 PDF 失败: ' + (e.message || e), 'error');
+  }
 }
 
 export function closePaperModal(): void { closeModal('paper-modal'); }

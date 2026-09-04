@@ -4,6 +4,8 @@ export interface Paper {
   created_at: string;
   updated_at: string;
   deleted_at: string | null;
+  pdf_url?: string | null;
+  pdf_local_path?: string | null;
 }
 
 export interface PaperQuestion {
