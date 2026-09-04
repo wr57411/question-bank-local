@@ -1,4 +1,4 @@
-import type { Question, LayoutImage, LayoutCell, PDFGenerateOptions } from '../types';
+import type { Question, LayoutImage, LayoutCell, LayoutPage, PDFGenerateOptions } from '../types';
 import { planLayout } from './pdf-layout-engine';
 import { estimateTH, cropImage, loadImageDims } from './pdf-image';
 import { loadCnFontBase64 } from './pdf-font';
@@ -79,24 +79,17 @@ async function estH(src: string | null | undefined, maxW: number): Promise<numbe
   } catch { return 0; }
 }
 
-async function generateWithEngine(
+async function buildEngineUnits(
   questions: Question[],
-  doc: JsPDFInstance,
-  cn: string,
-  opts: { spacing: 'none' | 'small' | 'large'; spacingCm: number; title: string; targetTextMM: number; lmMap?: Record<string, 'single' | 'double'> },
-): Promise<void> {
-  const spcMm = opts.spacing !== 'none' ? opts.spacingCm * 10 : 0;
-
-  if (opts.title) {
-    drawCentered(doc, cn, opts.title, M + 5, 18);
-    drawCentered(doc, cn, `共 ${questions.length} 题`, M + 13, 11);
-  }
-
+  kind: 'together' | 'questions' | 'answers',
+  spcMm: number,
+  lmMap?: Record<string, 'single' | 'double'>,
+): Promise<LayoutImage[]> {
   const units: LayoutImage[] = [];
   for (let i = 0; i < questions.length; i++) {
     const q = questions[i];
-    const lm = (opts.lmMap && opts.lmMap[q.id]) || (q.layout_type === 1 ? 'double' : 'single');
-    if (q.question_image_url) {
+    const lm = (lmMap && lmMap[q.id]) || (q.layout_type === 1 ? 'double' : 'single');
+    if (kind !== 'answers' && q.question_image_url) {
       try {
         const dims = await _internals.loadImageDims(q.question_image_url);
         const tH = await _internals.estimateTH(q.question_image_url);
@@ -105,29 +98,39 @@ async function generateWithEngine(
         console.warn('跳过无法读取的题目图片:', e);
       }
     }
-    if (q.answer_image_url) {
+    if (kind !== 'questions' && q.answer_image_url) {
+      const together = kind === 'together';
       try {
         const dims = await _internals.loadImageDims(q.answer_image_url);
         const tH = await _internals.estimateTH(q.answer_image_url);
-        units.push({ key: `a${i}`, src: q.answer_image_url, w: dims.w, h: dims.h, tH, lm, label: '答案:', labelH: 4, afterGap: 0 });
+        units.push({ key: `a${i}`, src: q.answer_image_url, w: dims.w, h: dims.h, tH, lm,
+          label: together ? '答案:' : `第 ${i + 1} 题`,
+          labelH: together ? 4 : 5,
+          afterGap: together ? 0 : spcMm });
       } catch (e) {
         console.warn('跳过无法读取的答案图片:', e);
       }
     }
   }
+  return units;
+}
 
-  const { pages, truncated } = planLayout(units, { targetTextMM: opts.targetTextMM, topReserveMM: opts.title ? 35 : 0 });
-
-  if (truncated) {
-    console.warn('PDF 排版迭代上限，部分内容未排版');
-    alert('部分题目未能完成排版，请减少单次导出数量');
-  }
-
+async function renderEnginePages(
+  doc: JsPDFInstance,
+  cn: string,
+  pages: LayoutPage[],
+  pageOffset: number,
+  totalPages: number,
+  header?: string,
+): Promise<void> {
   for (let pi = 0; pi < pages.length; pi++) {
-    if (pi > 0) doc.addPage();
+    if (pi > 0 || pageOffset > 0) doc.addPage();
+    if (header && pi === 0) {
+      drawCentered(doc, cn, header, M, 16);
+    }
     doc.setFontSize(8);
     doc.setTextColor(180);
-    doc.text(`— ${pi + 1}/${pages.length} —`, W / 2, H - 4, { align: 'center' });
+    doc.text(`— ${pageOffset + pi + 1}/${totalPages} —`, W / 2, H - 4, { align: 'center' });
     doc.setTextColor(0);
     const cells: LayoutCell[] = pages[pi].L.concat(pages[pi].R);
     for (const cell of cells) {
@@ -150,6 +153,58 @@ async function generateWithEngine(
       }
     }
   }
+}
+
+async function generateWithEngine(
+  questions: Question[],
+  doc: JsPDFInstance,
+  cn: string,
+  opts: { spacing: 'none' | 'small' | 'large'; spacingCm: number; title: string; targetTextMM: number; lmMap?: Record<string, 'single' | 'double'> },
+): Promise<void> {
+  const spcMm = opts.spacing !== 'none' ? opts.spacingCm * 10 : 0;
+
+  if (opts.title) {
+    drawCentered(doc, cn, opts.title, M + 5, 18);
+    drawCentered(doc, cn, `共 ${questions.length} 题`, M + 13, 11);
+  }
+
+  const units = await buildEngineUnits(questions, 'together', spcMm, opts.lmMap);
+  const { pages, truncated } = planLayout(units, { targetTextMM: opts.targetTextMM, topReserveMM: opts.title ? 35 : 0 });
+
+  if (truncated) {
+    console.warn('PDF 排版迭代上限，部分内容未排版');
+    alert('部分题目未能完成排版，请减少单次导出数量');
+  }
+
+  await renderEnginePages(doc, cn, pages, 0, pages.length);
+}
+
+async function generateWithEngineSeparate(
+  questions: Question[],
+  doc: JsPDFInstance,
+  cn: string,
+  opts: { spacing: 'none' | 'small' | 'large'; spacingCm: number; title: string; targetTextMM: number; lmMap?: Record<string, 'single' | 'double'> },
+): Promise<void> {
+  const spcMm = opts.spacing !== 'none' ? opts.spacingCm * 10 : 0;
+
+  if (opts.title) {
+    drawCentered(doc, cn, opts.title, M + 5, 18);
+    drawCentered(doc, cn, `共 ${questions.length} 题`, M + 13, 11);
+  }
+
+  const qUnits = await buildEngineUnits(questions, 'questions', spcMm, opts.lmMap);
+  const aUnits = await buildEngineUnits(questions, 'answers', spcMm, opts.lmMap);
+  const qPlan = planLayout(qUnits, { targetTextMM: opts.targetTextMM, topReserveMM: opts.title ? 35 : 0 });
+  const aPlan = planLayout(aUnits, { targetTextMM: opts.targetTextMM, topReserveMM: 25 });
+
+  if (qPlan.truncated || aPlan.truncated) {
+    console.warn('PDF 排版迭代上限，部分内容未排版');
+    alert('部分题目未能完成排版，请减少单次导出数量');
+  }
+
+  const total = qPlan.pages.length + aPlan.pages.length;
+  await renderEnginePages(doc, cn, qPlan.pages, 0, total);
+  await renderEnginePages(doc, cn, aPlan.pages, qPlan.pages.length, total, '参考答案');
 }
 
 async function generateLegacyDouble(questions: Question[], doc: JsPDFInstance, cn: string, y0: number, spcMm: number): Promise<void> {
@@ -225,28 +280,6 @@ async function generateLegacyDouble(questions: Question[], doc: JsPDFInstance, c
   }
 }
 
-async function generateLegacySeparate(questions: Question[], doc: JsPDFInstance, cn: string, y0: number, spcMm: number): Promise<void> {
-  let y = y0;
-  for (let i = 0; i < questions.length; i++) {
-    if (y > H - M - 20) { doc.addPage(); y = M; }
-    drawLabel(doc, cn, `第 ${i + 1} 题`, M, y + 4, 11);
-    y += 5;
-    y += await placeImg(doc, questions[i].question_image_url, M, y, MAXW) + 2;
-    if (spcMm > 0) y += spcMm;
-  }
-  doc.addPage(); y = M;
-  drawCentered(doc, cn, '参考答案', y, 16);
-  y += 10;
-  for (let i = 0; i < questions.length; i++) {
-    const q = questions[i];
-    if (!q.answer_image_url) continue;
-    if (y + 15 > H - M) { doc.addPage(); y = M; }
-    drawLabel(doc, cn, `第 ${i + 1} 题`, M, y + 4, 10);
-    y += 5;
-    y += await placeImg(doc, q.answer_image_url, M, y, MAXW * 0.8) + 3;
-  }
-}
-
 export async function generatePDF(questions: Question[], options: PDFGenerateOptions = {}): Promise<JsPDFInstance | undefined> {
   const doc = new jspdf.jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const cn = await registerCnFont(doc);
@@ -269,11 +302,11 @@ export async function generatePDF(questions: Question[], options: PDFGenerateOpt
     }
     await generateLegacyDouble(questions, doc, cn, title ? M + 20 : M, spcMm);
   } else if (mode === 'separate') {
-    if (title) {
-      drawCentered(doc, cn, title, M + 5, 18);
-      drawCentered(doc, cn, `共 ${questions.length} 题`, M + 13, 11);
-    }
-    await generateLegacySeparate(questions, doc, cn, title ? M + 20 : M, spcMm);
+    await generateWithEngineSeparate(questions, doc, cn, {
+      spacing, spacingCm, title,
+      targetTextMM: options.targetTextMM ?? 4,
+      lmMap: options.lmMap,
+    });
   }
 
   if (options.noSave) return doc;

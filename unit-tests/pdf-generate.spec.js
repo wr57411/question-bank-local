@@ -101,4 +101,20 @@ describe('generatePDF', () => {
     const s1 = imgs.find(c => c[1].endsWith('Qs1'))
     expect(s1[2]).toBe(10)
   })
+
+  it('separate 走引擎自动混排：双栏标注的题图与答案图均按双栏排版，题目段与答案段分页', async () => {
+    const qs = [
+      { ...q('s', true), layout_type: 0 },
+      { ...q('d', true), layout_type: 1 },
+    ]
+    const doc = await generatePDF(qs, { mode: 'separate', noSave: true })
+    const imgs = doc.calls.filter(c => c[0] === 'addImage')
+    expect(imgs.length).toBe(4)
+    expect(imgs.find(c => c[1].endsWith('Qs'))[2]).toBe(10)
+    expect(imgs.find(c => c[1].endsWith('Qd'))[2]).toBe(16)
+    expect(imgs.find(c => c[1].endsWith('Ad'))[2]).toBe(16)
+    const texts = doc.calls.filter(c => c[0] === 'text').map(c => c[1])
+    expect(texts.join('|')).toContain('参考答案')
+    expect(doc.pages).toBe(4)
+  })
 })

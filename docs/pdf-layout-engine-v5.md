@@ -12,12 +12,13 @@
 | src/data/pdf-layout-engine.ts | planLayout 纯函数（无 DOM）：normScale 中位数归一化 clamp[0.35,1]、分组队列、组间翻页、长图切割、无条件回队（内容零丢失）、crop 区域记录（布局期不生成 dataURL） |
 | src/data/pdf-image.ts | estimateTHFromPixels 纯函数（灰度投影+3点平滑+行高 runs 中位数）+ loadImage/loadImageDims/estimateTH/cropImage（Canvas 能力层） |
 | src/data/pdf-font.ts | NotoSansSC base64 加载（模块级双缓存，17MB 字体仅首次加载） |
-| src/data/pdf.ts | generatePDF 重写：single/merged 走引擎；double/separate 逐字复刻 db.js；原生 Filesystem DOCUMENTS 保存 + Web doc.save；noSave 返回 doc；中文字体注册；题号/答案标签；页码；切割线；留空虚线 |
+| src/data/pdf.ts | generatePDF 重写：single/merged/separate 走引擎（buildEngineUnits+renderEnginePages 共用）；double 复刻 db.js（UI 已无入口）；原生 Filesystem DOCUMENTS 保存 + Web doc.save；noSave 返回 doc；中文字体注册；题号/答案标签；页码；切割线；留空虚线 |
 | src/main.ts | generatePDF: data.generatePDF 加入 assignToWindow 批次（覆盖 db.js 旧版；删除该行即回退） |
 
 ## 行为变更与兼容
 - single/merged：从"顺序整图放置"变为引擎排版（自动分组、长图切割、页码）——收益：双栏扫描件不再压扁混排、超长题不再丢失/变形
-- double/separate：逻辑复刻 db.js（三处微调：窄图不再放大至槽宽、标签基线下移 4mm、图片加载去掉 5s 超时守卫）
+- double：逻辑复刻 db.js（窄图不再放大至槽宽等三处微调；UI 已无入口的死路径，保留向后兼容）
+- separate（题目/答案分开）同样走引擎：题目段、答案段分别按 layout_type 自动混排（答案段首页“参考答案”表头 + topReserveMM 25，页码全文连续）；题后留空在 separate 下也画虚线（与挨着模式统一）
 - 契约不变：spacing/spacingCm/title/noSave/原生保存路径均与旧版一致（export-pdf-ui.ts 无需改动）
 - 栏式判定（已接线）：`lm = lmMap[q.id] || (q.layout_type === 1 ? 'double' : 'single')`；layout_type 为录题表单强制标注（0=仅适合单栏，1=单双栏均可即双栏版式），实测全库无非 0/1 值；lmMap 保留为调用方最高优先级扩展点；OCR 自动判定（原型路线图 v4.2）为可选增强
 
