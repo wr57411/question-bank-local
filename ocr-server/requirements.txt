@@ -1,9 +1,0 @@
-fastapi
-uvicorn[standard]
-python-multipart
-pillow
-numpy
-paddlepaddle
-paddleocr
-torch
-unimernet @ git+https://github.com/opendatalab/UniMERNet.git
