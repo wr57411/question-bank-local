@@ -54,3 +54,15 @@ server/.env_副本
 
 # 测试产物归档目录（硬规则：产物不放在项目根目录）
 tmp/
+
+# AI 工具本地状态与临时产物（非项目源码，不纳入版本控制）
+# 注意：.Codex/ 与 .agents/ 是上面显式白名单有意纳入的，与此处的目录不同，勿混
+.codebuddy/
+.loopx/
+.qoder/
+.reasonix/
+.workbuddy/
+.zcode/
+vibe_images/
+diag-top-bar.png
+reasonix.toml
