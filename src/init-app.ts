@@ -31,7 +31,6 @@ export async function refreshAll(): Promise<void> {
     ui.loadTags(),
     w.isFormDirty ? Promise.resolve() : ui.loadQuestions(),
     ui.loadPapers(),
-    ui.loadBookFilter(),
   ]);
   if (!w.isFormDirty) {
     const lastBookName = localStorage.getItem('lastBookName');
@@ -74,6 +73,5 @@ export function initApp(): void {
   // Form initializers
   ui.initTagForm();
   ui.initQuestionForm();
-  ui.initPaperForm();
   ui.initQuickImportMode();
 }

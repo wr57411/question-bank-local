@@ -2,21 +2,6 @@
 import { openModal, closeModal } from './common';
 const w = window as any;
 
-let currentAIRecommendedIds: string[] = [];
-
-export function initPaperForm(): void {
-  document.getElementById('paper-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = (document.getElementById('paper-name') as HTMLInputElement).value.trim();
-    const tags = Array.from((document.getElementById('paper-tag-select') as HTMLSelectElement).selectedOptions).map(o => o.value);
-    if (!name) return;
-    await w.dbCreatePaper(name, tags);
-    (document.getElementById('paper-form') as HTMLFormElement).reset();
-    await loadPapers();
-    w.showStatus('试卷创建成功', 'success');
-  });
-}
-
 export async function loadPapers(): Promise<void> {
   const papers = await w.dbGetAllPapers();
   const c = document.getElementById('papers-list')!;
@@ -214,62 +199,4 @@ export async function doExportImages(): Promise<void> {
   const folderNames = tasks.length > 1 ? `${folderName}/ 和 ${folderName}-空白/` : `${folderName}/`;
   document.getElementById('export-images-summary')!.textContent = `✅ 已导出 ${taskLabels} 到 ${folderNames}`;
   setTimeout(() => closeExportImagesModal(), 2000);
-}
-
-// AI 智能组卷
-export async function startAIPaperGeneration(): Promise<void> {
-  const requirement = (document.getElementById('ai-paper-requirement') as HTMLInputElement).value.trim();
-  if (!requirement) { w.showStatus('请先输入您的组卷需求', 'error'); return; }
-  const Gemma4 = w.Capacitor?.Plugins?.Gemma4;
-  if (!Gemma4) { w.showStatus('AI 引擎未准备好 (仅限原生 App 使用)', 'error'); return; }
-  const status = await Gemma4.checkModelStatus();
-  if (!status.ready) { w.showStatus('Gemma 4 模型尚未就绪，请先下载或发现模型', 'error'); return; }
-  w.showStatus('AI 正在根据您的需求筛选题目...', 'success');
-  const candidates = w.allQuestions
-    .filter((q: any) => q.semantic_summary && q.semantic_summary !== 'AI 正在分析中...')
-    .map((q: any) => ({ id: q.id, tags: q.question_tags.map((t: any) => t.tags.name), summary: q.semantic_summary, difficulty: q.ai_metadata?.difficulty || 0 }));
-  if (candidates.length === 0) { w.showStatus('题库中尚无经过 AI 分析的题目，请先添加题目并等待分析完成', 'error'); return; }
-  try {
-    const result = await Gemma4.recommendQuestions({ requirement, candidatesJson: JSON.stringify(candidates.slice(0, 50)) });
-    renderAIRecommendations(result.recommended_ids, result.reason);
-  } catch (e: any) { w.showStatus('AI 推荐失败: ' + e.message, 'error'); }
-}
-
-export function renderAIRecommendations(ids: string[], reason: string): void {
-  currentAIRecommendedIds = ids;
-  const modal = document.getElementById('ai-recommend-modal')!;
-  const reasonEl = document.getElementById('ai-recommend-reason')!;
-  const listEl = document.getElementById('ai-recommend-list')!;
-  reasonEl.innerHTML = '<strong>AI 推荐思路:</strong><br>' + (reason || '根据您的要求挑选了以下题目。');
-  listEl.replaceChildren();
-  const recommendedQuestions = w.allQuestions.filter((q: any) => ids.includes(q.id));
-  if (recommendedQuestions.length === 0) {
-    listEl.innerHTML = '<p style="grid-column:1/-1;text-align:center;padding:20px;color:#999">未找到完全符合条件的题目</p>';
-  } else {
-    recommendedQuestions.forEach((q: any) => {
-      const card = document.createElement('div');
-      card.className = 'question-card'; card.style.margin = '0';
-      card.innerHTML = `<img src="${q.question_image_url}" style="height:100px"><div class="info"><div class="ai-summary-wrap" style="border-left-color:var(--mint);margin:0;font-size:10px">${q.semantic_summary}</div></div>`;
-      listEl.appendChild(card);
-    });
-  }
-  document.getElementById('ai-create-paper-btn')!.onclick = () => createPaperFromAI(ids);
-  openModal('ai-recommend-modal');
-}
-
-export function closeAIRecommendModal(): void { closeModal('ai-recommend-modal'); }
-
-export async function createPaperFromAI(ids: string[]): Promise<void> {
-  if (!ids || ids.length === 0) return;
-  const name = 'AI 推荐试卷 ' + new Date().toLocaleDateString();
-  const id = w.generateId();
-  const now = new Date().toISOString();
-  const paper = { id, name, created_at: now, updated_at: now, deleted_at: null };
-  await w.dbPapers.setItem(id, paper);
-  let n = 1;
-  for (const qId of ids) { await w.dbPaperQuestions.setItem(`${id}_${qId}`, { paper_id: id, question_id: qId, order_num: n++ }); }
-  closeAIRecommendModal();
-  await loadPapers();
-  w.showStatus('AI 试卷已生成', 'success');
-  w.showTab('papers', document.querySelector('.tab[onclick*="papers"]'));
 }

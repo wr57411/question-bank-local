@@ -279,7 +279,7 @@ export async function confirmQuickImport(): Promise<void> {
       args.layoutType,
       args.blankImageUrl,
       args.versions,
-      args.bookInfo
+      null
     );
     if (created?.question_image_url) {
       // 设计决策：文字写入既有 question_notes 的 text_note 字段（笔记体系已纳入同步，无需改同步链路）
@@ -294,7 +294,6 @@ export async function confirmQuickImport(): Promise<void> {
     resetQuickNote();
     showStatus('题目已导入', 'success');
     await Promise.resolve(w.loadQuestions?.());
-    await Promise.resolve(w.loadBookFilter?.());
   } catch (e: any) {
     showStatus('导入失败：' + (e?.message || e), 'error');
   } finally {

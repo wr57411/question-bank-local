@@ -34,16 +34,6 @@ export function renderDetailContent(q: any): void {
   versionHtml += '</div><small style="color:var(--text-secondary);font-size:11px">不勾选则所有版本均可见</small>';
   document.getElementById('modal-tags')!.innerHTML += versionHtml;
 
-  // 书本信息编辑
-  const bookHtml = `<h3 style="margin-top:12px">📖 书本信息</h3>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-      <input id="detail-book-name" placeholder="书名" value="${q.book_name || ''}" style="flex:2;min-width:100px;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
-      <input id="detail-page-number" placeholder="页码" value="${q.page_number || ''}" style="flex:1;min-width:60px;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
-      <input id="detail-question-number" placeholder="题号" value="${q.question_number || ''}" style="flex:1;min-width:60px;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" />
-    </div>
-    <button onclick="saveBookInfo('${q.id}')" style="margin-top:8px;padding:6px 14px;font-size:12px">保存书本信息</button>`;
-  document.getElementById('modal-tags')!.innerHTML += bookHtml;
-
   // 复习提醒开关
   const reviewEnabled = q.review_enabled || false;
   const reviewNextDate = q.review_next_date || '未设置';
@@ -90,16 +80,6 @@ export async function toggleQuestionVersion(questionId: string, versionId: strin
   await w.dbUpdateQuestionVersions(questionId, versions);
   await w.loadQuestions();
   w.showStatus('版本归属已更新', 'success');
-}
-
-export async function saveBookInfo(questionId: string): Promise<void> {
-  const bookName = (document.getElementById('detail-book-name') as HTMLInputElement).value.trim();
-  const pageNumber = (document.getElementById('detail-page-number') as HTMLInputElement).value.trim();
-  const questionNumber = (document.getElementById('detail-question-number') as HTMLInputElement).value.trim();
-  await w.dbUpdateQuestionBookInfo(questionId, { book_name: bookName, page_number: pageNumber, question_number: questionNumber });
-  await w.loadQuestions();
-  await w.loadBookFilter();
-  w.showStatus('书本信息已保存', 'success');
 }
 
 export function updateDetailBasketBtn(qId: string): void {

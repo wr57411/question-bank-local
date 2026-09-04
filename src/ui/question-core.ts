@@ -3,70 +3,10 @@ import { dbQuestions } from '../data/stores';
 
 const w = window as any;
 
-let currentAddMode = 'photo';
-let batchRowCount = 0;
 let openInlineTagAddId: string | null = null;
 let openInlineTagSearchValue = '';
 let currentBookFilter = '';
-let allBookNames: string[] = [];
 let _inlinePollTimers: Record<string, ReturnType<typeof setInterval>> = {};
-
-export function switchAddMode(mode: string): void {
-  currentAddMode = mode;
-  const photoSection = document.getElementById('photo-section')!;
-  const batchSection = document.getElementById('batch-section')!;
-  const bookSection = document.getElementById('book-info-section')!;
-  const photoBtn = document.getElementById('mode-photo-btn')!;
-  const textBtn = document.getElementById('mode-text-btn')!;
-  const batchBtn = document.getElementById('mode-batch-btn')!;
-  const questionLabel = document.getElementById('question-image-label')!;
-  [photoBtn, textBtn, batchBtn].forEach(btn => { btn.style.background = 'var(--surface-dim)'; btn.style.color = 'var(--text-secondary)'; (btn as HTMLElement).style.boxShadow = '0 3px 0 var(--border)'; });
-  if (mode === 'photo') {
-    photoSection.style.display = ''; batchSection.style.display = 'none'; bookSection.style.display = '';
-    photoBtn.style.background = 'var(--primary)'; photoBtn.style.color = '#fff'; photoBtn.style.boxShadow = '0 6px 16px rgba(255,120,71,.3)';
-    questionLabel.textContent = '题目图片（笔记）*';
-    const cap = (window as any).Capacitor;
-    const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
-    const MediaPlugin = isNative ? (cap?.Plugins?.MediaGallery ?? cap?.Plugins?.Media ?? null) : null;
-    if (isNative && MediaPlugin) { w.loadGalleryThumbnails('question'); w.loadGalleryThumbnails('answer'); }
-  } else if (mode === 'text') {
-    photoSection.style.display = 'none'; batchSection.style.display = 'none'; bookSection.style.display = '';
-    textBtn.style.background = 'var(--primary)'; textBtn.style.color = '#fff'; textBtn.style.boxShadow = '0 6px 16px rgba(255,120,71,.3)';
-  } else if (mode === 'batch') {
-    photoSection.style.display = 'none'; batchSection.style.display = ''; bookSection.style.display = 'none';
-    batchBtn.style.background = 'var(--primary)'; batchBtn.style.color = '#fff'; batchBtn.style.boxShadow = '0 6px 16px rgba(255,120,71,.3)';
-    if ((document.getElementById('batch-rows') as HTMLElement).children.length === 0) addBatchRow();
-    const lastBookName = localStorage.getItem('lastBookName');
-    if (lastBookName) (document.getElementById('batch-book-name') as HTMLInputElement).value = lastBookName;
-  }
-}
-
-export function addBatchRow(): void {
-  batchRowCount++;
-  const rowId = 'batch-row-' + batchRowCount;
-  const container = document.getElementById('batch-rows')!;
-  const row = document.createElement('div');
-  row.id = rowId;
-  row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
-  row.innerHTML = `<input type="number" placeholder="页码" class="batch-page" style="flex:1;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" /><input type="text" placeholder="题号" class="batch-number" style="flex:1;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" /><button type="button" onclick="removeBatchRow('${rowId}')" style="padding:6px 10px;background:var(--danger);box-shadow:none;font-size:12px;border:none;border-radius:var(--radius-sm);cursor:pointer;color:#fff">✕</button>`;
-  container.appendChild(row);
-}
-
-export function removeBatchRow(rowId: string): void {
-  const container = document.getElementById('batch-rows')!;
-  const row = document.getElementById(rowId);
-  if (row && container.children.length > 1) row.remove();
-}
-
-export function getBatchEntries(): { page: string; number: string }[] {
-  const entries: { page: string; number: string }[] = [];
-  document.querySelectorAll('#batch-rows > div').forEach(row => {
-    const page = (row.querySelector('.batch-page') as HTMLInputElement).value.trim();
-    const number = (row.querySelector('.batch-number') as HTMLInputElement).value.trim();
-    if (page || number) entries.push({ page, number });
-  });
-  return entries;
-}
 
 export function initQuestionForm(): void {
   document.getElementById('question-form')?.addEventListener('submit', async (e) => {
@@ -74,47 +14,15 @@ export function initQuestionForm(): void {
     const qi = w.croppedImages.question, ai = w.croppedImages.answer, bi = w.croppedImages.blank;
     const tags = [...w.formSelectedTagIds];
     const versions = w.getSelectedVersions();
-    const bookName = (document.getElementById('book-name') as HTMLInputElement).value.trim();
-    const pageNumber = (document.getElementById('page-number') as HTMLInputElement).value.trim();
-    const questionNumber = (document.getElementById('question-number') as HTMLInputElement).value.trim();
-
-    if (currentAddMode === 'batch') {
-      const batchBookName = (document.getElementById('batch-book-name') as HTMLInputElement).value.trim();
-      const entries = getBatchEntries();
-      if (!batchBookName) { w.showStatus('请输入书名', 'error'); return; }
-      if (entries.length === 0) { w.showStatus('请添加至少一道题目', 'error'); return; }
-      try {
-        const btn = (e.target as HTMLElement).querySelector('button[type="submit"]') as HTMLButtonElement;
-        btn.disabled = true; btn.textContent = '处理中...';
-        let count = 0;
-        for (const entry of entries) {
-          const bookInfo = { book_name: batchBookName, page_number: entry.page, question_number: entry.number };
-          await w.dbCreateQuestion(null, null, tags, 0, null, versions, bookInfo);
-          count++;
-        }
-        localStorage.setItem('lastBookName', batchBookName);
-        document.getElementById('batch-rows')!.innerHTML = '';
-        addBatchRow();
-        w.formSelectedTagIds = []; w.renderFormSelectedTags();
-        w.resetVersionCheckboxes();
-        await loadQuestions(); await loadBookFilter();
-        w.showStatus(`成功添加 ${count} 道题目`, 'success');
-        btn.disabled = false; btn.textContent = '添加题目';
-      } catch (err: any) { w.showStatus('批量添加失败: ' + err.message, 'error'); const btn = (e.target as HTMLElement).querySelector('button[type="submit"]') as HTMLButtonElement; btn.disabled = false; btn.textContent = '添加题目'; }
-      return;
-    }
-
-    if (currentAddMode === 'text' && !bookName && !pageNumber && !questionNumber) { w.showStatus('纯文字模式下请至少填写一项书本信息', 'error'); return; }
-    if (currentAddMode === 'photo' && !qi) { w.showStatus('请先选择题目图片', 'error'); return; }
+    if (!qi) { w.showStatus('请先选择题目图片', 'error'); return; }
 
     const lr = document.querySelector('input[name="layout_type"]:checked') as HTMLInputElement | null;
     const lt = lr ? parseInt(lr.value) : 0;
-    const bookInfo = (pageNumber || questionNumber) ? { book_name: bookName, page_number: pageNumber, question_number: questionNumber } : null;
 
     try {
       const btn = (e.target as HTMLElement).querySelector('button[type="submit"]') as HTMLButtonElement;
       btn.disabled = true; btn.textContent = '处理中...';
-      const newQuestion = await w.dbCreateQuestion(qi, ai, tags, lt, bi, versions, bookInfo);
+      const newQuestion = await w.dbCreateQuestion(qi, ai, tags, lt, bi, versions, null);
       const textNote = ((document.getElementById('form-text-note') as HTMLInputElement)?.value || '').trim();
       if (qi) await w.dbAddQuestionNote(newQuestion.id, qi, '笔记 v1', textNote);
       const comment = (document.getElementById('form-comment') as HTMLInputElement).value.trim();
@@ -134,13 +42,10 @@ export function initQuestionForm(): void {
       w.formSelectedTagIds = []; w.renderFormSelectedTags();
       document.querySelectorAll('.layout-option').forEach(l => { (l as HTMLElement).style.borderColor = 'var(--border-light)'; (l as HTMLElement).style.background = 'var(--surface)'; });
       w.resetVersionCheckboxes();
-      if (bookName) localStorage.setItem('lastBookName', bookName);
-      (document.getElementById('page-number') as HTMLInputElement).value = '';
-      (document.getElementById('question-number') as HTMLInputElement).value = '';
       (document.getElementById('form-comment') as HTMLInputElement).value = '';
       (document.getElementById('form-text-note') as HTMLInputElement).value = '';
       w.clearFormGeneratedTags();
-      await loadQuestions(); await loadBookFilter();
+      await loadQuestions();
       w.showStatus('题目添加成功', 'success');
       btn.disabled = false; btn.textContent = '添加题目';
     } catch (err: any) { w.showStatus('添加失败: ' + err.message, 'error'); const btn = (e.target as HTMLElement).querySelector('button[type="submit"]') as HTMLButtonElement; btn.disabled = false; btn.textContent = '添加题目'; }
@@ -148,17 +53,6 @@ export function initQuestionForm(): void {
 }
 
 export async function loadQuestions(): Promise<void> { w.allQuestions = await w.dbGetAllQuestions(); renderQuestions(); }
-
-export async function loadBookFilter(): Promise<void> {
-  allBookNames = await w.dbGetAllBookNames();
-  const select = document.getElementById('book-filter') as HTMLSelectElement;
-  select.innerHTML = '<option value="">📚 全部书本</option>';
-  allBookNames.forEach(name => { const opt = document.createElement('option'); opt.value = name; opt.textContent = '📖 ' + name; select.appendChild(opt); });
-  const datalist = document.getElementById('book-name-list');
-  if (datalist) { datalist.innerHTML = ''; allBookNames.forEach(name => { const opt = document.createElement('option'); opt.value = name; datalist.appendChild(opt); }); }
-}
-
-export function filterByBook(bookName: string): void { currentBookFilter = bookName; renderQuestions(); }
 
 export function fuzzyMatchTags(searchText: string): any[] {
   if (!searchText || !w.allTags.length) return [];

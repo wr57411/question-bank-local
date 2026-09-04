@@ -47,13 +47,6 @@ export function renderTags(): void {
 }
 
 export function updateTagSelects(): void {
-  ['paper-tag-select'].forEach(id => {
-    const sel = document.getElementById(id) as HTMLSelectElement | null;
-    if (!sel) return;
-    const prev = Array.from(sel.selectedOptions).map(o => o.value);
-    sel.replaceChildren();
-    w.allTags.forEach((t: any) => { const o = document.createElement('option'); o.value = t.id; o.textContent = t.name; if (prev.includes(t.id)) o.selected = true; sel.appendChild(o); });
-  });
   onFormTagSearch();
 }
 
@@ -241,9 +234,6 @@ export async function submitNewTag(): Promise<void> {
   await loadTags(); closeNewTagModal();
   if (w.newTagContext === 'form') {
     addFormTag(tag.id);
-  } else if (w.newTagContext === 'paper') {
-    const sel = document.getElementById('paper-tag-select') as HTMLSelectElement;
-    for (const o of Array.from(sel.options)) { if (o.value === tag.id) o.selected = true; }
   }
   w.showStatus('标签创建成功', 'success');
 }

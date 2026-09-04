@@ -201,34 +201,6 @@
             <h2>添加题目</h2>
             <div id="status-message"></div>
             <form id="question-form">
-                <div class="form-group">
-                    <label>添加方式</label>
-                    <div style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap">
-                        <button type="button" id="mode-photo-btn" onclick="switchAddMode('photo')" style="flex:1;padding:10px;font-size:13px">📸 拍照添加</button>
-                        <button type="button" id="mode-text-btn" onclick="switchAddMode('text')" class="btn-ghost" style="flex:1;padding:10px;font-size:13px">✏️ 纯文字记录</button>
-                        <button type="button" id="mode-batch-btn" onclick="switchAddMode('batch')" class="btn-ghost" style="flex:1;padding:10px;font-size:13px">📋 批量录入</button>
-                    </div>
-                </div>
-                <div id="book-info-section" class="form-group">
-                    <label>📖 书本信息（可选）</label>
-                    <div style="display:flex;gap:8px;flex-wrap:wrap">
-                        <input id="book-name" list="book-name-list" placeholder="书名" style="flex:2;min-width:120px" />
-                        <datalist id="book-name-list"></datalist>
-                        <input id="page-number" placeholder="页码" style="flex:1;min-width:60px" />
-                        <input id="question-number" placeholder="题号" style="flex:1;min-width:60px" />
-                    </div>
-                </div>
-                <div id="batch-section" style="display:none">
-                    <div class="form-group">
-                        <label>📖 书名 *</label>
-                        <input id="batch-book-name" list="book-name-list" placeholder="输入或选择书名" style="width:100%;padding:12px;font-size:14px;border:1.5px solid var(--border);border-radius:var(--radius-md)" />
-                    </div>
-                    <div class="form-group">
-                        <label>📋 题目列表（页码 + 题号）</label>
-                        <div id="batch-rows"></div>
-                        <button type="button" onclick="addBatchRow()" class="btn-ghost" style="margin-top:8px;padding:8px 16px;font-size:13px">➕ 添加一行</button>
-                    </div>
-                </div>
                 <div id="photo-section">
                     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
                         <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:12px;color:var(--text-secondary);font-weight:500">
@@ -356,9 +328,6 @@
                 <div class="filter-tags collapsed" id="filter-tags"></div>
             </div>
             <div style="display:flex;gap:8px;margin-bottom:var(--space-md);flex-wrap:wrap">
-                <select id="book-filter" onchange="filterByBook(this.value)" style="flex:1;min-width:120px;padding:8px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface)">
-                    <option value="">📚 全部书本</option>
-                </select>
                 <div class="tag-suggest" style="flex:2;min-width:150px;position:relative">
                     <input id="search-input" type="text" placeholder="🔍 搜索标签/书名/页码..." oninput="filterQuestions()" onkeyup="filterQuestions()" oncompositionend="filterQuestions()" style="width:100%;padding:8px 12px;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-md)" autocomplete="off" />
                     <div class="tag-suggest-dropdown" id="tag-suggest-dropdown"></div>
@@ -383,47 +352,11 @@
 
     <!-- 试卷管理 -->
     <div id="papers-tab" class="hidden">
-        <div class="card ai-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
-                <h2 style="margin:0;color:var(--accent)">✨ AI 智能推荐组卷</h2>
-                <span class="ai-badge">Gemma 4</span>
-            </div>
-            <div class="form-group">
-                <label style="color:var(--accent)">告诉 AI 你的组卷需求</label>
-                <textarea id="ai-paper-requirement" placeholder="例如：想要 3 道很难的几何题..." rows="3" style="resize:none;margin-top:4px"></textarea>
-            </div>
-            <button class="btn-grape" style="width:100%;padding:14px;font-size:15px" onclick="startAIPaperGeneration()">🚀 开始 AI 智能推荐</button>
-        </div>
 
-        <div class="card">
-            <h2>创建试卷</h2>
-            <form id="paper-form">
-                <div class="form-group"><label>试卷名称 *</label><input type="text" id="paper-name" required placeholder="例如：2026年4月错题巩固" /></div>
-                <div class="form-group"><label>按标签选题 <span style="cursor:pointer;color:var(--sky-dark)" onclick="showNewTagModal('paper')" title="新建标签">＋</span></label>
-                    <select id="paper-tag-select" multiple style="height:90px"></select>
-                    <small style="color:var(--text-secondary);font-size:12px">选择标签后，将自动添加包含这些标签的题目</small>
-                </div>
-                <button type="submit" style="width:100%;padding:14px;border-radius:var(--radius-lg)">📝 手动创建试卷</button>
-            </form>
-        </div>
         <div class="card"><h2>试卷列表</h2><div id="papers-list"></div></div>
     </div>
 
     <!-- AI 推荐结果展示弹窗 -->
-    <div id="ai-recommend-modal" class="modal">
-        <div class="modal-content" style="max-width:600px">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
-                <h2>🤖 AI 智能推荐结果</h2>
-                <button class="secondary" onclick="closeAIRecommendModal()" style="padding:6px 14px">关闭</button>
-            </div>
-            <div id="ai-recommend-reason" class="ai-summary-wrap" style="margin-bottom:var(--space-md);font-size:13px;line-height:1.6"></div>
-            <div id="ai-recommend-list" class="question-grid" style="grid-template-columns:repeat(2,1fr)"></div>
-            <div class="btn-group" style="margin-top:var(--space-lg)">
-                <button class="secondary" onclick="closeAIRecommendModal()">重新调整要求</button>
-                <button id="ai-create-paper-btn" class="btn-grape" style="padding:12px 20px">🚀 一键生成此试卷</button>
-            </div>
-        </div>
-    </div>
 
     <!-- 垃圾篓 -->
     <div id="trash-tab" class="hidden">
