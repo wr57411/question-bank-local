@@ -13,18 +13,14 @@ test.describe('全站状态提示统一化（错误弹窗 + toast）', () => {
     await expect(page.locator('#form-tag-search')).toBeVisible();
   });
 
-  test('组卷需求为空时弹出全局错误弹窗并可关闭', async ({ page }) => {
-    await page.evaluate(() => window.showTab('papers'));
-    await page.evaluate(() => {
-      document.getElementById('ai-paper-requirement').value = '';
-      return window.startAIPaperGeneration();
-    });
+  test('导出无题目时弹出全局错误弹窗并可关闭', async ({ page }) => {
+    await page.evaluate(() => window.doExportPDF());
 
     await expect(page.locator('#error-modal')).toHaveClass(/active/);
-    await expect(page.locator('#error-modal-msg')).toContainText('请先输入您的组卷需求');
+    await expect(page.locator('#error-modal-msg')).toContainText('没有可导出的题目');
     await assertVisiblyRendered(page, '#error-modal .modal-content', '错误弹窗主体');
     await assertVisiblyRendered(page, '#error-modal-close-btn', '错误弹窗关闭按钮');
-    await captureForReview(page, 'error-modal-paper-tab');
+    await captureForReview(page, 'error-modal-export');
 
     await page.locator('#error-modal-close-btn').click();
     await expect(page.locator('#error-modal')).not.toHaveClass(/active/);
