@@ -7,9 +7,7 @@ import { mergeUserSettings } from '../services/user-settings.js';
 import { mergeQuickFavTags, type QuickFavSnapshot } from '../services/quick-fav-merge.js';
 import {
   createAppliedResult, upsertTag, upsertQuestion, upsertPaper,
-  upsertSimilarLink, upsertTopic, upsertQuestionNote,
-  upsertTeachingNode, upsertTeachingVersion, upsertNodeQuestion,
-  upsertPdfBook, upsertPdfChapter, upsertPdfTopic, upsertPdfDoc, upsertPdfCategory,
+  upsertSimilarLink, upsertQuestionNote,
   listQuestionTagIds, listPaperQuestionIds
 } from '../services/sync-upsert.js';
 
@@ -38,37 +36,9 @@ router.post('/push', (req, res) => {
     for (const link of similar_links) {
       if (upsertSimilarLink(userId, link)) applied.similar_links.push(`${link.question_id}_${link.similar_question_id}`);
     }
-    for (const topic of topics) {
-      if (upsertTopic(userId, topic)) applied.topics.push(topic.id);
-    }
     for (const note of question_notes) {
       if (upsertQuestionNote(userId, note)) applied.question_notes.push(note.id);
     }
-    for (const node of teaching_nodes) {
-      if (upsertTeachingNode(userId, node)) applied.teaching_nodes.push(node.id);
-    }
-    for (const ver of teaching_versions) {
-      if (upsertTeachingVersion(userId, ver)) applied.teaching_versions.push(ver.id);
-    }
-    for (const nq of node_questions) {
-      if (upsertNodeQuestion(userId, nq)) applied.node_questions.push(nq.id);
-    }
-    for (const book of pdf_books) {
-      if (upsertPdfBook(userId, book)) applied.pdf_books.push(book.id);
-    }
-    for (const ch of pdf_chapters) {
-      if (upsertPdfChapter(userId, ch)) applied.pdf_chapters.push(ch.id);
-    }
-    for (const pt of pdf_topics) {
-      if (upsertPdfTopic(userId, pt)) applied.pdf_topics.push(pt.id);
-    }
-    for (const doc of pdf_docs) {
-      if (upsertPdfDoc(userId, doc)) applied.pdf_docs.push(doc.id);
-    }
-    for (const cat of pdf_categories) {
-      if (upsertPdfCategory(userId, cat)) applied.pdf_categories.push(cat.id);
-    }
-    db.prepare('UPDATE users SET pending_link_list = ? WHERE id = ?').run(JSON.stringify(pending_link_list), userId);
     if (settings) {
       const existingSettings = db.prepare('SELECT settings FROM user_settings WHERE user_id = ?').get(userId) as { settings: string } | undefined;
       let prev: Record<string, unknown> = {};
@@ -172,38 +142,7 @@ router.get('/pull', (req, res) => {
 
   const userSettings = settingsRow?.settings ? JSON.parse(settingsRow.settings) : null;
 
-  const pdfBooks = (db.prepare('SELECT * FROM pdf_books WHERE user_id = ?').all(userId) as DbRow[])
-    .filter(b => !since || toMillis((b.updated_at || b.created_at) as string) > since)
-    .map(b => ({ ...b, created_at: normalizeTimestamp(b.created_at as string), updated_at: normalizeTimestamp(b.updated_at as string), deleted_at: b.deleted_at ? normalizeTimestamp(b.deleted_at as string) : null }));
-
-  const pdfChapters = (db.prepare('SELECT * FROM pdf_chapters WHERE user_id = ?').all(userId) as DbRow[])
-    .filter(c => !since || toMillis((c.updated_at || c.created_at) as string) > since)
-    .map(c => ({ ...c, created_at: normalizeTimestamp(c.created_at as string), updated_at: normalizeTimestamp(c.updated_at as string), deleted_at: c.deleted_at ? normalizeTimestamp(c.deleted_at as string) : null }));
-
-  const pdfTopics = (db.prepare('SELECT * FROM pdf_topics WHERE user_id = ?').all(userId) as DbRow[])
-    .filter(t => !since || toMillis((t.updated_at || t.created_at) as string) > since)
-    .map(t => ({ ...t, created_at: normalizeTimestamp(t.created_at as string), updated_at: normalizeTimestamp(t.updated_at as string), deleted_at: t.deleted_at ? normalizeTimestamp(t.deleted_at as string) : null }));
-
-  const pdfDocs = (db.prepare('SELECT * FROM pdf_docs WHERE user_id = ?').all(userId) as DbRow[])
-    .filter(d => !since || toMillis((d.updated_at || d.created_at) as string) > since)
-    .map(d => ({
-      ...d,
-      created_at: normalizeTimestamp(d.created_at as string),
-      updated_at: normalizeTimestamp(d.updated_at as string),
-      deleted_at: d.deleted_at ? normalizeTimestamp(d.deleted_at as string) : null,
-      tag_ids: (db.prepare('SELECT tag_id FROM pdf_doc_tags WHERE pdf_id = ?').all(d.id) as { tag_id: string }[]).map(r => r.tag_id)
-    }));
-
-  const pdfCategories = (db.prepare('SELECT * FROM pdf_categories WHERE user_id = ?').all(userId) as DbRow[])
-    .filter(c => !since || toMillis((c.updated_at || c.created_at) as string) > since)
-    .map(c => ({
-      ...c,
-      created_at: normalizeTimestamp(c.created_at as string),
-      updated_at: normalizeTimestamp(c.updated_at as string),
-      deleted_at: c.deleted_at ? normalizeTimestamp(c.deleted_at as string) : null
-    }));
-
-    res.json({ now: nowIso(), tags, questions, papers, similar_links, pending_link_list, topics: topicsList, question_notes: questionNotes, teaching_nodes: teachingNodes, teaching_versions: teachingVersions, node_questions: nodeQuestions, pdf_books: pdfBooks, pdf_chapters: pdfChapters, pdf_topics: pdfTopics, pdf_docs: pdfDocs, pdf_categories: pdfCategories, settings: userSettings });
+    res.json({ now: nowIso(), tags, questions, papers, similar_links, question_notes: questionNotes, settings: userSettings });
   } catch (e) {
     res.status(500).json({ error: '同步 pull 失败', detail: e instanceof Error ? e.message : String(e) });
   }

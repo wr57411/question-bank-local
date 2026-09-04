@@ -15,10 +15,6 @@ import papersRouter from './routes/papers.js';
 import syncRouter from './routes/sync.js';
 import versionRouter from './routes/version.js';
 import recoveryRouter from './routes/recovery.js';
-import pdfsRouter from './routes/pdfs.js';
-import pdfBooksRouter from './routes/pdf-books.js';
-import pdfTopicsRouter from './routes/pdf-topics.js';
-import wikiRouter from './routes/wiki.js';
 import issuesRouter from './routes/issues.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -50,10 +46,6 @@ app.use(express.json({ limit: '50mb' }));
 const uploadsDir = path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 app.use('/uploads', express.static(uploadsDir));
-
-const previewsDir = path.join(uploadsDir, 'previews');
-if (!fs.existsSync(previewsDir)) fs.mkdirSync(previewsDir, { recursive: true });
-app.use('/pdf-previews', express.static(previewsDir));
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadsDir),
@@ -92,10 +84,6 @@ app.use('/api/papers', papersRouter);
 app.use('/api/sync', syncRouter);
 app.use('/api/version', versionRouter);
 app.use('/api/recovery', recoveryRouter);
-app.use('/api/pdfs', pdfsRouter);
-app.use('/api/pdf-books', pdfBooksRouter);
-app.use('/api/pdf-topics', pdfTopicsRouter);
-app.use('/api/wiki', wikiRouter);
 app.use('/api/issues', issuesRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));

@@ -2,9 +2,7 @@ import db from '../db/connection.js';
 import { nowIso } from '../utils/helpers.js';
 import {
   createAppliedResult, upsertTag, upsertQuestion, upsertPaper,
-  upsertSimilarLink, upsertTopic, upsertQuestionNote,
-  upsertTeachingNode, upsertTeachingVersion, upsertNodeQuestion,
-  upsertPdfBook, upsertPdfChapter, upsertPdfTopic, upsertPdfDoc, upsertPdfCategory
+  upsertSimilarLink, upsertQuestionNote
 } from './sync-upsert.js';
 import { mergeUserSettings } from './user-settings.js';
 
@@ -163,15 +161,6 @@ async function pullFromPrimary(retryCount = 0): Promise<{ applied: string[]; cou
         console.warn('[server-sync] similar_link 同步失败:', (e as Error).message);
       }
     }
-    for (const topic of data.topics || []) {
-      try {
-        if (upsertTopic(primaryUserId, topic as Record<string, unknown>)) {
-          applied.topics.push((topic as { id: string }).id);
-        }
-      } catch (e) {
-        console.warn('[server-sync] topic 同步失败:', (e as Error).message);
-      }
-    }
     for (const note of data.question_notes || []) {
       try {
         if (upsertQuestionNote(primaryUserId, note as Record<string, unknown>)) {
@@ -181,82 +170,7 @@ async function pullFromPrimary(retryCount = 0): Promise<{ applied: string[]; cou
         console.warn('[server-sync] question_note 同步失败:', (e as Error).message);
       }
     }
-    for (const node of data.teaching_nodes || []) {
-      try {
-        if (upsertTeachingNode(primaryUserId, node as Record<string, unknown>)) {
-          applied.teaching_nodes.push((node as { id: string }).id);
-        }
-      } catch (e) {
-        console.warn('[server-sync] teaching_node 同步失败:', (e as Error).message);
-      }
-    }
-    for (const ver of data.teaching_versions || []) {
-      try {
-        if (upsertTeachingVersion(primaryUserId, ver as Record<string, unknown>)) {
-          applied.teaching_versions.push((ver as { id: string }).id);
-        }
-      } catch (e) {
-        console.warn('[server-sync] teaching_version 同步失败:', (e as Error).message);
-      }
-    }
-    for (const nq of data.node_questions || []) {
-      try {
-        if (upsertNodeQuestion(primaryUserId, nq as Record<string, unknown>)) {
-          applied.node_questions.push((nq as { id: string }).id);
-        }
-      } catch (e) {
-        console.warn('[server-sync] node_question 同步失败:', (e as Error).message);
-      }
-    }
-    for (const book of data.pdf_books || []) {
-      try {
-        if (upsertPdfBook(primaryUserId, book as Record<string, unknown>)) {
-          applied.pdf_books.push((book as { id: string }).id);
-        }
-      } catch (e) {
-        console.warn('[server-sync] pdf_book 同步失败:', (e as Error).message);
-      }
-    }
-    for (const ch of data.pdf_chapters || []) {
-      try {
-        if (upsertPdfChapter(primaryUserId, ch as Record<string, unknown>)) {
-          applied.pdf_chapters.push((ch as { id: string }).id);
-        }
-      } catch (e) {
-        console.warn('[server-sync] pdf_chapter 同步失败:', (e as Error).message);
-      }
-    }
-    for (const pt of data.pdf_topics || []) {
-      try {
-        if (upsertPdfTopic(primaryUserId, pt as Record<string, unknown>)) {
-          applied.pdf_topics.push((pt as { id: string }).id);
-        }
-      } catch (e) {
-        console.warn('[server-sync] pdf_topic 同步失败:', (e as Error).message);
-      }
-    }
-    for (const doc of data.pdf_docs || []) {
-      try {
-        if (upsertPdfDoc(primaryUserId, doc as Record<string, unknown>)) {
-          applied.pdf_docs.push((doc as { id: string }).id);
-        }
-      } catch (e) {
-        console.warn('[server-sync] pdf_doc 同步失败:', (e as Error).message);
-      }
-    }
-    for (const cat of data.pdf_categories || []) {
-      try {
-        if (upsertPdfCategory(primaryUserId, cat as Record<string, unknown>)) {
-          applied.pdf_categories.push((cat as { id: string }).id);
-        }
-      } catch (e) {
-        console.warn('[server-sync] pdf_category 同步失败:', (e as Error).message);
-      }
-    }
 
-    if (data.pending_link_list) {
-      db.prepare('UPDATE users SET pending_link_list = ? WHERE id = ?').run(JSON.stringify(data.pending_link_list), primaryUserId);
-    }
     if (data.settings) {
       const existingSettings = db.prepare('SELECT settings FROM user_settings WHERE user_id = ?').get(primaryUserId) as { settings: string } | undefined;
       let prev: Record<string, unknown> = {};
@@ -278,20 +192,15 @@ async function pullFromPrimary(retryCount = 0): Promise<{ applied: string[]; cou
 
   const totalApplied =
     applied.tags.length + applied.questions.length + applied.papers.length +
-    applied.similar_links.length + applied.topics.length + applied.question_notes.length +
-    applied.teaching_nodes.length + applied.teaching_versions.length + applied.node_questions.length +
-    applied.pdf_books.length + applied.pdf_chapters.length + applied.pdf_topics.length +
-    applied.pdf_docs.length + applied.pdf_categories.length;
+    applied.similar_links.length + applied.question_notes.length;
 
   const allApplied: string[] = [];
-  allApplied.push(...applied.tags, ...applied.questions, ...applied.papers, ...applied.topics, ...applied.pdf_books, ...applied.pdf_docs);
+  allApplied.push(...applied.tags, ...applied.questions, ...applied.papers);
 
   let maxTimestamp = data.now || nowIso();
   const allRecords = [
     ...(data.tags || []), ...(data.questions || []), ...(data.papers || []),
-    ...(data.topics || []), ...(data.question_notes || []), ...(data.teaching_nodes || []),
-    ...(data.teaching_versions || []), ...(data.pdf_books || []), ...(data.pdf_chapters || []),
-    ...(data.pdf_topics || []), ...(data.pdf_docs || []), ...(data.pdf_categories || []),
+    ...(data.question_notes || []),
   ];
   for (const rec of allRecords) {
     const ts = (rec as { updated_at?: string }).updated_at;

@@ -12,20 +12,11 @@ export interface AppliedResult {
   papers: string[];
   similar_links: string[];
   purged_question_ids: string[];
-  topics: string[];
   question_notes: string[];
-  teaching_nodes: string[];
-  teaching_versions: string[];
-  node_questions: string[];
-  pdf_books: string[];
-  pdf_chapters: string[];
-  pdf_topics: string[];
-  pdf_docs: string[];
-  pdf_categories: string[];
 }
 
 export function createAppliedResult(): AppliedResult {
-  return { tags: [], questions: [], papers: [], similar_links: [], purged_question_ids: [], topics: [], question_notes: [], teaching_nodes: [], teaching_versions: [], node_questions: [], pdf_books: [], pdf_chapters: [], pdf_topics: [], pdf_docs: [], pdf_categories: [] };
+  return { tags: [], questions: [], papers: [], similar_links: [], purged_question_ids: [], question_notes: [] };
 }
 
 export function listQuestionTagIds(questionId: string, userId: string): string[] {
@@ -117,15 +108,7 @@ function upsertRecord(userId: string, record: Record, config: UpsertConfig): boo
 // ─── 简单表的 upsert（配置驱动）─────────────────────────────────────
 
 const TAG_COLUMNS = ['id', 'user_id', 'name', 'color', 'created_at', 'updated_at', 'deleted_at'];
-const TOPIC_COLUMNS = ['id', 'user_id', 'name', 'description', 'created_at', 'updated_at', 'deleted_at'];
 const NOTE_COLUMNS = ['id', 'user_id', 'question_id', 'note_image_url', 'label', 'text_note', 'created_at', 'updated_at'];
-const TEACHING_NODE_COLUMNS = ['id', 'user_id', 'chapter', 'subject', 'name', 'difficulty', 'key_concept', 'diagram', 'current_version_id', 'created_at', 'updated_at'];
-const TEACHING_VERSION_COLUMNS = ['id', 'user_id', 'node_id', 'version_num', 'model_name', 'status', 'content_markdown', 'content_json', 'drawings', 'error_msg', 'retry_count', 'is_current', 'created_at', 'updated_at'];
-const PDF_BOOK_COLUMNS = ['id', 'user_id', 'name', 'created_at', 'updated_at', 'deleted_at'];
-const PDF_CHAPTER_COLUMNS = ['id', 'user_id', 'book_id', 'parent_id', 'name', 'sort_order', 'created_at', 'updated_at', 'deleted_at'];
-const PDF_TOPIC_COLUMNS = ['id', 'user_id', 'name', 'created_at', 'updated_at', 'deleted_at'];
-const PDF_CATEGORY_COLUMNS = ['id', 'user_id', 'parent_id', 'name', 'level', 'sort_order', 'created_at', 'updated_at', 'deleted_at'];
-const PDF_DOC_COLUMNS = ['id', 'user_id', 'filename', 'page_count', 'file_size', 'server_path', 'chapter_id', 'topic_id', 'category_id', 'created_at', 'updated_at', 'deleted_at'];
 
 export function upsertTag(userId: string, tag: Record): boolean {
   return upsertRecord(userId, tag, {
@@ -137,23 +120,6 @@ export function upsertTag(userId: string, tag: Record): boolean {
   });
 }
 
-export function upsertTopic(userId: string, topic: Record): boolean {
-  const ok = upsertRecord(userId, topic, {
-    table: 'topics',
-    requiredFields: [],
-    columns: TOPIC_COLUMNS,
-    hasDeletedAt: true,
-  });
-  if (ok && topic.topic_questions) {
-    db.prepare('DELETE FROM topic_questions WHERE topic_id = ? AND user_id = ?').run(topic.id, userId);
-    const ins = db.prepare('INSERT OR IGNORE INTO topic_questions (topic_id, question_id, user_id, order_num, teacher_comment) VALUES (?, ?, ?, ?, ?)');
-    for (const tq of topic.topic_questions as { question_id: string; order_num?: number; teacher_comment?: string }[]) {
-      ins.run(topic.id, tq.question_id, userId, tq.order_num || 0, tq.teacher_comment || '');
-    }
-  }
-  return ok;
-}
-
 export function upsertQuestionNote(userId: string, note: Record): boolean {
   return upsertRecord(userId, note, {
     table: 'question_notes',
@@ -161,84 +127,6 @@ export function upsertQuestionNote(userId: string, note: Record): boolean {
     columns: NOTE_COLUMNS,
     hasDeletedAt: false,
   });
-}
-
-export function upsertTeachingNode(userId: string, node: Record): boolean {
-  return upsertRecord(userId, node, {
-    table: 'teaching_nodes',
-    requiredFields: [],
-    columns: TEACHING_NODE_COLUMNS,
-    hasDeletedAt: false,
-    serialize: (r) => ({ ...r, difficulty: (r.difficulty as string) || '基础', subject: (r.subject as string) || '物理' }),
-  });
-}
-
-export function upsertTeachingVersion(userId: string, ver: Record): boolean {
-  return upsertRecord(userId, ver, {
-    table: 'teaching_versions',
-    requiredFields: [],
-    columns: TEACHING_VERSION_COLUMNS,
-    hasDeletedAt: false,
-    serialize: (r) => ({
-      ...r,
-      content_json: r.content_json ? JSON.stringify(r.content_json) : null,
-      drawings: typeof r.drawings === 'string' ? r.drawings : JSON.stringify(r.drawings || {}),
-      is_current: r.is_current ? 1 : 0,
-    }),
-  });
-}
-
-export function upsertPdfBook(userId: string, book: Record): boolean {
-  return upsertRecord(userId, book, {
-    table: 'pdf_books',
-    requiredFields: ['name'],
-    columns: PDF_BOOK_COLUMNS,
-    hasDeletedAt: true,
-  });
-}
-
-export function upsertPdfChapter(userId: string, ch: Record): boolean {
-  return upsertRecord(userId, ch, {
-    table: 'pdf_chapters',
-    requiredFields: ['book_id', 'name'],
-    columns: PDF_CHAPTER_COLUMNS,
-    hasDeletedAt: true,
-  });
-}
-
-export function upsertPdfTopic(userId: string, topic: Record): boolean {
-  return upsertRecord(userId, topic, {
-    table: 'pdf_topics',
-    requiredFields: ['name'],
-    columns: PDF_TOPIC_COLUMNS,
-    hasDeletedAt: true,
-  });
-}
-
-export function upsertPdfCategory(userId: string, cat: Record): boolean {
-  return upsertRecord(userId, cat, {
-    table: 'pdf_categories',
-    requiredFields: ['name'],
-    columns: PDF_CATEGORY_COLUMNS,
-    hasDeletedAt: true,
-  });
-}
-
-export function upsertPdfDoc(userId: string, doc: Record): boolean {
-  const ok = upsertRecord(userId, doc, {
-    table: 'pdf_docs',
-    requiredFields: ['filename'],
-    columns: PDF_DOC_COLUMNS,
-    hasDeletedAt: true,
-  });
-  if (ok && doc.tag_ids) {
-    db.prepare('DELETE FROM pdf_doc_tags WHERE pdf_id = ?').run(doc.id);
-    const ins = db.prepare('INSERT OR IGNORE INTO pdf_doc_tags (pdf_id, tag_id) VALUES (?, ?)');
-    for (const tagId of doc.tag_ids as string[]) {
-      ins.run(doc.id, tagId);
-    }
-  }
-  return ok;
 }
 
 // ─── 特殊 upsert（保留独立实现）─────────────────────────────────────
