@@ -45,13 +45,14 @@ async function seedTaggedQuestion(page, tagName) {
   });
 }
 
-async function selectOptionsByLabel(locator, labels) {
-  await locator.evaluate((select, expectedLabels) => {
-    Array.from(select.options).forEach((option) => {
-      option.selected = expectedLabels.includes(option.textContent);
-    });
-    select.dispatchEvent(new Event("change", { bubbles: true }));
-  }, labels);
+async function createPaperFromQuestions(page, name) {
+  await page.evaluate(async (paperName) => {
+    const questions = await window.dbGetAllQuestions();
+    const q = questions.find((x) => !x.deleted_at);
+    if (!q) throw new Error("没有可关联的题目");
+    await window.dbCreatePaperFromExport(paperName, [q.id], null, null);
+    await window.loadPapers();
+  }, name);
 }
 
 test.describe("本地题库主流程", () => {
@@ -85,10 +86,8 @@ test.describe("本地题库主流程", () => {
 
     await seedTaggedQuestion(page, maliciousTagName);
 
+    await createPaperFromQuestions(page, maliciousPaperName);
     await page.getByRole("button", { name: "试卷管理" }).click();
-    await page.locator("#paper-name").fill(maliciousPaperName);
-    await selectOptionsByLabel(page.locator("#paper-tag-select"), [maliciousTagName]);
-    await page.locator('#paper-form button[type="submit"]').click();
 
     const paperCard = page.locator("#papers-list .paper-card").first();
     await expect(paperCard).toContainText(maliciousPaperName);
@@ -122,10 +121,8 @@ test.describe("本地题库主流程", () => {
     await createTag(page, "数学");
     await seedTaggedQuestion(page, "数学");
 
+    await createPaperFromQuestions(page, "期末卷");
     await page.getByRole("button", { name: "试卷管理" }).click();
-    await page.locator("#paper-name").fill("期末卷");
-    await selectOptionsByLabel(page.locator("#paper-tag-select"), ["数学"]);
-    await page.locator('#paper-form button[type="submit"]').click();
 
     const paperCard = page.locator("#papers-list .paper-card").first();
     await expect(paperCard).toContainText("题目数量: 1");
@@ -145,10 +142,8 @@ test.describe("本地题库主流程", () => {
     await createTag(page, "数学");
     await seedTaggedQuestion(page, "数学");
 
+    await createPaperFromQuestions(page, "期末卷");
     await page.getByRole("button", { name: "试卷管理" }).click();
-    await page.locator("#paper-name").fill("期末卷");
-    await selectOptionsByLabel(page.locator("#paper-tag-select"), ["数学"]);
-    await page.locator('#paper-form button[type="submit"]').click();
     const paperCard = page.locator("#papers-list .paper-card").first();
     await expect(paperCard).toContainText("题目数量: 1");
 

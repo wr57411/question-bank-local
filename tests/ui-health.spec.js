@@ -40,8 +40,8 @@ test.describe("UI 健康检测 - 存在性", () => {
   test("initApp 已恢复：添加题目表单初始化", async ({ page }) => {
     // 题目管理 Tab 默认激活，beforeEach 已 mock Capacitor=android 且 goto("/")
     // 断言恢复 initApp 后关键表单元素已初始化并可见
-    await expect(page.locator('#book-name')).toBeVisible();
-    await expect(page.locator('#mode-photo-btn')).toBeVisible();
+    await expect(page.locator('#book-name')).toHaveCount(0);
+    await expect(page.locator('#photo-section')).toBeVisible();
     await expect(page.locator('#question-form button[type="submit"]')).toContainText('添加题目');
   });
 
@@ -52,11 +52,12 @@ test.describe("UI 健康检测 - 存在性", () => {
     await expect(page.locator('#tag-form button')).toBeVisible();
   });
 
-  test("试卷管理页表单存在", async ({ page }) => {
+  test("试卷管理页建卷表单已移除，试卷列表可用", async ({ page }) => {
     await page.locator('.tab:has-text("试卷管理")').click();
-    await expect(page.locator('#paper-name')).toBeVisible();
-    await expect(page.locator('#paper-form button')).toBeVisible();
-    await expect(page.locator('button:has-text("AI 智能推荐")')).toBeVisible();
+    await expect(page.locator('#paper-form')).toHaveCount(0);
+    await expect(page.locator('#paper-name')).toHaveCount(0);
+    await expect(page.locator('button:has-text("AI 智能推荐")')).toHaveCount(0);
+    await expect(page.locator('#papers-list')).toBeAttached();
   });
 
   test("备份弹窗版本切换器存在", async ({ page }) => {
@@ -135,14 +136,22 @@ test.describe("UI 健康检测 - 功能性", () => {
     await expect(page.locator('#tags-list .tag')).toContainText("测试标签");
   });
 
-  test("创建试卷成功", async ({ page }) => {
+  test("数据层建卷后试卷出现在列表中（导出入册链路）", async ({ page }) => {
+    await page.evaluate(async () => {
+      await window.dbCreateQuestion(
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        null, [], 0, null, [], null
+      );
+      const questions = await window.dbGetAllQuestions();
+      const q = questions.find((x) => !x.deleted_at);
+      await window.dbCreatePaperFromExport("测试试卷", [q.id], null, null);
+      await window.loadPapers();
+    });
     await page.locator('.tab:has-text("试卷管理")').click();
-    await page.locator('#paper-name').fill("测试试卷");
-    await page.locator('#paper-form button').click();
 
-    // 验证试卷出现在列表中
     await expect(page.locator('#papers-list .paper-card')).toHaveCount(1);
     await expect(page.locator('#papers-list .paper-card')).toContainText("测试试卷");
+    await expect(page.locator('#papers-list .paper-card')).toContainText("题目数量: 1");
   });
 
   test("备份弹窗打开和关闭", async ({ page }) => {
@@ -285,6 +294,22 @@ test.describe("UI 健康检测 - 扩展功能", () => {
 
     // 3. 导入按钮存在
     await expect(page.locator('button:has-text("导入")').first()).toBeVisible();
+  });
+
+  test("导出弹窗提供添加到试卷管理的勾选且默认不勾", async ({ page }) => {
+    await page.evaluate(async () => {
+      await window.dbCreateQuestion(
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        null, [], 0, null, [], null
+      );
+      await window.loadQuestions();
+      const qs = await window.dbGetAllQuestions();
+      window.showExportModal(qs.filter((x) => !x.deleted_at));
+    });
+    await expect(page.locator('#export-modal')).toHaveClass(/active/);
+    const cb = page.locator('#export-to-paper');
+    await expect(cb).toBeVisible();
+    expect(await cb.isChecked()).toBe(false);
   });
 });
 
