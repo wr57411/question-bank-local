@@ -11,22 +11,17 @@ test.describe("UI 健康检测 - 存在性", () => {
   });
 
   test("所有 Tab 按钮存在且可见", async ({ page }) => {
-    const tabs = ["题目管理", "标签管理", "试卷管理"];
+    const tabs = ["题目管理", "标签管理", "试卷管理", "垃圾篓"];
     for (const tabName of tabs) {
       const tab = page.locator(`.tab:has-text("${tabName}")`);
       await expect(tab).toBeAttached({ timeout: 5000 });
     }
-    // 专题 Tab（带 emoji）
-    await expect(page.locator('.tab:has-text("专题")')).toBeAttached({ timeout: 5000 });
-    // 待关联 Tab
-    await expect(page.locator('.tab:has-text("待关联")')).toBeAttached({ timeout: 5000 });
-    // 待补拍 Tab
-    await expect(page.locator('button#pending-blank-tab')).toBeAttached({ timeout: 5000 });
-    // 待处理 Tab
-    await expect(page.locator('button#pending-photos-tab')).toBeAttached({ timeout: 5000 });
-    // 验证 Tab 数量至少 6 个
+    // 已移除功能（专题/待关联/待补拍/待处理/AI教学/书库/Wiki）的 Tab 不应再存在
+    await expect(page.locator('.tab:has-text("专题")')).toHaveCount(0);
+    await expect(page.locator('button#pending-photos-tab')).toHaveCount(0);
+    // 验证 Tab 数量为 4 个
     const tabCount = await page.locator('.tabs .tab').count();
-    expect(tabCount).toBeGreaterThanOrEqual(6);
+    expect(tabCount).toBe(4);
   });
 
   test("题目管理页按钮存在", async ({ page }) => {
@@ -36,8 +31,6 @@ test.describe("UI 健康检测 - 存在性", () => {
     await expect(page.locator('button:has-text("相册")').first()).toBeVisible();
     // 跨页按钮
     await expect(page.locator('button:has-text("跨页")').first()).toBeVisible();
-    // 悬浮窗按钮
-    await expect(page.locator('#floating-toggle-btn')).toBeVisible();
     // 工具栏按钮
     await expect(page.locator('button:has-text("导出")').first()).toBeVisible();
     await expect(page.locator('button:has-text("备份")').first()).toBeVisible();
@@ -64,12 +57,6 @@ test.describe("UI 健康检测 - 存在性", () => {
     await expect(page.locator('#paper-name')).toBeVisible();
     await expect(page.locator('#paper-form button')).toBeVisible();
     await expect(page.locator('button:has-text("AI 智能推荐")')).toBeVisible();
-  });
-
-  test("专题页表单存在", async ({ page }) => {
-    await page.locator('.tab:has-text("专题")').click();
-    await expect(page.locator('#topic-name')).toBeVisible();
-    await expect(page.locator('#topic-form button')).toBeVisible();
   });
 
   test("备份弹窗版本切换器存在", async ({ page }) => {
@@ -125,13 +112,12 @@ test.describe("UI 健康检测 - 功能性", () => {
     // 先切换到其他 Tab
     await page.locator('.tab:has-text("标签管理")').click();
     await page.locator('.tab:has-text("试卷管理")').click();
-    await page.locator('.tab:has-text("专题")').click();
     await page.locator('.tab:has-text("题目管理")').click();
 
     // 验证所有 Tab 按钮仍可见
     const tabButtons = page.locator('.tabs .tab');
     const count = await tabButtons.count();
-    expect(count).toBeGreaterThanOrEqual(6);
+    expect(count).toBe(4);
 
     for (let i = 0; i < count; i++) {
       await expect(tabButtons.nth(i)).toBeVisible();
@@ -157,16 +143,6 @@ test.describe("UI 健康检测 - 功能性", () => {
     // 验证试卷出现在列表中
     await expect(page.locator('#papers-list .paper-card')).toHaveCount(1);
     await expect(page.locator('#papers-list .paper-card')).toContainText("测试试卷");
-  });
-
-  test("创建专题成功", async ({ page }) => {
-    await page.locator('.tab:has-text("专题")').click();
-    await page.locator('#topic-name').fill("测试专题");
-    await page.locator('#topic-form button').click();
-
-    // 验证专题出现在列表中
-    await expect(page.locator('#topics-list .paper-card')).toHaveCount(1);
-    await expect(page.locator('#topics-list .paper-card')).toContainText("测试专题");
   });
 
   test("备份弹窗打开和关闭", async ({ page }) => {
@@ -296,43 +272,6 @@ test.describe("UI 健康检测 - 扩展功能", () => {
     // 7. 关闭弹窗
     await page.locator('#backup-modal button:has-text("关闭")').click();
     await expect(page.locator('#backup-modal')).not.toHaveClass(/active/);
-  });
-
-  test("专题创建和管理", async ({ page }) => {
-    // 1. 创建专题
-    await page.locator('.tab:has-text("专题")').click();
-    await page.locator('#topic-name').fill("测试专题管理");
-    await page.locator('#topic-desc').fill("这是测试描述");
-    await page.locator('#topic-form button').click();
-
-    // 2. 专题出现在列表
-    await expect(page.locator('#topics-list .paper-card')).toHaveCount(1);
-    await expect(page.locator('#topics-list .paper-card')).toContainText("测试专题管理");
-
-    // 3. 查看专题详情（通过 JS 注入题目并关联）
-    await page.evaluate(async () => {
-      await dbCreateQuestion(
-        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-        null, [], 0, null, []
-      );
-    });
-
-    // 4. 删除专题
-    await page.locator('#topics-list .paper-card .danger').click();
-    await expect(page.locator('#topics-list .paper-card')).toHaveCount(0);
-  });
-
-  test("待处理 Tab 功能", async ({ page }) => {
-    // 1. 点击待处理 Tab
-    await page.locator('button#pending-photos-tab').click();
-
-    // 2. 验证 Tab 数量至少 6 个
-    const tabCount = await page.locator('.tabs .tab').count();
-    expect(tabCount).toBeGreaterThanOrEqual(6);
-
-    // 3. 其他 Tab 按钮仍可见
-    await expect(page.locator('.tab:has-text("题目管理")')).toBeAttached();
-    await expect(page.locator('.tab:has-text("标签管理")')).toBeAttached();
   });
 
   test("工具栏按钮可点击", async ({ page }) => {
