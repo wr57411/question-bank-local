@@ -187,11 +187,11 @@ export function upsertPaper(userId: string, paper: Record): boolean {
   const deletedAt = paper.deleted_at ? normalizeTimestamp(paper.deleted_at as string) : null;
 
   if (existing) {
-    db.prepare(`UPDATE papers SET name = ?, created_at = ?, updated_at = ?, deleted_at = ? WHERE id = ? AND user_id = ?`)
-      .run(paper.name, createdAt, updatedAt, deletedAt, paper.id, userId);
+    db.prepare(`UPDATE papers SET name = ?, pdf_url = ?, created_at = ?, updated_at = ?, deleted_at = ? WHERE id = ? AND user_id = ?`)
+      .run(paper.name, (paper.pdf_url as string) ?? null, createdAt, updatedAt, deletedAt, paper.id, userId);
   } else {
-    db.prepare(`INSERT INTO papers (id, user_id, name, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(paper.id, userId, paper.name, createdAt, updatedAt, deletedAt);
+    db.prepare(`INSERT INTO papers (id, user_id, name, pdf_url, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(paper.id, userId, paper.name, (paper.pdf_url as string) ?? null, createdAt, updatedAt, deletedAt);
   }
 
   replacePaperQuestions(paper.id as string, (paper.question_ids as string[]) || []);

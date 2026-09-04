@@ -266,3 +266,5 @@ ensureColumn('pdf_docs', 'category_id', 'TEXT');
 ensureColumn('pdf_topics', 'parent_id', 'TEXT');
 ensureColumn('pdf_topics', 'sort_order', 'INTEGER DEFAULT 0');
 
+
+ensureColumn('papers', 'pdf_url', 'TEXT');

@@ -16,6 +16,7 @@ import syncRouter from './routes/sync.js';
 import versionRouter from './routes/version.js';
 import recoveryRouter from './routes/recovery.js';
 import issuesRouter from './routes/issues.js';
+import uploadPdfRouter from './routes/upload-pdf.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -85,6 +86,7 @@ app.use('/api/sync', syncRouter);
 app.use('/api/version', versionRouter);
 app.use('/api/recovery', recoveryRouter);
 app.use('/api/issues', issuesRouter);
+app.use('/api/upload-pdf', uploadPdfRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 
