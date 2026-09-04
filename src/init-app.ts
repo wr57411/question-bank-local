@@ -31,7 +31,6 @@ export async function refreshAll(): Promise<void> {
     ui.loadTags(),
     w.isFormDirty ? Promise.resolve() : ui.loadQuestions(),
     ui.loadPapers(),
-    ui.loadTopics(),
     ui.loadBookFilter(),
   ]);
   if (!w.isFormDirty) {
@@ -55,8 +54,6 @@ export function initApp(): void {
   if (syncToggle) syncToggle.checked = w.syncEnabled;
 
   refreshAll().then(() => {
-    ui.updatePendingLinkBadge();
-    ui.updatePendingPhotosBadge();
   });
 
   ui.restartSyncPolling();
@@ -78,6 +75,5 @@ export function initApp(): void {
   ui.initTagForm();
   ui.initQuestionForm();
   ui.initPaperForm();
-  ui.initTopicForm();
   ui.initQuickImportMode();
 }

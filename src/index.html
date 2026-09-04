@@ -88,21 +88,13 @@
         <button class="btn-warn" onclick="showBackupModal()">☁️ 备份</button>
         <button class="secondary" onclick="document.getElementById('import-file').click()">📥 导入</button>
         <input type="file" id="import-file" accept=".json" style="display:none" onchange="handleImport(event)">
-        <button id="floating-toggle-btn" class="btn-grape" onclick="console.log('[Floating] Button clicked!');toggleFloatingWindow()">📋 悬浮窗</button>
         <button id="quick-import-toggle" class="btn-grape" onclick="toggleQuickImportMode()">⚡ 快速导入</button>
     </div>
     <div class="tabs">
         <button class="tab active" onclick="showTab('questions',this)">题目管理</button>
         <button class="tab" onclick="showTab('tags',this)">标签管理</button>
         <button class="tab" onclick="showTab('papers',this)">试卷管理</button>
-        <button class="tab" onclick="showTab('topics',this);loadTopics();renderTopicQuestionPicker()">📚 专题</button>
         <button class="tab" onclick="showTab('trash',this);loadTrashed()">🗑️ 垃圾篓</button>
-        <button class="tab" onclick="showTab('pending-link',this);renderPendingLinkList()">🔗 待关联<span id="pending-link-count" class="badge tab-badge badge-warn" style="display:none">0</span></button>
-        <button class="tab" onclick="showPendingBlankList()" id="pending-blank-tab">📷 待补拍<span id="pending-blank-count" class="badge tab-badge badge-danger" style="display:none">0</span></button>
-        <button class="tab" onclick="showPendingPhotosTab()" id="pending-photos-tab">📸 待处理<span id="pending-photos-count" class="badge tab-badge badge-grape" style="display:none">0</span></button>
-        <button class="tab" onclick="showTab('teaching',this);loadTeachingView()">🎓 AI教学</button>
-        <button class="tab" onclick="showTab('pdf-library',this);renderPdfLibrary()">📚 书库</button>
-        <button class="tab" onclick="showWikiTabMvp(this)">📖 Wiki</button>
     </div>
 
     <!-- 题目管理 -->
@@ -417,22 +409,6 @@
         <div class="card"><h2>试卷列表</h2><div id="papers-list"></div></div>
     </div>
 
-    <!-- 专题管理 -->
-    <div id="topics-tab" class="hidden">
-        <div class="card">
-            <h2>创建专题</h2>
-            <form id="topic-form">
-                <div class="form-group"><label>专题名称 *</label><input type="text" id="topic-name" required placeholder="例如：勾股定理专练" /></div>
-                <div class="form-group"><label>学习目标（可选）</label><textarea id="topic-desc" rows="2" placeholder="描述这个专题的学习重点..."></textarea></div>
-                <div class="form-group"><label>选择题目 <small style="color:var(--text-tertiary)">（不选则创建空专题）</small></label>
-                    <div id="topic-question-picker" style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);padding:8px"></div>
-                </div>
-                <button type="submit" style="width:100%;padding:14px">✨ 创建专题</button>
-            </form>
-        </div>
-        <div class="card"><h2>专题列表</h2><div id="topics-list"></div></div>
-    </div>
-
     <!-- AI 推荐结果展示弹窗 -->
     <div id="ai-recommend-modal" class="modal">
         <div class="modal-content" style="max-width:600px">
@@ -458,186 +434,6 @@
         </div>
     </div>
 
-    <!-- 待关联 -->
-    <div id="pending-link-tab" class="hidden">
-        <div class="card">
-            <h2>🔗 待关联题目 <span id="pending-link-count-text" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h2>
-            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:var(--space-md);line-height:1.5">标记后可在列表中快速查看，点击题目打开详情。</p>
-            <div id="pending-link-list"></div>
-        </div>
-    </div>
-
-    <!-- 待处理照片 Tab -->
-    <div id="pending-photos-tab" class="hidden">
-        <div class="card">
-            <h2>📸 待处理照片</h2>
-            <p style="color:var(--text-secondary);font-size:13px;margin-bottom:var(--space-md);line-height:1.5">以下照片来自快速拍照，点击可处理（关联到题目）。</p>
-            <div id="pending-photos-list"></div>
-        </div>
-    </div>
-
-    <!-- AI教学内容生产 -->
-    <div id="teaching-tab" class="hidden">
-        <div class="card ai-card">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-                <h2 style="margin:0;color:var(--accent);font-size:17px;font-weight:700">🎓 AI教学内容生产</h2>
-            </div>
-            <p style="font-size:12px;color:var(--text-secondary);margin-bottom:12px;line-height:1.5">输入章节名称，AI自动拆解知识点并批量生成教学内容。生成完成后可校验并投屏展示。</p>
-
-            <div class="form-group">
-                <label>章节名称</label>
-                <div style="display:flex;gap:6px">
-                    <input id="teaching-chapter-input" type="text" placeholder="例如：必修一 第三章 相互作用" style="flex:1" onkeydown="if(event.key==='Enter')atomizeChapter()" />
-                    <button onclick="atomizeChapter()" id="atomize-btn" class="btn-grape">🔍 拆解</button>
-                </div>
-                <div style="display:flex;align-items:center;gap:8px;margin-top:6px">
-                    <span style="font-size:11px;color:var(--text-tertiary)">拆解模式</span>
-                    <select id="atomize-mode-select" onchange="localStorage.setItem('atomize_mode',this.value)" style="font-size:11px;padding:3px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface)">
-                        <option value="text">✏️ 纯文字</option>
-                        <option value="multimodal">🖼️ 图文（多模态）</option>
-                    </select>
-                    <span id="atomize-mode-hint" style="font-size:10px;color:var(--text-tertiary)"></span>
-                </div>
-            </div>
-
-            <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px" id="quick-chapters">
-                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修一 第一章 运动的描述';atomizeChapter()">运动的描述</button>
-                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修一 第二章 匀变速直线运动';atomizeChapter()">匀变速直线运动</button>
-                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修一 第三章 相互作用';atomizeChapter()">相互作用</button>
-                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修一 第四章 牛顿运动定律';atomizeChapter()">牛顿运动定律</button>
-                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修二 第五章 抛体运动';atomizeChapter()">抛体运动</button>
-                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修二 第六章 圆周运动';atomizeChapter()">圆周运动</button>
-                <button class="quick-chapter-btn" onclick="document.getElementById('teaching-chapter-input').value='必修三 第十章 电磁感应';atomizeChapter()">电磁感应</button>
-            </div>
-        </div>
-
-        <div class="card" id="teaching-queue-card" style="display:none">
-            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:8px">
-                <h2 style="margin:0;font-size:17px;font-weight:700">生产队列</h2>
-                <div style="display:flex;gap:6px;flex-wrap:wrap">
-                    <button id="batch-start-btn" onclick="startSelectedGeneration()" style="font-size:13px">▶ 生成选中</button>
-                    <button onclick="startAllGeneration()" class="secondary" style="font-size:13px">▶ 全部生成</button>
-                    <button id="batch-pause-btn" onclick="pauseBatchGeneration()" class="secondary" style="font-size:13px;display:none">⏸ 暂停</button>
-                    <button onclick="selectAllPending()" class="secondary" style="font-size:13px">☑ 全选</button>
-                    <button onclick="retryAllErrors()" class="secondary" style="font-size:13px">↻ 重试错误</button>
-                </div>
-            </div>
-            <div style="font-size:12px;color:var(--text-secondary);margin-bottom:8px">已选: <span id="selected-count" style="font-weight:700;color:var(--primary)">0</span> 个</div>
-
-            <div class="teaching-stats">
-                <div class="teaching-stat pending"><div class="stat-num" id="stat-pending">0</div><div class="stat-label">待生成</div></div>
-                <div class="teaching-stat generating"><div class="stat-num" id="stat-generating">0</div><div class="stat-label">生成中</div></div>
-                <div class="teaching-stat generated"><div class="stat-num" id="stat-generated">0</div><div class="stat-label">待校验</div></div>
-                <div class="teaching-stat verified"><div class="stat-num" id="stat-verified">0</div><div class="stat-label">已完成</div></div>
-                <div class="teaching-stat error"><div class="stat-num" id="stat-error">0</div><div class="stat-label">错误</div></div>
-            </div>
-
-            <div class="teaching-progress" id="teaching-progress-wrap" style="display:none">
-                <div class="teaching-progress-bar" id="teaching-progress-bar" style="width:0%"></div>
-            </div>
-
-            <div id="teaching-node-list" style="margin-top:12px"></div>
-        </div>
-
-        <div class="card" id="teaching-project-entry" style="display:none">
-            <div style="display:flex;justify-content:space-between;align-items:center">
-                <h2 style="margin:0;font-size:17px;font-weight:700">🖥️ 投屏模式</h2>
-                <button onclick="enterProjectionMode()" style="font-size:13px">🖥️ 进入投屏</button>
-            </div>
-            <p style="font-size:12px;color:var(--text-secondary);margin-top:8px">已校验的教学内容可在课堂投屏展示，支持滑动切换。建议横屏使用。</p>
-        </div>
-    </div>
-</div>
-
-<!-- PDF 书库 -->
-<div id="pdf-library-tab" class="hidden">
-    <div class="card">
-        <h2>📚 PDF 书库</h2>
-        <div id="pdf-library-content"></div>
-    </div>
-</div>
-
-<div id="wiki-tab" class="hidden">
-    <div id="wiki-content"></div>
-</div>
-
-<!-- PDF 操作弹窗 -->
-<div id="pdf-action-modal" class="modal" onclick="if(event.target===this)closePdfActionModal()">
-    <div class="modal-content" style="max-width:600px;max-height:90dvh;overflow-y:auto" id="pdf-action-content"></div>
-</div>
-
-<!-- PDF 试读弹窗 -->
-<div id="pdf-preview-modal" class="modal" onclick="if(event.target===this)closePdfPreview()">
-    <div class="modal-content" style="max-width:700px;max-height:90dvh;display:flex;flex-direction:column">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-            <span id="pdf-preview-progress" style="font-size:13px;color:var(--text-secondary)"></span>
-            <span style="cursor:pointer;font-size:24px;color:var(--text-tertiary)" onclick="closePdfPreview()">×</span>
-        </div>
-        <div id="pdf-preview-pages" style="flex:1;overflow-y:auto"></div>
-        <button onclick="doDownloadPdf(window._previewPdfId)" class="btn-warn" style="margin-top:8px;padding:12px;width:100%">⬇️ 下载全文</button>
-    </div>
-</div>
-
-<!-- PDF 管理弹窗 -->
-<div id="pdf-manage-modal" class="modal" onclick="if(event.target===this)closePdfManageModal()">
-    <div class="modal-content" style="max-width:450px" id="pdf-manage-content"></div>
-</div>
-
-<!-- 校验弹窗 -->
-<div id="teaching-verify-modal" class="modal" onclick="if(event.target===this)closeVerifyModal()">
-    <div class="modal-content" style="max-width:900px;max-height:95dvh;overflow:hidden;display:flex;flex-direction:column">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-shrink:0;padding-bottom:8px;border-bottom:1px solid var(--border-light)">
-            <div style="display:flex;align-items:center;gap:8px">
-                <button id="verify-prev-btn" onclick="verifyPrev()" class="secondary" style="font-size:13px;padding:6px 12px">← 上一个</button>
-                <h2 style="margin:0;font-size:16px;font-weight:700" id="verify-title">校验教学内容</h2>
-                <button id="verify-next-btn" onclick="verifyNext()" class="secondary" style="font-size:13px;padding:6px 12px">下一个 →</button>
-            </div>
-            <span style="cursor:pointer;font-size:28px;color:var(--text-tertiary)" onclick="closeVerifyModal()">×</span>
-        </div>
-        <div id="verify-content" class="teaching-content-render" style="flex:1;overflow-y:auto;outline:none"></div>
-        <div id="verify-edit-toolbar" style="display:none;padding:8px 0;flex-shrink:0;border-top:2px solid var(--primary)">
-            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-                <span style="font-size:12px;color:var(--primary);font-weight:700">✏️ 编辑模式</span>
-                <span style="font-size:11px;color:var(--text-tertiary)">直接点击内容编辑 · 公式区域点击可编辑 LaTeX</span>
-                <span style="flex:1"></span>
-                <button onclick="saveWysiwygEdit()" style="background:var(--primary);font-size:13px;padding:6px 16px">💾 完成编辑</button>
-                <button onclick="cancelWysiwygEdit()" class="secondary" style="font-size:13px;padding:6px 12px">取消</button>
-            </div>
-        </div>
-        <div id="verify-actions" style="display:flex;gap:8px;margin-top:12px;padding-top:12px;border-top:1px solid var(--border-light);flex-shrink:0">
-            <button onclick="verifyApprove()" style="background:var(--primary);flex:1">✅ 通过</button>
-            <button onclick="verifyRegenerate()" class="secondary" style="flex:1">🔄 重新生成</button>
-            <button onclick="toggleVerifyEdit()" class="secondary" style="flex:1">✏️ 编辑</button>
-            <button onclick="openNodeQuestionPicker()" class="secondary" style="flex:1">📎 关联题目</button>
-            <button onclick="closeVerifyModal()" class="secondary">关闭</button>
-        </div>
-        <div id="verify-linked-questions" style="display:none;margin-top:8px;padding-top:8px;border-top:1px solid var(--border-light);flex-shrink:0;max-height:150px;overflow-y:auto"></div>
-    </div>
-</div>
-
-<!-- 关联题目选择器 -->
-<div id="node-question-picker-modal" class="modal" onclick="if(event.target===this)closeNodeQuestionPicker()">
-    <div class="modal-content" style="max-width:600px;max-height:80dvh;display:flex;flex-direction:column">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-            <h2 style="margin:0;font-size:16px;font-weight:700">关联题库题目</h2>
-            <span style="cursor:pointer;font-size:24px;color:var(--text-tertiary)" onclick="closeNodeQuestionPicker()">×</span>
-        </div>
-        <div style="margin-bottom:8px">
-            <select id="nq-module-select" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:var(--radius-md);font-size:13px">
-                <option value="模块一">模块一：概念原子化拆解</option>
-                <option value="模块二">模块二：沉浸式样例库</option>
-                <option value="模块三">模块三：配对练习</option>
-                <option value="模块四">模块四：变式组题</option>
-                <option value="模块五">模块五：小循环复习包</option>
-                <option value="其他">其他</option>
-            </select>
-        </div>
-        <div id="node-question-picker-list" style="flex:1;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-md);padding:8px"></div>
-        <div style="display:flex;gap:8px;margin-top:12px">
-            <button onclick="confirmNodeQuestionLinks()" style="background:var(--primary);flex:1">确认关联</button>
-            <button onclick="closeNodeQuestionPicker()" class="secondary">取消</button>
-        </div>
-    </div>
 </div>
 
 <!-- 同步数据警告弹窗 -->
@@ -694,7 +490,6 @@
         <div style="position:absolute;top:12px;left:0;right:0;display:flex;justify-content:space-between;align-items:center;padding:0 24px;z-index:10">
             <span id="detail-nav-info" style="font-size:13px;color:var(--text-secondary)"></span>
             <div style="display:flex;gap:8px;align-items:center">
-                <button id="detail-pending-link-btn" onclick="togglePendingLinkInDetail()" style="width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.15);background:rgba(255,255,255,.9)">🔗</button>
                 <button id="detail-basket-btn" onclick="toggleBasketInDetail()" style="width:36px;height:36px;border-radius:50%;border:none;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 1px 4px rgba(0,0,0,.15);background:rgba(255,255,255,.9)">🧺</button>
                 <span style="cursor:pointer;font-size:28px;color:var(--text-tertiary)" onclick="closeModal()">×</span>
             </div>
@@ -712,7 +507,6 @@
         </div>
         <div id="modal-answer-image"></div>
         <div id="modal-tags"></div>
-        <div id="modal-similar-questions" style="margin-top:12px"></div>
         <!-- 用户评价生成标签 -->
         <div style="margin-top:12px;padding:12px;background:var(--warning-light);border-radius:var(--radius-md);border-left:3px solid var(--warning)">
             <div style="font-size:12px;color:var(--warning-dark);font-weight:600;margin-bottom:8px">📝 基于评价生成标签</div>
@@ -747,31 +541,6 @@
             <button onclick="analyzeSingleQuestion()" class="btn-grape" style="padding:10px 18px;font-size:13px">🧠 分析此题</button>
             <button class="danger" onclick="deleteQuestion()" style="border-radius:var(--radius-md)">移至垃圾篓</button>
             <button onclick="navigateDetail(1)" id="btn-next" style="padding:10px 18px;font-size:13px;border-radius:var(--radius-md)">下一题 →</button>
-        </div>
-    </div>
-</div>
-
-<div id="similar-modal" class="modal" onclick="if(event.target===this)closeSimilarModal()">
-    <div class="modal-content" style="max-width:700px">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:var(--space-md)">
-            <h2 style="margin:0">🔗 关联相似题</h2>
-            <span style="cursor:pointer;font-size:28px;color:var(--text-tertiary)" onclick="closeSimilarModal()">×</span>
-        </div>
-        <div class="form-group">
-            <label>参考标签</label>
-            <select id="similar-tag-select" multiple style="height:90px" onchange="renderSimilarCandidates()"></select>
-            <small style="color:var(--text-tertiary);font-size:12px">默认使用当前题标签，可调整后重新筛选</small>
-        </div>
-        <div class="btn-group" style="margin-bottom:var(--space-md)">
-            <button onclick="renderSimilarCandidates()">按标签筛选</button>
-            <button onclick="loadPendingLinkCandidates()" id="btn-pending-similar" class="btn-warn">📌 待关联 (<span id="btn-pending-similar-count">0</span>)</button>
-            <button onclick="recommendSimilarWithAI()" class="btn-grape">🤖 AI 推荐</button>
-        </div>
-        <div id="similar-ai-reason" class="ai-summary-wrap" style="display:none;border-left-color:var(--primary)"></div>
-        <div id="similar-candidate-list"></div>
-        <div class="btn-group" style="margin-top:var(--space-md)">
-            <button onclick="confirmSimilarLinks()" style="padding:14px">✅ 确认关联</button>
-            <button class="secondary" onclick="closeSimilarModal()">取消</button>
         </div>
     </div>
 </div>
@@ -861,19 +630,6 @@
     </div>
 </div>
 
-<!-- 专题详情弹窗 -->
-<div id="topic-detail-modal" class="modal" onclick="if(event.target===this)closeTopicDetailModal()">
-    <div class="modal-content" style="max-width:600px">
-        <h3 id="topic-detail-title" style="margin:0 0 4px 0"></h3>
-        <p id="topic-detail-desc" style="color:var(--text-secondary);font-size:13px;margin-bottom:16px"></p>
-        <div id="topic-detail-questions" style="max-height:60vh;overflow-y:auto"></div>
-        <div class="btn-group" style="margin-top:16px">
-            <button class="secondary" onclick="closeTopicDetailModal()">关闭</button>
-            <button onclick="exportTopicPDF()">📄 导出 PDF</button>
-        </div>
-    </div>
-</div>
-
 <!-- 添加笔记版本弹窗 -->
 <div id="add-note-version-modal" class="modal" onclick="if(event.target===this)closeAddNoteVersionModal()">
     <div class="modal-content" style="max-width:400px">
@@ -944,63 +700,6 @@
     </div>
 </div>
 
-
-<!-- 待补拍列表弹窗 -->
-<div id="pending-blank-modal" class="modal" onclick="if(event.target===this)closePendingBlankModal()">
-    <div class="modal-content" style="max-width:500px">
-        <h3>📷 待补拍空白题</h3>
-        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">以下题目缺少空白版，点击可补拍</div>
-        <div id="pending-blank-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px">
-            <!-- 动态填充 -->
-        </div>
-        <div class="btn-group">
-            <button class="secondary" onclick="closePendingBlankModal()">关闭</button>
-        </div>
-    </div>
-</div>
-
-<!-- 待处理照片弹窗 -->
-<div id="pending-photos-modal" class="modal" onclick="if(event.target===this)closePendingPhotosModal()">
-    <div class="modal-content" style="max-width:500px">
-        <h3>📸 待处理照片</h3>
-        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">以下照片来自快速拍照，点击可处理（关联到题目）</div>
-        <div id="pending-photos-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px">
-            <!-- 动态填充 -->
-        </div>
-        <div class="btn-group">
-            <button class="secondary" onclick="closePendingPhotosModal()">关闭</button>
-        </div>
-    </div>
-</div>
-
-<!-- 处理单张照片弹窗 -->
-<div id="process-photo-modal" class="modal" onclick="if(event.target===this)closeProcessPhotoModal()">
-    <div class="modal-content" style="max-width:500px">
-        <h3>📝 处理照片</h3>
-        <div id="process-photo-preview" style="text-align:center;margin-bottom:14px">
-            <img id="process-photo-img" style="max-width:100%;max-height:200px;border-radius:8px" />
-        </div>
-        <div class="form-group">
-            <label>关联到题目</label>
-            <select id="process-photo-question" style="width:100%">
-                <option value="">-- 新建题目 --</option>
-            </select>
-        </div>
-        <div class="form-group">
-            <label>笔记版本名称</label>
-            <input id="process-photo-label" type="text" placeholder="例如：笔记 v1" />
-        </div>
-        <div class="form-group">
-            <label>选择标签</label>
-            <select id="process-photo-tags" multiple style="height:80px"></select>
-        </div>
-        <div class="btn-group">
-            <button class="secondary" onclick="closeProcessPhotoModal()">取消</button>
-            <button class="danger" onclick="deletePendingPhoto()">删除</button>
-            <button onclick="confirmProcessPhoto()">保存</button>
-        </div>
-    </div>
-</div>
 
 <!-- 添加/编辑版本弹窗 -->
 <div id="version-modal" class="modal" onclick="if(event.target===this)closeVersionModal()">
@@ -1280,45 +979,6 @@
         <div class="btn-group" style="margin-top:14px">
             <button class="secondary" onclick="closeSyncModal()">关闭</button>
             <button class="danger" onclick="doLogout()" style="padding:8px 14px;font-size:13px">退出登录</button>
-        </div>
-    </div>
-</div>
-
-<!-- 悬浮窗截图列表弹窗 -->
-<div id="floating-modal" class="modal" onclick="if(event.target===this)closeFloatingModal()">
-    <div class="modal-content" style="max-width:500px">
-        <h3>   悬浮窗截图</h3>
-        <div style="font-size:13px;color:var(--text-secondary);margin-bottom:14px">选择图片导入到当前题目</div>
-        <div id="floating-image-list" style="max-height:400px;overflow-y:auto;margin-bottom:14px"></div>
-        <div class="btn-group">
-            <button class="secondary" onclick="clearFloatingImages()">清空全部</button>
-            <button class="secondary" onclick="closeFloatingModal()">关闭</button>
-        </div>
-    </div>
-</div>
-
-<!-- 悬浮窗保存弹窗 -->
-<div id="floating-save-modal" class="modal">
-    <div class="modal-content" style="max-width:380px">
-        <h3>保存截图</h3>
-        <div class="form-group">
-            <label>保存到第几题</label>
-            <div style="display:flex;gap:8px;align-items:center">
-                <input type="number" id="floating-save-qnum" min="1" value="1" style="width:80px;padding:8px;border:1.5px solid var(--border);border-radius:8px;font-size:16px;text-align:center" />
-                <span style="color:var(--text-secondary)">题</span>
-            </div>
-        </div>
-        <div class="form-group">
-            <label>保存类型</label>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
-                <button type="button" class="upload-btn camera" onclick="confirmFloatingSave('question')">📖 题目</button>
-                <button type="button" class="upload-btn" style="background:var(--accent)" onclick="confirmFloatingSave('answer')">📝 答案</button>
-                <button type="button" class="upload-btn" style="background:var(--warning)" onclick="confirmFloatingSave('blank')">📄 空白题</button>
-                <button type="button" class="upload-btn" style="background:var(--danger)" onclick="confirmFloatingSave('cross-page')">📸 跨页</button>
-            </div>
-        </div>
-        <div class="btn-group" style="margin-top:12px">
-            <button class="secondary" onclick="cancelFloatingSave()">取消</button>
         </div>
     </div>
 </div>

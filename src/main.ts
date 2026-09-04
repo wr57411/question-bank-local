@@ -88,14 +88,12 @@ const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
 const isIOS = isNative && cap.getPlatform && cap.getPlatform() === 'ios';
 const Camera = isNative ? (cap?.Plugins?.Camera ?? null) : null;
 const MediaPlugin = isNative ? (cap?.Plugins?.MediaGallery ?? cap?.Plugins?.Media ?? null) : null;
-const FloatingWindow = isNative ? (cap?.Plugins?.FloatingWindow ?? null) : null;
 
 assignIfMissing({
   isNative,
   isIOS,
   Camera,
   MediaPlugin,
-  FloatingWindow,
 });
 
 assignIfMissing({
@@ -115,18 +113,8 @@ assignIfMissing({
   dbGetAllPapers: data.dbGetAllPapers,
   dbCreatePaper: data.dbCreatePaper,
   dbDeletePaper: data.dbDeletePaper,
-  dbGetAllTopics: data.dbGetAllTopics,
-  dbCreateTopic: data.dbCreateTopic,
-  dbDeleteTopic: data.dbDeleteTopic,
-  dbGetAllTeachingNodes: data.dbGetAllTeachingNodes,
-  dbCreateTeachingNode: data.dbCreateTeachingNode,
-  dbUpdateTeachingNode: data.dbUpdateTeachingNode,
-  dbDeleteTeachingNode: data.dbDeleteTeachingNode,
   dbGetQuestionNotes: data.dbGetQuestionNotes,
   dbAddQuestionNote: data.dbAddQuestionNote,
-  dbGetPendingPhotos: data.dbGetPendingPhotos,
-  dbGetAllSimilarLinks: data.dbGetAllSimilarLinks,
-  dbAddSimilarQuestionLinks: data.dbAddSimilarQuestionLinks,
   generateId: data.generateId,
   smartBackup: data.smartBackup,
   exportFullBackup: data.exportFullBackup,
@@ -140,7 +128,6 @@ assignIfMissing({
   setProviderGetter: services.setProviderGetter,
   KNOWLEDGE_ATOMIZER_PROMPT: services.KNOWLEDGE_ATOMIZER_PROMPT,
   KNOWLEDGE_ATOMIZER_PROMPT_MULTIMODAL: services.KNOWLEDGE_ATOMIZER_PROMPT_MULTIMODAL,
-  TEACHING_GENERATOR_PROMPT: services.TEACHING_GENERATOR_PROMPT,
   compressImage: services.compressImage,
   mergeImagesVertically: services.mergeImagesVertically,
   dataURLtoBlob: services.dataURLtoBlob,
@@ -163,100 +150,7 @@ assignIfMissing({
   doFullBackup: ui.doFullBackup,
   restoreFromBackup: ui.restoreFromBackup,
   updateBackupStatusUI: ui.updateBackupStatusUI,
-  // pdf library
-  renderPdfLibrary: ui.renderPdfLibrary,
-  switchPdfView: ui.switchPdfView,
-  togglePdfNode: ui.togglePdfNode,
-  handlePdfUpload: ui.handlePdfUpload,
-  doConfirmUpload: ui.doConfirmUpload,
-  closePdfUploadConfirm: ui.closePdfUploadConfirm,
-  showPdfActions: ui.showPdfActions,
-  closePdfActionModal: ui.closePdfActionModal,
-  showMovePdfModal: ui.showMovePdfModal,
-  confirmMovePdf: ui.confirmMovePdf,
-  startPdfPreview: ui.startPdfPreview,
-  closePdfPreview: ui.closePdfPreview,
-  doDownloadPdf: ui.doDownloadPdf,
-  doDeletePdf: ui.doDeletePdf,
-  showPdfCategoryMenu: ui.showPdfCategoryMenu,
-  addPdfSubCategory: ui.addPdfSubCategory,
-  renamePdfCategory: ui.renamePdfCategory,
-  deletePdfCategory: ui.deletePdfCategory,
-  closePdfManageModal: ui.closePdfManageModal,
-  showAddTopicModal: ui.showAddTopicModal,
-  confirmAddTopic: ui.confirmAddTopic,
-  showPdfTopicMenu: ui.showPdfTopicMenu,
-  renamePdfTopic: ui.renamePdfTopic,
-  deletePdfTopic: ui.deletePdfTopic,
-  // wiki
-  showWikiTab: ui.showWikiTab,
-  renderWikiPanel: ui.renderWikiPanel,
-  renderWikiForQuestion: ui.renderWikiForQuestion,
-  compileWikiKnowledge: services.compileWikiKnowledge,
-  createWikiPageFromDraft: services.createWikiPageFromDraft,
-  buildWikiSystemPrompt: services.buildWikiSystemPrompt,
-  validatePage: services.validatePage,
-  wikiSmartUpsertPage: data.wikiSmartUpsertPage,
-  wikiGetIndex: data.wikiGetIndex,
-  wikiGetLog: data.wikiGetLog,
-  runDiagnostic: services.runDiagnostic,
-  DIAGNOSTIC_QUESTIONS: services.DIAGNOSTIC_QUESTIONS,
-  wikiFlushPendingJobs: ui.wikiFlushPendingJobs,
-  wikiPutLink: data.wikiPutLink,
-  wikiCreatePendingJob: data.wikiCreatePendingJob,
-  wikiMarkJobCompleted: data.wikiMarkJobCompleted,
-  wikiMarkJobFailed: data.wikiMarkJobFailed,
-  wikiGetPendingJobs: data.wikiGetPendingJobs,
-  wikiGetLinks: data.wikiGetLinks,
-  wikiGetAllPages: data.wikiGetAllPages,
-  wikiGetPage: data.wikiGetPage,
-  wikiLint: data.wikiLint,
-  wikiLogAppend: data.wikiLogAppend,
-  dbWikiGetAllPages: data.wikiGetAllPages,
-  dbWikiGetPage: data.wikiGetPage,
-  dbWikiLint: data.wikiLint,
-  dbWikiSmartUpsertPage: data.wikiSmartUpsertPage,
-  dbWikiLogAppend: data.wikiLogAppend,
-  dbWikiGetIndex: data.wikiGetIndex,
-  dbWikiGetLog: data.wikiGetLog,
-  // wiki mvp
-  showWikiTabMvp: ui.showWikiTabMvp,
-  renderWikiMvpPanel: ui.renderWikiMvpPanel,
-  wikiMvpSyncModelInput: ui.wikiMvpSyncModelInput,
-  wikiMvpRenderQuestions: ui.wikiMvpRenderQuestions,
-  wikiMvpImgError: ui.wikiMvpImgError,
-  wikiMvpToggleQuestion: ui.wikiMvpToggleQuestion,
-  wikiMvpSelectAll: ui.wikiMvpSelectAll,
-  wikiMvpClearAll: ui.wikiMvpClearAll,
-  wikiMvpRunExtract: ui.wikiMvpRunExtract,
-  wikiMvpToggleConcept: ui.wikiMvpToggleConcept,
-  wikiMvpJumpToConcept: ui.wikiMvpJumpToConcept,
-  wikiMvpLoadSession: ui.wikiMvpLoadSession,
-  wikiMvpDeleteSession: ui.wikiMvpDeleteSession,
-  wikiMvpChangeMode: ui.wikiMvpChangeMode,
-  wikiMvpSyncOcrInput: ui.wikiMvpSyncOcrInput,
-  wikiMvpTestOcrConnection: ui.wikiMvpTestOcrConnection,
-  wikiMvpSyncBaseUrl: ui.wikiMvpSyncBaseUrl,
-  wikiMvpSavePrompt: ui.wikiMvpSavePrompt,
-  wikiMvpResetPrompt: ui.wikiMvpResetPrompt,
-  // pdf cloud services
-  uploadPdfToServer: services.uploadPdfToServer,
-  fetchPdfPages: services.fetchPdfPages,
-  downloadPdfToLocal: services.downloadPdfToLocal,
-  deleteRemotePdf: services.deleteRemotePdf,
-  updateRemotePdfMeta: services.updateRemotePdfMeta,
-  setPdfTagsRemote: services.setPdfTagsRemote,
-  // pdf data
-  dbGetAllPdfDocs: data.dbGetAllPdfDocs,
-  dbAddPdfDoc: data.dbAddPdfDoc,
-  dbDeletePdfDoc: data.dbDeletePdfDoc,
-  dbUpdatePdfDoc: data.dbUpdatePdfDoc,
-  dbSetPdfDocTags: data.dbSetPdfDocTags,
-  dbGetAllPdfCategories: data.dbGetAllPdfCategories,
-  dbCreatePdfCategory: data.dbCreatePdfCategory,
-  dbUpdatePdfCategory: data.dbUpdatePdfCategory,
-  dbDeletePdfCategory: data.dbDeletePdfCategory,
-  ensureTextbookStructure: data.ensureTextbookStructure,
+  // sync apply（同步核心，勿删）
   dbReplaceWithRemoteSnapshot: data.dbReplaceWithRemoteSnapshot,
   // Batch 3: core state functions (assignIfMissing to keep app.js lexical bindings in sync)
   loadQuestions: ui.loadQuestions,
@@ -270,7 +164,6 @@ assignIfMissing({
   renderFilterTags: ui.renderFilterTags,
   // Batch 4: core state functions (called by app.js refreshAll internally)
   loadPapers: ui.loadPapers,
-  loadTopics: ui.loadTopics,
 });
 
 assignToWindow({
@@ -316,23 +209,6 @@ assignToWindow({
   openBasketModal: ui.openBasketModal,
   closeBasketModal: ui.closeBasketModal,
   exportFromBasket: ui.exportFromBasket,
-  // Batch 2: pending-link
-  getPendingLinkList: ui.getPendingLinkList,
-  savePendingLinkList: ui.savePendingLinkList,
-  togglePendingLink: ui.togglePendingLink,
-  isPendingLink: ui.isPendingLink,
-  updatePendingLinkBadge: ui.updatePendingLinkBadge,
-  updatePendingPhotosBadge: ui.updatePendingPhotosBadge,
-  importPendingPhotosFromNative: ui.importPendingPhotosFromNative,
-  togglePendingLinkInDetail: ui.togglePendingLinkInDetail,
-  updatePendingLinkBtnStyle: ui.updatePendingLinkBtnStyle,
-  renderPendingLinkList: ui.renderPendingLinkList,
-  removeFromPendingLink: ui.removeFromPendingLink,
-  // Batch 2: blank-question
-  showPendingBlankList: ui.showPendingBlankList,
-  closePendingBlankModal: ui.closePendingBlankModal,
-  removeFromPendingBlank: ui.removeFromPendingBlank,
-  updatePendingBlankCount: ui.updatePendingBlankCount,
   // Batch 2: test-god-mode
   runFullAIAutomation: ui.runFullAIAutomation,
   handleImport: ui.handleImport,
@@ -405,18 +281,6 @@ assignToWindow({
   toggleBasketInDetail: ui.toggleBasketInDetail,
   navigateDetail: ui.navigateDetail,
   closeModal: ui.closeQuestionModal,
-  renderSimilarQuestions: ui.renderSimilarQuestions,
-  getQuestionFeatureText: ui.getQuestionFeatureText,
-  getTextSignalSet: ui.getTextSignalSet,
-  scoreTextSimilarity: ui.scoreTextSimilarity,
-  buildSimilarCandidates: ui.buildSimilarCandidates,
-  openSimilarModal: ui.openSimilarModal,
-  closeSimilarModal: ui.closeSimilarModal,
-  renderSimilarCandidates: ui.renderSimilarCandidates,
-  loadPendingLinkCandidates: ui.loadPendingLinkCandidates,
-  parseSimilarAIResult: ui.parseSimilarAIResult,
-  recommendSimilarWithAI: ui.recommendSimilarWithAI,
-  confirmSimilarLinks: ui.confirmSimilarLinks,
   // Batch 4: paper-manage (leaf functions)
   initPaperForm: ui.initPaperForm,
   showPaperDetail: ui.showPaperDetail,
@@ -437,15 +301,6 @@ assignToWindow({
   renderAIRecommendations: ui.renderAIRecommendations,
   closeAIRecommendModal: ui.closeAIRecommendModal,
   createPaperFromAI: ui.createPaperFromAI,
-  // Batch 4: topic-manage (leaf functions)
-  renderTopicQuestionPicker: ui.renderTopicQuestionPicker,
-  getSelectedTopicQuestions: ui.getSelectedTopicQuestions,
-  initTopicForm: ui.initTopicForm,
-  showTopicDetail: ui.showTopicDetail,
-  closeTopicDetailModal: ui.closeTopicDetailModal,
-  exportTopicPDF: ui.exportTopicPDF,
-  exportTopicPDFForId: ui.exportTopicPDFForId,
-  deleteTopic: ui.deleteTopic,
   // Batch 4: export-pdf-ui
   exportSelectedOrAll: ui.exportSelectedOrAll,
   showExportModal: ui.showExportModal,
@@ -471,17 +326,6 @@ assignToWindow({
   crossPageShoot: ui.crossPageShoot,
   captureAndCropOne: ui.captureAndCropOne,
   captureOneImage: ui.captureOneImage,
-  // Batch 5: floating-window
-  toggleFloatingWindow: ui.toggleFloatingWindow,
-  pickFromFloating: ui.pickFromFloating,
-  showFloatingImageList: ui.showFloatingImageList,
-  importFloatingImage: ui.importFloatingImage,
-  deleteFloatingImage: ui.deleteFloatingImage,
-  clearFloatingImages: ui.clearFloatingImages,
-  closeFloatingModal: ui.closeFloatingModal,
-  pollFloatingEvents: ui.pollFloatingEvents,
-  confirmFloatingSave: ui.confirmFloatingSave,
-  cancelFloatingSave: ui.cancelFloatingSave,
   // Batch 5: crop
   clampValue: ui.clampValue,
   smoothSeries: ui.smoothSeries,
@@ -504,16 +348,6 @@ assignToWindow({
   confirmCrop: ui.confirmCrop,
   cancelCrop: ui.cancelCrop,
   rotateCrop: ui.rotateCrop,
-  // Batch 5: pending-photos-ui
-  showPendingPhotosTab: ui.showPendingPhotosTab,
-  loadPendingPhotos: ui.loadPendingPhotos,
-  openProcessPhotoModal: ui.openProcessPhotoModal,
-  openBatchProcessModal: ui.openBatchProcessModal,
-  confirmProcessPhoto: ui.confirmProcessPhoto,
-  closeProcessPhotoModal: ui.closeProcessPhotoModal,
-  deletePendingPhoto: ui.deletePendingPhoto,
-  deletePendingPhotoById: ui.deletePendingPhotoById,
-  closePendingPhotosModal: ui.closePendingPhotosModal,
   // Batch 6: sync-ui
   apiHeaders: ui.apiHeaders,
   setSyncStatus: ui.setSyncStatus,
@@ -548,8 +382,8 @@ assignToWindow({
   stopSyncPolling: ui.stopSyncPolling,
   restartSyncPolling: ui.restartSyncPolling,
   // Task: compose existing polling globals (removed app.js no longer provides these)
-  stopAllPolling: () => { ui.stopSyncPolling(); ui.stopFloatingPolling(); },
-  restartAllPolling: () => { ui.restartSyncPolling(); ui.restartFloatingPolling(); },
+  stopAllPolling: () => { ui.stopSyncPolling(); },
+  restartAllPolling: () => { ui.restartSyncPolling(); },
   queueAutoSync: ui.queueAutoSync,
   runSync: ui.runSync,
   doSync: ui.doSync,
@@ -583,35 +417,11 @@ assignToWindow({
   getCurrentProvider: ui.getCurrentProvider, initProviderList: ui.initProviderList,
   generateTagsFromComment: ui.generateTagsFromComment,
   addGeneratedTag: ui.addGeneratedTag, clearGeneratedTags: ui.clearGeneratedTags,
-  // Batch 7: teaching-ui
-  loadTeachingView: ui.loadTeachingView, getCurrentVersion: ui.getCurrentVersion,
-  getNodeVersions: ui.getNodeVersions, renderTeachingStats: ui.renderTeachingStats,
-  renderTeachingNodeList: ui.renderTeachingNodeList,
-  showNodeDiagram: ui.showNodeDiagram, atomizeChapter: ui.atomizeChapter,
-  // Batch 7: teaching-queue
-  updateTeachingSelectedCount: ui.updateTeachingSelectedCount,
-  selectAllPending: ui.selectAllPending, startSelectedGeneration: ui.startSelectedGeneration,
-  startAllGeneration: ui.startAllGeneration, pauseBatchGeneration: ui.pauseBatchGeneration,
-  regenerateNode: ui.regenerateNode, addNewVersion: ui.addNewVersion,
-  showVersionSwitcher: ui.showVersionSwitcher, retryAllErrors: ui.retryAllErrors,
-  deleteTeachingNode: ui.deleteTeachingNode,
-  // Batch 7: teaching-verify
-  getVerifyNodeList: ui.getVerifyNodeList, openVerifyModal: ui.openVerifyModal,
-  verifyPrev: ui.verifyPrev, verifyNext: ui.verifyNext,
-  toggleVerifyEdit: ui.toggleVerifyEdit, handleKatexEdit: ui.handleKatexEdit,
-  finishKatexEdit: ui.finishKatexEdit, htmlToMarkdown: ui.htmlToMarkdown,
-  saveWysiwygEdit: ui.saveWysiwygEdit, cancelWysiwygEdit: ui.cancelWysiwygEdit,
-  closeVerifyModal: ui.closeVerifyModal, verifyApprove: ui.verifyApprove,
-  verifyRegenerate: ui.verifyRegenerate, loadLinkedQuestions: ui.loadLinkedQuestions,
-  unlinkQuestionFromNode: ui.unlinkQuestionFromNode,
-  openNodeQuestionPicker: ui.openNodeQuestionPicker,
-  closeNodeQuestionPicker: ui.closeNodeQuestionPicker,
-  confirmNodeQuestionLinks: ui.confirmNodeQuestionLinks,
   // Batch 7: projection
   enterProjectionMode: ui.enterProjectionMode, exitProjectionMode: ui.exitProjectionMode,
   renderProjection: ui.renderProjection, projectionPrev: ui.projectionPrev,
   projectionNext: ui.projectionNext,
-  // Batch 7: drawing canvas + backup helpers + floating polling
+  // Batch 7: drawing canvas + backup helpers
   _buildDrawHTML: ui._buildDrawHTML, initDrawCanvas: ui.initDrawCanvas,
   saveDrawing: ui.saveDrawing, cancelDraw: ui.cancelDraw,
   getBackupPath: ui.getBackupPath, getBackupDir: ui.getBackupDir,
@@ -623,7 +433,6 @@ assignToWindow({
   toggleAutoBackup: ui.toggleAutoBackup,
   doAutoBackup: ui.doAutoBackup,
   buildBackupData: ui.buildBackupData,
-  stopFloatingPolling: ui.stopFloatingPolling, restartFloatingPolling: ui.restartFloatingPolling,
   // Batch 8: issue-feedback
   initIssueFeedbackListener: ui.initIssueFeedbackListener,
   showFeedbackPromptBar: ui.showFeedbackPromptBar,
@@ -655,17 +464,11 @@ assignToWindow({
   setQuickFavOn: services.setQuickFavOn,
 });
 
-// Batch 2: expose native import alias
-w['importPendingPhotos'] = ui.importPendingPhotosFromNative;
-
 // Batch 2: init review check on startup
 ui.initReviewCheck();
 
 // Batch 3: init detail swipe gesture
 ui.initDetailSwipe();
-
-// Batch 5: init floating window poll
-ui.initFloatingPoll();
 
 // Batch 6: init sync/login UI
 ui.initSyncUI();
@@ -689,7 +492,6 @@ if (document.readyState === 'loading') {
 
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
-    Promise.resolve(ui.wikiFlushPendingJobs?.()).catch(() => {});
     Promise.resolve(ui.retryPendingFeedback()).catch(() => {});
   });
 }

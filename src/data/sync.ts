@@ -1,9 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   dbQuestions, dbTags, dbQuestionTags, dbPapers, dbPaperQuestions,
-  dbSimilarQuestionLinks, dbTopics, dbTopicQuestions, dbQuestionNotes,
-  dbTeachingNodes, dbTeachingVersions, dbNodeQuestions,
-  dbPdfBooks, dbPdfChapters, dbPdfTopics, dbPdfDocs, dbPdfCategories,
+  dbTopics, dbQuestionNotes,
   nowIso
 } from './stores';
 import type { SyncPayload, DataFingerprint } from '../types';
@@ -56,27 +54,14 @@ export async function collectDataFingerprint(): Promise<DataFingerprint> {
 export async function dbBuildSyncPayload(): Promise<SyncPayload> {
   const payload: SyncPayload = {
     questions: [], tags: [], question_tags: [], papers: [], paper_questions: [],
-    similar_question_links: [], topics: [], topic_questions: [], question_notes: [],
-    teaching_nodes: [], teaching_versions: [], node_questions: [],
-    pdf_books: [], pdf_chapters: [], pdf_topics: [], pdf_docs: [], pdf_categories: [],
+    question_notes: [],
   };
   await dbQuestions.iterate((v: unknown) => { if (v) payload.questions.push(v); });
   await dbTags.iterate((v: unknown) => { if (v) payload.tags.push(v); });
   await dbQuestionTags.iterate((v: unknown) => { if (v) payload.question_tags.push(v); });
   await dbPapers.iterate((v: unknown) => { if (v) payload.papers.push(v); });
   await dbPaperQuestions.iterate((v: unknown) => { if (v) payload.paper_questions.push(v); });
-  await dbSimilarQuestionLinks.iterate((v: unknown) => { if (v) payload.similar_question_links.push(v); });
-  await dbTopics.iterate((v: unknown) => { if (v) payload.topics.push(v); });
-  await dbTopicQuestions.iterate((v: unknown) => { if (v) payload.topic_questions.push(v); });
   await dbQuestionNotes.iterate((v: unknown) => { if (v) payload.question_notes.push(v); });
-  await dbTeachingNodes.iterate((v: unknown) => { if (v) payload.teaching_nodes.push(v); });
-  await dbTeachingVersions.iterate((v: unknown) => { if (v) payload.teaching_versions.push(v); });
-  await dbNodeQuestions.iterate((v: unknown) => { if (v) payload.node_questions.push(v); });
-  await dbPdfBooks.iterate((v: unknown) => { if (v) payload.pdf_books.push(v); });
-  await dbPdfChapters.iterate((v: unknown) => { if (v) payload.pdf_chapters.push(v); });
-  await dbPdfTopics.iterate((v: unknown) => { if (v) payload.pdf_topics.push(v); });
-  await dbPdfDocs.iterate((v: unknown) => { if (v) payload.pdf_docs.push(v); });
-  await dbPdfCategories.iterate((v: unknown) => { if (v) payload.pdf_categories.push(v); });
   return payload;
 }
 
@@ -123,15 +108,6 @@ export async function dbApplyRemoteSnapshot(snapshot: any): Promise<void> {
   if (snapshot.paper_questions) {
     for (const pq of snapshot.paper_questions) { await dbPaperQuestions.setItem(pq.id || `${pq.paper_id}_${pq.question_id}`, pq); }
   }
-  if (snapshot.topics) {
-    for (const t of snapshot.topics) { await dbTopics.setItem(t.id, t); }
-  }
-  if (snapshot.topic_questions) {
-    for (const tq of snapshot.topic_questions) { await dbTopicQuestions.setItem(tq.id || `${tq.topic_id}_${tq.question_id}`, tq); }
-  }
-  if (snapshot.similar_links) {
-    for (const sl of snapshot.similar_links) { await dbSimilarQuestionLinks.setItem(sl.id, sl); }
-  }
   if (snapshot.question_notes) {
     for (const n of snapshot.question_notes) { await dbQuestionNotes.setItem(n.id, n); }
   }
@@ -154,9 +130,6 @@ export async function dbClearAllData(): Promise<void> {
   await dbTags.clear();
   await dbPapers.clear();
   await dbPaperQuestions.clear();
-  await dbTopics.clear();
-  await dbTopicQuestions.clear();
-  await dbSimilarQuestionLinks.clear();
   await dbQuestionNotes.clear();
 }
 

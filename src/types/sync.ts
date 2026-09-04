@@ -10,18 +10,7 @@ export interface SyncPayload {
   question_tags: unknown[];
   papers: unknown[];
   paper_questions: unknown[];
-  similar_question_links: unknown[];
-  topics: unknown[];
-  topic_questions: unknown[];
   question_notes: unknown[];
-  teaching_nodes: unknown[];
-  teaching_versions: unknown[];
-  node_questions: unknown[];
-  pdf_books: unknown[];
-  pdf_chapters: unknown[];
-  pdf_topics: unknown[];
-  pdf_docs: unknown[];
-  pdf_categories: unknown[];
 }
 
 export interface DataFingerprint {

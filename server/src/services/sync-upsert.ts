@@ -1,5 +1,5 @@
 import db from '../db/connection.js';
-import { normalizeTimestamp, toMillis, isIncomingNewer, normalizeAiMetadata, normalizeSimilarPair } from '../utils/helpers.js';
+import { normalizeTimestamp, toMillis, isIncomingNewer, normalizeAiMetadata } from '../utils/helpers.js';
 
 interface Record {
   id?: string;
@@ -10,13 +10,12 @@ export interface AppliedResult {
   tags: string[];
   questions: string[];
   papers: string[];
-  similar_links: string[];
   purged_question_ids: string[];
   question_notes: string[];
 }
 
 export function createAppliedResult(): AppliedResult {
-  return { tags: [], questions: [], papers: [], similar_links: [], purged_question_ids: [], question_notes: [] };
+  return { tags: [], questions: [], papers: [], purged_question_ids: [], question_notes: [] };
 }
 
 export function listQuestionTagIds(questionId: string, userId: string): string[] {
@@ -175,33 +174,6 @@ export function upsertQuestion(userId: string, question: Record, applied: Applie
   }
 
   replaceQuestionTags(question.id as string, (question.tag_ids as string[]) || []);
-  return true;
-}
-
-export function upsertSimilarLink(userId: string, link: Record): boolean {
-  const pair = normalizeSimilarPair(link?.question_id as string, link?.similar_question_id as string);
-  if (!pair) return false;
-  const [questionId, similarQuestionId] = pair;
-  const ownsBoth = db.prepare(`SELECT COUNT(*) as count FROM questions WHERE user_id = ? AND id IN (?, ?)`).get(userId, questionId, similarQuestionId) as { count: number };
-  if (ownsBoth.count !== 2) return false;
-
-  const existing = db.prepare(`SELECT * FROM similar_question_links WHERE user_id = ? AND question_id = ? AND similar_question_id = ?`).get(userId, questionId, similarQuestionId) as Record | undefined;
-  const updatedAt = normalizeTimestamp((link.updated_at || link.deleted_at || link.created_at) as string);
-  if (!isIncomingNewer(existing, updatedAt)) return false;
-
-  const createdAt = normalizeTimestamp((link.created_at || existing?.created_at || updatedAt) as string);
-  const deletedAt = link.deleted_at ? normalizeTimestamp(link.deleted_at as string) : null;
-  db.prepare(`INSERT INTO similar_question_links (question_id, similar_question_id, user_id, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(question_id, similar_question_id) DO UPDATE SET user_id = excluded.user_id, created_at = excluded.created_at, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at`)
-    .run(questionId, similarQuestionId, userId, createdAt, updatedAt, deletedAt);
-  return true;
-}
-
-export function upsertNodeQuestion(userId: string, nq: Record): boolean {
-  if (!nq?.id) return false;
-  const existing = db.prepare('SELECT * FROM node_questions WHERE id = ? AND user_id = ?').get(nq.id, userId);
-  if (existing) return false;
-  db.prepare('INSERT INTO node_questions (id, user_id, node_id, question_id, created_at) VALUES (?, ?, ?, ?, ?)')
-    .run(nq.id, userId, nq.node_id || '', nq.question_id || '', normalizeTimestamp(nq.created_at as string));
   return true;
 }
 

@@ -2,7 +2,7 @@ import db from '../db/connection.js';
 import { nowIso } from '../utils/helpers.js';
 import {
   createAppliedResult, upsertTag, upsertQuestion, upsertPaper,
-  upsertSimilarLink, upsertQuestionNote
+  upsertQuestionNote
 } from './sync-upsert.js';
 import { mergeUserSettings } from './user-settings.js';
 
@@ -80,18 +80,7 @@ interface PullResponse {
   tags: unknown[];
   questions: unknown[];
   papers: unknown[];
-  similar_links: unknown[];
-  pending_link_list: string[];
-  topics: unknown[];
   question_notes: unknown[];
-  teaching_nodes: unknown[];
-  teaching_versions: unknown[];
-  node_questions: unknown[];
-  pdf_books: unknown[];
-  pdf_chapters: unknown[];
-  pdf_topics: unknown[];
-  pdf_docs: unknown[];
-  pdf_categories: unknown[];
   settings: Record<string, unknown> | null;
 }
 
@@ -152,15 +141,6 @@ async function pullFromPrimary(retryCount = 0): Promise<{ applied: string[]; cou
         console.warn('[server-sync] paper 同步失败:', (e as Error).message);
       }
     }
-    for (const link of data.similar_links || []) {
-      try {
-        if (upsertSimilarLink(primaryUserId, link as Record<string, unknown>)) {
-          applied.similar_links.push(`${(link as { question_id: string }).question_id}_${(link as { similar_question_id: string }).similar_question_id}`);
-        }
-      } catch (e) {
-        console.warn('[server-sync] similar_link 同步失败:', (e as Error).message);
-      }
-    }
     for (const note of data.question_notes || []) {
       try {
         if (upsertQuestionNote(primaryUserId, note as Record<string, unknown>)) {
@@ -192,7 +172,7 @@ async function pullFromPrimary(retryCount = 0): Promise<{ applied: string[]; cou
 
   const totalApplied =
     applied.tags.length + applied.questions.length + applied.papers.length +
-    applied.similar_links.length + applied.question_notes.length;
+    applied.question_notes.length;
 
   const allApplied: string[] = [];
   allApplied.push(...applied.tags, ...applied.questions, ...applied.papers);
