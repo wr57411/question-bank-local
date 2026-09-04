@@ -24,12 +24,22 @@
   - [ ] `npm run typecheck`（TypeScript 类型检查）
   - [ ] `npm run test`（单元测试）
   - [ ] `npm run build`（生产构建）
-  - [ ] `npx playwright test tests/ui-health.spec.js tests/quick-import-visibility.spec.js`（E2E 测试；不要跑全量，`ai-*` 用例需要 API key）
+  - [ ] `npx playwright test`（E2E 全量测试；`ai-*` 端侧 AI 用例已由 `playwright.config.js` 的 `testIgnore` 排除，无需 API key。2026-09-01 起允许并建议跑全量——弹窗锚定竞态这类跨 spec 问题只有在全量串行时才会暴露）
   - [ ] **UI 改动必须通过「截图 + 可见性评估」，见下方专节**
   - 发现问题立即修复，修复后重跑，全部通过才告知用户可手动测试
 - [ ] 执行 ship 打包验证
 
 **违反检查清单 = 产出不可信。**
+
+### Node 进程性能警告（2026-09-04 实测）
+
+WorkBuddy 会话内派生的 node 进程被注入 `NODE_OPTIONS=--require=.../node-language-shim.cjs`（safe-delete 的
+文件代理 shim），所有 fs 操作变为同步 IPC（约 15ms/次）。jsdom 的 require 树数千次文件操作 →
+**每进程首载 jsdom 约 54s**，vitest 默认每 worker 一个进程 → 多 worker 直接超时崩溃、单 worker 全量 22 分钟。
+
+- `npm run test` / `test:unit` / `test:all` 的 vitest 段已在 package.json 里清空 `NODE_OPTIONS`（**2.5 秒跑完 279 用例**）
+- E2E/其它 node 命令在 WorkBuddy 会话内跑时手动加前缀：`NODE_OPTIONS= npx playwright test ...`
+  （E2E 本就要求 `--reporter=list --output=tmp/...`，bypass shim 无删除保护风险；用户终端无此环境变量，不受影响）
 
 ## E2E 截图评估要求（强制，UI 改动必做）
 
@@ -62,11 +72,14 @@ Playwright 启动时会清空 `test-results/` 与 `playwright-report/`，文件�
 WorkBuddy 的 safe-delete 拦截。用下面的方式绕开（不删除任何东西）：
 
 ```bash
-npx playwright test --reporter=list --output=test-results-<新目录名>
+npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 ```
 
 `--reporter=list` 覆盖配置里的 html 报告器（它才是清理 `playwright-report` 的元凶）；
 `--output` 指向全新目录。旧产物目录需要用户明确授权后才能清理。
+
+**硬规则（2026-08-31 王先生确认）**：测试产物不放在项目根目录，一律输出到 `tmp/`
+（已 gitignore）。根目录历史 `test-results-*` 已归档至 `tmp/test-artifacts-20260831/`。
 
 ## 项目信息
 
@@ -163,6 +176,9 @@ npx playwright test --reporter=list --output=test-results-<新目录名>
 | 修复 Android 端输入框光标失效（文字总插入到末尾） | android.captureInput:true 使 WebView 返回 dummy BaseInputConnection，输入法拿不到光标位置，文字只能追加到末尾；移除该配置恢复 Chromium 真实输入连接 | docs/fix-android-cursor-jump-to-end.md | 2026-08-28 | Capacitor 配置, Android WebView, 输入框, IME |
 | 修复后台恢复后已选标签不显示 | loadTags() 替换 allTags 引用后未刷新已选区+renderFormSelectedTags 静默失败无日志；loadTags 末尾同步刷新+防御性 warn+addFormTag 渲染后验证重试 | docs/fix-form-tag-selected-after-resume.md | 2026-08-29 | 添加题目表单, 标签选择, loadTags |
 | 状态提示统一化（错误弹窗+操作反馈 toast） | showStatus 写入藏在添加题目卡片内的 #status-message，其他栏目/滚动后不可见且 error 不消失；收口点分流：error→#error-modal 全局弹窗（z-index 2000，手动关闭），success/info→#toast 顶部悬浮 3 秒自动消失 | docs/fix-status-feedback-unified.md | 2026-08-29 | showStatus, 全局弹窗, toast, UI 提示 |
+| 重写 app.spec.js E2E | 图片 file input 移除+标签选择改搜索式+状态提示走 toast+导出按钮改名；改用数据层造带图题目并拆分 4 条独立用例 | docs/fix-app-spec-rewrite.md | 2026-09-01 | E2E, Playwright, 备份导出, PDF |
+| modal-anchor-overlap 固有竞态 | 长尾用例在 applyModalPosition 的 rAF 写入 top 前断言重叠，失败率约 40% 且失败集合漂移；泛化 waitModalSynced 并补齐 8 处插入点后连续 3 次 27/27 全绿 | docs/fix-modal-anchor-flaky.md | 2026-09-01 | E2E, 弹窗锚定, 测试稳定性 |
+| settings 整行替换抹字段风险修复 | `{ ...settings }` 改 `{ ...prev, ...settings }`（routes/sync.ts + server-sync.ts），删除 cloud_providers/appVersions 硬编码保护；副带修好「清空 cloud_providers 永远清不掉」 | docs/quick-import-favorite-tags.md 第五节 | 2026-09-04 | 服务端, user_settings, 同步 |
 
 ### 功能设计文档
 
@@ -171,6 +187,7 @@ npx playwright test --reporter=list --output=test-results-<新目录名>
 | AI测试基础设施E2E扩展与加固 | 教学内容关联题库 + Web E2E测试 + Seed Fixture + CI模板 | docs/ai-test-harness-e2e-extension.md | 2026-07-16 | AI管线, 题库关联, E2E测试, Playwright |
 | 可视化同步状态与操作模块（修订版） | 顶部状态条 + 复用已有接口 + 失败状态追踪 + 修复showSyncStatus缺失 | docs/visual-sync-status-module.md | 2026-07-19 | 同步, UI, 状态显示 |
 | PDF云书库全栈实现 | 服务端TS迁移+模块化 + PDF上传/试读/下载 + 双维度类目 + 标签复用 + sync集成 | docs/pdf-cloud-library.md | 2026-07-25 | 服务端, PDF书库, 同步, UI |
+| 快速导入栏常见标签列表 | 逐项状态合并+rev判知情+按标签粒度冲突弹窗（v3）；离线可改永不静默丢弃；栏高补偿改 rAF 动态测量；settings 整行替换风险一并修复 | docs/quick-import-favorite-tags.md | 2026-09-04 | 快速导入, 标签, user_settings, 服务端, E2E |
 | iPad/iPhone(Universal) iOS 版本开发 | iOS 骨架+Web降级+iPad布局+依赖Xcode说明 | docs/ipad-ios-adaptation.md | 2026-07-19 | iOS工程, 平台降级, iPad适配 |
 | Windows备用服务器 | 服务器间同步 + PM2常驻 + canvas可选化 + 客户端切换UI | docs/windows-backup-server.md | 2026-07-27 | 服务端, Windows, 同步, 客户端 |
 | Wiki最小MVP（重新构建） | 选题目→OpenRouter视觉模型→卡帕西原则结构化知识，旧wiki保留未动 | docs/wiki-mvp-design.md | 2026-08-01 | Wiki MVP, OpenRouter, 视觉模型, 知识结构 |
