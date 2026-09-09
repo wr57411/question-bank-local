@@ -1,7 +1,7 @@
 #!/bin/bash
 # ship-feature.sh - 构建 APK 并记录到 PROJECT_MEMORY.md
 # 用法: ./scripts/ship-feature.sh "功能描述"
-# 可选环境变量: BUILD_SOURCE=main|worktree（默认 worktree）
+# 可选环境变量: BUILD_SOURCE=main|worktree|current（默认 worktree；current=调用时所在目录）
 
 set -e
 
@@ -12,6 +12,8 @@ DATE=$(date +%Y-%m-%d)
 # 构建目录（源码所在位置）
 if [ "$BUILD_SOURCE" = "main" ]; then
   PROJECT_DIR="/Users/john/question-bank-local"
+elif [ "$BUILD_SOURCE" = "current" ]; then
+  PROJECT_DIR="$(pwd)"
 else
   PROJECT_DIR="/Users/john/.codex/worktrees/f640/question-bank-local"
 fi
@@ -43,8 +45,8 @@ npx cap sync android
 
 # 3. 修复 proguard 兼容性（AGP 9.x）
 echo ">>> 修复 proguard 兼容性..."
-find node_modules/@capacitor node_modules/@hotend -name "build.gradle" -exec grep -l "proguard-android\.txt" {} \; 2>/dev/null | while read f; do
-  sed -i '' 's/proguard-android\.txt/proguard-android-optimize.txt/g' "$f"
+find node_modules/@capacitor node_modules/@capacitor-community node_modules/@hotend -name "build.gradle" -exec grep -l "proguard-android\.txt" {} \; 2>/dev/null | while read f; do
+  sed -i.bak 's/proguard-android\.txt/proguard-android-optimize.txt/g' "$f" && rm -f "$f.bak"
 done
 
 # 4. 构建 APK
