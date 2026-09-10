@@ -1,7 +1,7 @@
 #!/bin/bash
 # ship-feature.sh - 构建 APK 并记录到 PROJECT_MEMORY.md
 # 用法: ./scripts/ship-feature.sh "功能描述"
-# 可选环境变量: BUILD_SOURCE=main|current|worktree（默认 worktree=旧 codex worktree）
+# 可选环境变量: BUILD_SOURCE=main|current|worktree（默认 worktree=旧 codex worktree；current=脚本所在 worktree）
 
 set -e
 

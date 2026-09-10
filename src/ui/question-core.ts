@@ -3,6 +3,30 @@ import { dbQuestions } from '../data/stores';
 
 const w = window as any;
 
+type QuestionGridLayout = 'single' | 'double';
+const GRID_LAYOUT_STORAGE_KEY = 'question-grid-layout';
+
+export function getQuestionGridLayout(): QuestionGridLayout {
+  try {
+    return localStorage.getItem(GRID_LAYOUT_STORAGE_KEY) === 'double' ? 'double' : 'single';
+  } catch { return 'single'; }
+}
+
+export function applyQuestionGridLayout(layout: QuestionGridLayout = getQuestionGridLayout()): void {
+  const list = document.getElementById('questions-list');
+  if (!list) return;
+  list.classList.toggle('grid-single', layout === 'single');
+  list.classList.toggle('grid-double', layout === 'double');
+  const btn = document.getElementById('grid-layout-toggle');
+  if (btn) btn.textContent = layout === 'single' ? '▤ 双栏' : '▦ 单栏';
+}
+
+export function toggleQuestionGridLayout(): void {
+  const next: QuestionGridLayout = getQuestionGridLayout() === 'single' ? 'double' : 'single';
+  try { localStorage.setItem(GRID_LAYOUT_STORAGE_KEY, next); } catch {}
+  applyQuestionGridLayout(next);
+}
+
 let openInlineTagAddId: string | null = null;
 let openInlineTagSearchValue = '';
 let currentBookFilter = '';
@@ -107,6 +131,7 @@ export function getFilteredQuestions(): any[] {
 }
 
 export function renderQuestions(): void {
+  applyQuestionGridLayout();
   const container = document.getElementById('questions-list')!;
   const filtered = getFilteredQuestions();
   document.getElementById('question-count')!.textContent = w.activeFilterTags.length ? `(筛选: ${filtered.length}/${w.allQuestions.length})` : `(${filtered.length}/${w.allQuestions.length})`;

@@ -250,6 +250,9 @@ assignToWindow({
   showAddedTag: ui.showAddedTag,
   toggleQuestionSelect: ui.toggleQuestionSelect,
   updateSelectedCount: ui.updateSelectedCount,
+  getQuestionGridLayout: ui.getQuestionGridLayout,
+  applyQuestionGridLayout: ui.applyQuestionGridLayout,
+  toggleQuestionGridLayout: ui.toggleQuestionGridLayout,
   deleteQuestion: ui.deleteQuestion,
   loadTrashed: ui.loadTrashed,
   // Batch 3: note-version
