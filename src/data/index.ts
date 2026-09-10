@@ -7,3 +7,5 @@ export * from './backup';
 export * from './sync';
 export * from './pdf';
 export * from './review';
+export * from './pdf-print-size';
+export * from './pdf-page-setup';

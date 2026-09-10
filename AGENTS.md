@@ -201,3 +201,5 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 | 快速导入「添加文字笔记」 | 确认左侧「📝 笔记」按钮展开输入区（≤500字），文字写入既有 question_notes.text_note（复用笔记体系，同步零改动）；含版本皮肤下对比度修复与展开态 padding 补偿 | docs/quick-import-text-note.md | 2026-08-30 | 快速导入, 题目笔记, UI, 可见性测试 |
 | 弹窗锚点定位重构 | 以 quick-import-bar 为锚点正下方渲染的统一锚点定位，翻转/限高滚动，resize/scroll/显隐同步 | docs/modal-anchor-reposition.md | 2026-08-31 | 弹窗, 锚点定位, quick-import, 可见性 |
 | 功能移除（8 项 + 相似题 + ocr-server） | 移除 AI教学/书库/Wiki/悬浮窗/待处理/待补拍/专题/相似题/ocr-server；SQL 表全保留；同步键摘除；删 6 个废弃分支；-8700 行 | docs/plans/2026-09-04-feature-removal.md | 2026-09-04 | 功能移除, 同步, 服务端路由, E2E, 分支清理 |
+| PDF 打印字号可配置 + 双栏版面修复 | targetTextMM 实测为死参数（分子分母约掉）改绝对目标 rw=clamp(w×stemMM/tH,0.35×栏宽,栏宽)+尺寸感知栏位；双栏栏宽去横向 CPAD 81→93mm；导出弹窗 pt 挡位+localStorage+实测回显 | docs/pdf-print-size-and-column-width.md | 2026-09-07 | PDF 生成, 排版引擎, 导出弹窗, 打印字号 |
+| PDF 导出页面设置（边距 + 标题） | 导出弹窗加「页面设置」折叠区（上/下/左右 0–30mm + 标题/副标题显隐）；`deriveTopReserveMM` 紧凑公式省 21mm ≈ 7.6% 页高；localStorage `pdfPageSetup` 持久化；空串守卫防 `Number('')===0` 污染；右侧栏 x `AW−SIDE−uwd` 与旧 `AW/2+CGAP/2` 代数恒等（仅形式化重写） | docs/pdf-page-setup.md | 2026-09-09 | PDF 生成, 排版引擎, 导出弹窗, 页面设置 |

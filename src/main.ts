@@ -304,6 +304,13 @@ assignToWindow({
   selectExportMode: ui.selectExportMode,
   selectSpacing: ui.selectSpacing,
   doExportPDF: ui.doExportPDF,
+  renderPrintSizeOptions: ui.renderPrintSizeOptions,
+  selectPrintSize: ui.selectPrintSize,
+  getPrintStemMM: ui.getPrintStemMM,
+  refreshPrintSizeHint: ui.refreshPrintSizeHint,
+  renderPageSetupInputs: ui.renderPageSetupInputs,
+  onPageSetupInputChanged: ui.onPageSetupInputChanged,
+  loadPageSetupForExport: ui.loadPageSetupForExport,
   // Batch 5: camera
   _handleImageReady: ui._handleImageReady,
   takePhoto: ui.takePhoto,

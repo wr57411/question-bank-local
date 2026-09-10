@@ -239,6 +239,9 @@
         .spacing-option{flex:1;text-align:center;padding:12px 6px;border:2px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;transition:all .2s;font-weight:500;background:var(--surface)}
         .spacing-option:hover{border-color:var(--primary-mid);background:var(--primary-light)}
         .spacing-option.selected{border-color:var(--primary);background:var(--primary-light)}
+        .print-size-option{flex:1;text-align:center;padding:12px 6px;border:2px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;transition:all .2s;font-weight:500;background:var(--surface)}
+        .print-size-option:hover{border-color:var(--primary-mid);background:var(--primary-light)}
+        .print-size-option.selected{border-color:var(--primary);background:var(--primary-light)}
 
         /* AI Styles —— grape 知识紫 */
         .ai-summary-wrap{margin:var(--space-xs) 0 var(--space-sm);padding:10px 12px;background:var(--accent-light);border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:12px;color:var(--text-secondary);line-height:1.5;display:flex;align-items:flex-start;gap:8px}

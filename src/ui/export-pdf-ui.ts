@@ -1,5 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { openModal, closeModal } from './common';
+import { STEM_PT_PRESETS, loadStemPt, saveStemPt, ptToMM, mmToPt } from '../data/pdf-print-size';
+import { analyzeImage } from '../data/pdf-image';
+import { MIN_PRINT_SCALE, singleColumnWidthMM } from '../data/pdf-layout-engine';
+import { loadPageSetup, savePageSetup } from '../data/pdf-page-setup';
+import type { PageSetup } from '../types';
 const w = window as any;
 
 export function exportSelectedOrAll(): void {
@@ -17,7 +22,111 @@ export function showExportModal(questions: any[]): void {
   const toPaper = document.getElementById('export-to-paper') as HTMLInputElement | null;
   if (toPaper) toPaper.checked = false;
   loadExportFolders();
+  renderPrintSizeOptions();
+  renderPageSetupInputs();
+  refreshPrintSizeHint();
   openModal('export-modal');
+}
+
+let hintToken = 0;
+
+export function renderPrintSizeOptions(): void {
+  const wrap = document.getElementById('print-size-options');
+  if (!wrap) return;
+  wrap.innerHTML = '';
+  const cur = loadStemPt();
+  STEM_PT_PRESETS.forEach(p => {
+    const el = document.createElement('div');
+    el.className = 'print-size-option' + (p.pt === cur ? ' selected' : '');
+    el.innerHTML = p.label + '<br>' + p.pt + 'pt';
+    el.onclick = () => selectPrintSize(el, p.pt);
+    wrap.appendChild(el);
+  });
+}
+
+export function selectPrintSize(el: HTMLElement, pt: number): void {
+  saveStemPt(pt);
+  renderPrintSizeOptions();
+  refreshPrintSizeHint();
+}
+
+export function getPrintStemMM(): number {
+  return ptToMM(loadStemPt());
+}
+
+export function loadPageSetupForExport(): PageSetup {
+  return loadPageSetup();
+}
+
+export function renderPageSetupInputs(): void {
+  const s = loadPageSetup();
+  const top = document.getElementById('ps-margin-top') as HTMLInputElement | null;
+  const bottom = document.getElementById('ps-margin-bottom') as HTMLInputElement | null;
+  const side = document.getElementById('ps-margin-side') as HTMLInputElement | null;
+  const showTitle = document.getElementById('ps-show-title') as HTMLInputElement | null;
+  const showCount = document.getElementById('ps-show-count') as HTMLInputElement | null;
+  if (top) top.value = String(s.marginTopMM);
+  if (bottom) bottom.value = String(s.marginBottomMM);
+  if (side) side.value = String(s.marginSideMM);
+  if (showTitle) showTitle.checked = s.showTitle;
+  if (showCount) { showCount.checked = s.showCount; showCount.disabled = !s.showTitle; }
+}
+
+export function onPageSetupInputChanged(inputId: string): void {
+  const top = document.getElementById('ps-margin-top') as HTMLInputElement | null;
+  const bottom = document.getElementById('ps-margin-bottom') as HTMLInputElement | null;
+  const side = document.getElementById('ps-margin-side') as HTMLInputElement | null;
+  const showTitle = document.getElementById('ps-show-title') as HTMLInputElement | null;
+  const showCount = document.getElementById('ps-show-count') as HTMLInputElement | null;
+  const saved = loadPageSetup();
+  const topVal = top ? top.value : String(saved.marginTopMM);
+  const bottomVal = bottom ? bottom.value : String(saved.marginBottomMM);
+  const sideVal = side ? side.value : String(saved.marginSideMM);
+  if (topVal === '') { if (top) top.value = String(saved.marginTopMM); }
+  if (bottomVal === '') { if (bottom) bottom.value = String(saved.marginBottomMM); }
+  if (sideVal === '') { if (side) side.value = String(saved.marginSideMM); }
+  const next: PageSetup = {
+    marginTopMM: Number(top && top.value !== '' ? top.value : saved.marginTopMM),
+    marginBottomMM: Number(bottom && bottom.value !== '' ? bottom.value : saved.marginBottomMM),
+    marginSideMM: Number(side && side.value !== '' ? side.value : saved.marginSideMM),
+    showTitle: showTitle ? showTitle.checked : saved.showTitle,
+    showCount: showCount ? showCount.checked : saved.showCount,
+  };
+  savePageSetup(next);
+  if (inputId === 'ps-show-title' && showCount && showTitle) showCount.disabled = !showTitle.checked;
+  if (inputId === 'ps-margin-side') refreshPrintSizeHint();
+}
+
+export async function refreshPrintSizeHint(): Promise<void> {
+  const myToken = ++hintToken;
+  const hint = document.getElementById('print-size-hint');
+  const qs = w._exportQuestions as any[] | undefined;
+  if (!hint) return;
+  if (!qs || !qs.length) { hint.textContent = '没有可测量的题目'; return; }
+  const imgs = (qs.map((q: any) => q.question_image_url).filter((u: any) => u) as string[]).slice(0, 8);
+  if (!imgs.length) { hint.textContent = '没有可测量的题目'; return; }
+  hint.textContent = '测量中…';
+  const stemMM = getPrintStemMM();
+  const printedArr: number[] = [];
+  let capped = 0;
+  for (const src of imgs) {
+    try {
+      const r = await analyzeImage(src);
+      if (myToken !== hintToken) return;
+      const natural = (r.tH / r.w) * singleColumnWidthMM(loadPageSetup().marginSideMM);
+      const printed = Math.min(natural, Math.max(MIN_PRINT_SCALE * natural, stemMM));
+      printedArr.push(printed);
+      if (natural < stemMM) capped++;
+    } catch (_e) { /* skip */ }
+  }
+  if (myToken !== hintToken) return;
+  if (!printedArr.length) { hint.textContent = '测量失败'; return; }
+  const sorted = [...printedArr].sort((a, b) => a - b);
+  const mid = sorted[Math.floor(sorted.length / 2)];
+  const x = mmToPt(mid);
+  let text = `实测题干 ≈ ${x.toFixed(1)} pt（按单栏栏宽估算，抽样 ${imgs.length} 题）`;
+  if (capped > 0) text += ` · ${capped} 题受纸宽上限，印不到目标字号`;
+  hint.textContent = text;
 }
 
 export async function loadExportFolders(): Promise<void> {
@@ -62,7 +171,7 @@ export async function previewExportPDF(): Promise<void> {
   if (!qs || !qs.length) { w.showStatus('没有可导出的题目', 'error'); return; }
   w.showStatus('正在生成预览，请稍候...', 'success');
   const spc = w.exportSpacing === 'large' ? parseFloat((document.getElementById('spc-large') as HTMLInputElement).value) : w.exportSpacing === 'small' ? parseFloat((document.getElementById('spc-small') as HTMLInputElement).value) : 0;
-  const doc = await w.generatePDF(qs, { mode: w.exportMode || 'single', spacing: w.exportSpacing, spacingCm: spc, title: getExportFileName(), noSave: true });
+  const doc = await w.generatePDF(qs, { mode: w.exportMode || 'single', spacing: w.exportSpacing, spacingCm: spc, title: getExportFileName(), noSave: true, stemMM: getPrintStemMM() });
   if (!doc) { w.showStatus('生成失败', 'error'); return; }
   const isNative = !!(w.Capacitor && w.Capacitor.isNativePlatform && w.Capacitor.isNativePlatform());
   if (isNative && w.Capacitor?.Plugins?.Filesystem) {
@@ -113,7 +222,7 @@ export async function doExportPDF(): Promise<void> {
   closeExportModal();
   w.showStatus('正在生成 PDF...', 'success');
   const spc = w.exportSpacing === 'large' ? parseFloat((document.getElementById('spc-large') as HTMLInputElement).value) : w.exportSpacing === 'small' ? parseFloat((document.getElementById('spc-small') as HTMLInputElement).value) : 0;
-  const pdfPath = await w.generatePDF(qs, { mode: w.exportMode || 'single', spacing: w.exportSpacing, spacingCm: spc, title: getExportFileName() });
+  const pdfPath = await w.generatePDF(qs, { mode: w.exportMode || 'single', spacing: w.exportSpacing, spacingCm: spc, title: getExportFileName(), stemMM: getPrintStemMM() });
   w.showStatus('PDF 已生成', 'success');
   if (addToPaper) await addExportToPaper(getExportFileName(), qs, typeof pdfPath === 'string' ? pdfPath : null);
 }

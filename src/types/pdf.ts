@@ -41,9 +41,37 @@ export interface LayoutPage {
 }
 
 export interface PlanLayoutOptions {
-  targetTextMM?: number;
   topReserveMM?: number;
   marginMM?: number;
+  marginTopMM?: number;
+  marginBottomMM?: number;
+  marginSideMM?: number;
+  stemMM?: number;
+  cellPadMM?: number;
+  minSplitMM?: number;
+}
+
+export interface StemPtPreset {
+  pt: number;
+  label: string;
+}
+
+export interface PrintMetrics {
+  stemMM: number;
+  numLabelPt: number;
+  ansLabelPt: number;
+  titlePt: number;
+  subTitlePt: number;
+  answerHeaderPt: number;
+  pageNumPt: number;
+  numLabelH: number;
+  ansLabelH: number;
+  numLabelBaselineMM: number;
+  ansLabelBaselineMM: number;
+  cellPadMM: number;
+  minSplitMM: number;
+  titleTopMM: number;
+  subTitleYOffset: number;
 }
 
 export interface PlanLayoutResult {
@@ -58,6 +86,15 @@ export interface PDFGenerateOptions {
   spacingCm?: number;
   title?: string;
   noSave?: boolean;
-  targetTextMM?: number;
+  stemMM?: number;
   lmMap?: Record<string, LayoutMode>;
+  setup?: PageSetup;
+}
+
+export interface PageSetup {
+  marginTopMM: number;
+  marginBottomMM: number;
+  marginSideMM: number;
+  showTitle: boolean;
+  showCount: boolean;
 }

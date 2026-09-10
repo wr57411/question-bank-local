@@ -1,7 +1,9 @@
-import type { Question, LayoutImage, LayoutCell, LayoutPage, PDFGenerateOptions } from '../types';
+import type { Question, LayoutImage, LayoutCell, LayoutPage, PDFGenerateOptions, PrintMetrics, PageSetup } from '../types';
 import { planLayout } from './pdf-layout-engine';
+import { derivePrintMetrics, deriveTopReserveMM, deriveHeaderReserveMM, loadStemMM, PT_TO_MM } from './pdf-print-size';
 import { estimateTH, cropImage, loadImageDims } from './pdf-image';
 import { loadCnFontBase64 } from './pdf-font';
+import { loadPageSetup } from './pdf-page-setup';
 
 declare const jspdf: { jsPDF: new (opts?: Record<string, unknown>) => JsPDFInstance };
 
@@ -83,6 +85,7 @@ async function buildEngineUnits(
   questions: Question[],
   kind: 'together' | 'questions' | 'answers',
   spcMm: number,
+  metrics: PrintMetrics,
   lmMap?: Record<string, 'single' | 'double'>,
 ): Promise<LayoutImage[]> {
   const units: LayoutImage[] = [];
@@ -93,7 +96,7 @@ async function buildEngineUnits(
       try {
         const dims = await _internals.loadImageDims(q.question_image_url);
         const tH = await _internals.estimateTH(q.question_image_url);
-        units.push({ key: `q${i}`, src: q.question_image_url, w: dims.w, h: dims.h, tH, lm, label: `第 ${i + 1} 题`, labelH: 5, afterGap: spcMm });
+        units.push({ key: `q${i}`, src: q.question_image_url, w: dims.w, h: dims.h, tH, lm, label: `第 ${i + 1} 题`, labelH: metrics.numLabelH, afterGap: spcMm });
       } catch (e) {
         console.warn('跳过无法读取的题目图片:', e);
       }
@@ -105,7 +108,7 @@ async function buildEngineUnits(
         const tH = await _internals.estimateTH(q.answer_image_url);
         units.push({ key: `a${i}`, src: q.answer_image_url, w: dims.w, h: dims.h, tH, lm,
           label: together ? '答案:' : `第 ${i + 1} 题`,
-          labelH: together ? 4 : 5,
+          labelH: together ? metrics.ansLabelH : metrics.numLabelH,
           afterGap: together ? 0 : spcMm });
       } catch (e) {
         console.warn('跳过无法读取的答案图片:', e);
@@ -121,21 +124,23 @@ async function renderEnginePages(
   pages: LayoutPage[],
   pageOffset: number,
   totalPages: number,
+  metrics: PrintMetrics,
+  setup: PageSetup,
   header?: string,
 ): Promise<void> {
   for (let pi = 0; pi < pages.length; pi++) {
     if (pi > 0 || pageOffset > 0) doc.addPage();
     if (header && pi === 0) {
-      drawCentered(doc, cn, header, M, 16);
+      drawCentered(doc, cn, header, setup.marginTopMM + metrics.answerHeaderPt * PT_TO_MM * 0.8, metrics.answerHeaderPt);
     }
-    doc.setFontSize(8);
+    doc.setFontSize(metrics.pageNumPt);
     doc.setTextColor(180);
-    doc.text(`— ${pageOffset + pi + 1}/${totalPages} —`, W / 2, H - 4, { align: 'center' });
+    doc.text(`— ${pageOffset + pi + 1}/${totalPages} —`, W / 2, H - Math.max(4, setup.marginBottomMM - 3), { align: 'center' });
     doc.setTextColor(0);
     const cells: LayoutCell[] = pages[pi].L.concat(pages[pi].R);
     for (const cell of cells) {
       if (cell.label) {
-        drawLabel(doc, cn, cell.label, cell.x, cell.y + 3, cell.label === '答案:' ? 9 : 11);
+        drawLabel(doc, cn, cell.label, cell.x, cell.y + (cell.label === '答案:' ? metrics.ansLabelBaselineMM : metrics.numLabelBaselineMM), cell.label === '答案:' ? metrics.ansLabelPt : metrics.numLabelPt);
       }
       const src = cell.crop ? await _internals.cropImage(cell.src, cell.crop) : cell.src;
       doc.addImage(src, 'JPEG', cell.x, cell.y + cell.labelH, cell.w, cell.h);
@@ -159,43 +164,64 @@ async function generateWithEngine(
   questions: Question[],
   doc: JsPDFInstance,
   cn: string,
-  opts: { spacing: 'none' | 'small' | 'large'; spacingCm: number; title: string; targetTextMM: number; lmMap?: Record<string, 'single' | 'double'> },
+  opts: { spacing: 'none' | 'small' | 'large'; spacingCm: number; title: string; lmMap?: Record<string, 'single' | 'double'>; metrics: PrintMetrics; setup: PageSetup },
 ): Promise<void> {
   const spcMm = opts.spacing !== 'none' ? opts.spacingCm * 10 : 0;
 
-  if (opts.title) {
-    drawCentered(doc, cn, opts.title, M + 5, 18);
-    drawCentered(doc, cn, `共 ${questions.length} 题`, M + 13, 11);
+  if (opts.setup.showTitle) {
+    drawCentered(doc, cn, opts.title, opts.setup.marginTopMM + opts.metrics.titleTopMM, opts.metrics.titlePt);
+    if (opts.setup.showCount) drawCentered(doc, cn, `共 ${questions.length} 题`, opts.setup.marginTopMM + opts.metrics.titleTopMM + opts.metrics.subTitleYOffset, opts.metrics.subTitlePt);
   }
 
-  const units = await buildEngineUnits(questions, 'together', spcMm, opts.lmMap);
-  const { pages, truncated } = planLayout(units, { targetTextMM: opts.targetTextMM, topReserveMM: opts.title ? 35 : 0 });
+  const units = await buildEngineUnits(questions, 'together', spcMm, opts.metrics, opts.lmMap);
+  const { pages, truncated } = planLayout(units, {
+    stemMM: opts.metrics.stemMM,
+    minSplitMM: opts.metrics.minSplitMM,
+    topReserveMM: opts.title ? deriveTopReserveMM(opts.setup, opts.metrics) : 0,
+    marginTopMM: opts.setup.marginTopMM,
+    marginBottomMM: opts.setup.marginBottomMM,
+    marginSideMM: opts.setup.marginSideMM,
+  });
 
   if (truncated) {
     console.warn('PDF 排版迭代上限，部分内容未排版');
     alert('部分题目未能完成排版，请减少单次导出数量');
   }
 
-  await renderEnginePages(doc, cn, pages, 0, pages.length);
+  await renderEnginePages(doc, cn, pages, 0, pages.length, opts.metrics, opts.setup);
 }
 
 async function generateWithEngineSeparate(
   questions: Question[],
   doc: JsPDFInstance,
   cn: string,
-  opts: { spacing: 'none' | 'small' | 'large'; spacingCm: number; title: string; targetTextMM: number; lmMap?: Record<string, 'single' | 'double'> },
+  opts: { spacing: 'none' | 'small' | 'large'; spacingCm: number; title: string; lmMap?: Record<string, 'single' | 'double'>; metrics: PrintMetrics; setup: PageSetup },
 ): Promise<void> {
   const spcMm = opts.spacing !== 'none' ? opts.spacingCm * 10 : 0;
 
-  if (opts.title) {
-    drawCentered(doc, cn, opts.title, M + 5, 18);
-    drawCentered(doc, cn, `共 ${questions.length} 题`, M + 13, 11);
+  if (opts.setup.showTitle) {
+    drawCentered(doc, cn, opts.title, opts.setup.marginTopMM + opts.metrics.titleTopMM, opts.metrics.titlePt);
+    if (opts.setup.showCount) drawCentered(doc, cn, `共 ${questions.length} 题`, opts.setup.marginTopMM + opts.metrics.titleTopMM + opts.metrics.subTitleYOffset, opts.metrics.subTitlePt);
   }
 
-  const qUnits = await buildEngineUnits(questions, 'questions', spcMm, opts.lmMap);
-  const aUnits = await buildEngineUnits(questions, 'answers', spcMm, opts.lmMap);
-  const qPlan = planLayout(qUnits, { targetTextMM: opts.targetTextMM, topReserveMM: opts.title ? 35 : 0 });
-  const aPlan = planLayout(aUnits, { targetTextMM: opts.targetTextMM, topReserveMM: 25 });
+  const qUnits = await buildEngineUnits(questions, 'questions', spcMm, opts.metrics, opts.lmMap);
+  const aUnits = await buildEngineUnits(questions, 'answers', spcMm, opts.metrics, opts.lmMap);
+  const qPlan = planLayout(qUnits, {
+    stemMM: opts.metrics.stemMM,
+    minSplitMM: opts.metrics.minSplitMM,
+    topReserveMM: opts.title ? deriveTopReserveMM(opts.setup, opts.metrics) : 0,
+    marginTopMM: opts.setup.marginTopMM,
+    marginBottomMM: opts.setup.marginBottomMM,
+    marginSideMM: opts.setup.marginSideMM,
+  });
+  const aPlan = planLayout(aUnits, {
+    stemMM: opts.metrics.stemMM,
+    minSplitMM: opts.metrics.minSplitMM,
+    topReserveMM: deriveHeaderReserveMM(opts.setup, opts.metrics),
+    marginTopMM: opts.setup.marginTopMM,
+    marginBottomMM: opts.setup.marginBottomMM,
+    marginSideMM: opts.setup.marginSideMM,
+  });
 
   if (qPlan.truncated || aPlan.truncated) {
     console.warn('PDF 排版迭代上限，部分内容未排版');
@@ -203,8 +229,8 @@ async function generateWithEngineSeparate(
   }
 
   const total = qPlan.pages.length + aPlan.pages.length;
-  await renderEnginePages(doc, cn, qPlan.pages, 0, total);
-  await renderEnginePages(doc, cn, aPlan.pages, qPlan.pages.length, total, '参考答案');
+  await renderEnginePages(doc, cn, qPlan.pages, 0, total, opts.metrics, opts.setup);
+  await renderEnginePages(doc, cn, aPlan.pages, qPlan.pages.length, total, opts.metrics, opts.setup, '参考答案');
 }
 
 async function generateLegacyDouble(questions: Question[], doc: JsPDFInstance, cn: string, y0: number, spcMm: number): Promise<void> {
@@ -288,12 +314,15 @@ export async function generatePDF(questions: Question[], options: PDFGenerateOpt
   const spacingCm = options.spacingCm ?? 5;
   const title = options.title || '';
   const spcMm = spacing !== 'none' ? spacingCm * 10 : 0;
+  const metrics = derivePrintMetrics(options.stemMM ?? loadStemMM());
+  const setup = options.setup ?? loadPageSetup();
 
   if (mode === 'single' || mode === 'merged') {
     await generateWithEngine(questions, doc, cn, {
       spacing, spacingCm, title,
-      targetTextMM: options.targetTextMM ?? 4,
       lmMap: options.lmMap,
+      metrics,
+      setup,
     });
   } else if (mode === 'double') {
     if (title) {
@@ -304,8 +333,9 @@ export async function generatePDF(questions: Question[], options: PDFGenerateOpt
   } else if (mode === 'separate') {
     await generateWithEngineSeparate(questions, doc, cn, {
       spacing, spacingCm, title,
-      targetTextMM: options.targetTextMM ?? 4,
       lmMap: options.lmMap,
+      metrics,
+      setup,
     });
   }
 

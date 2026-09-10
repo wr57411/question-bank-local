@@ -30,3 +30,34 @@ describe('estimateTHFromPixels', () => {
     expect(v).not.toBe(10)
   })
 })
+
+import { analyzeImage } from '../src/data/pdf-image'
+
+describe('analyzeImage', () => {
+  it('jsdom 无 canvas 时走 fallback：tH = max(10, h*0.025)，与主路径可判别', async () => {
+    const origImage = globalThis.Image
+    const origCreate = document.createElement.bind(document)
+    globalThis.Image = class {
+      constructor() {}
+      set src(_v) {
+        this.naturalWidth = 400
+        this.naturalHeight = 300
+        if (this.onload) this.onload()
+      }
+    }
+    document.createElement = (tag) => {
+      const el = origCreate(tag)
+      if (tag === 'canvas') el.getContext = () => null
+      return el
+    }
+    try {
+      const r = await analyzeImage('data:image/gif;base64,R0lGODlhAQABAAAAACw=')
+      expect(r.w).toBe(400)
+      expect(r.h).toBe(300)
+      expect(r.tH).toBe(10)
+    } finally {
+      globalThis.Image = origImage
+      document.createElement = origCreate
+    }
+  })
+})

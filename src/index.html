@@ -497,6 +497,25 @@
                 <div class="spacing-option" onclick="selectSpacing(this,'large')">📄<br><input type="number" id="spc-large" value="8" min="0" max="30" step="0.5" onclick="event.stopPropagation()" style="width:48px;text-align:center;font-size:12px;border:1px solid var(--border);border-radius:var(--radius-sm);padding:2px"> cm</div>
             </div>
         </div>
+        <div style="margin-bottom:var(--space-md)">
+            <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">打印字号</label>
+            <div id="print-size-options" style="display:flex;gap:8px;flex-wrap:wrap"></div>
+            <div id="print-size-hint" style="margin-top:6px;font-size:12px;color:var(--text-secondary)"></div>
+        </div>
+        <details id="page-setup-details" style="margin-bottom:var(--space-md)">
+            <summary style="font-weight:600;font-size:14px;color:var(--text);cursor:pointer;margin-bottom:8px">⚙️ 页面设置（边距 / 标题）</summary>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">
+                <label style="font-size:12px;color:var(--text-secondary)">上 <input type="number" id="ps-margin-top" min="0" max="30" step="1" onchange="onPageSetupInputChanged('ps-margin-top')" style="width:52px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)"> mm</label>
+                <label style="font-size:12px;color:var(--text-secondary)">下 <input type="number" id="ps-margin-bottom" min="0" max="30" step="1" onchange="onPageSetupInputChanged('ps-margin-bottom')" style="width:52px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)"> mm</label>
+                <label style="font-size:12px;color:var(--text-secondary)">左右 <input type="number" id="ps-margin-side" min="0" max="30" step="1" onchange="onPageSetupInputChanged('ps-margin-side')" style="width:52px;padding:4px 6px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)"> mm</label>
+            </div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text);cursor:pointer">
+                <input type="checkbox" id="ps-show-title" onchange="onPageSetupInputChanged('ps-show-title')" style="width:16px;height:16px;accent-color:var(--accent)"> 显示标题
+            </label>
+            <label id="ps-show-count-wrap" style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text);cursor:pointer;margin-top:4px">
+                <input type="checkbox" id="ps-show-count" onchange="onPageSetupInputChanged('ps-show-count')" style="width:16px;height:16px;accent-color:var(--accent)"> 显示"共 N 题"
+            </label>
+        </details>
         <div class="form-group" style="margin-bottom:var(--space-md)">
             <label style="font-weight:600;font-size:14px;margin-bottom:8px;display:block;color:var(--text)">📁 保存文件夹</label>
             <select id="export-folder-select" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)">

@@ -64,6 +64,10 @@ export async function loadImageDims(src: string): Promise<{ w: number; h: number
 }
 
 export async function estimateTH(src: string): Promise<number> {
+  return (await analyzeImage(src)).tH;
+}
+
+export async function analyzeImage(src: string): Promise<{ w: number; h: number; tH: number }> {
   const img = await loadImage(src);
   const sc = Math.min(1, 800 / Math.max(img.naturalWidth, img.naturalHeight));
   const w = Math.round(img.naturalWidth * sc);
@@ -71,10 +75,10 @@ export async function estimateTH(src: string): Promise<number> {
   const c = document.createElement('canvas');
   c.width = w; c.height = h;
   const ctx = c.getContext('2d', { willReadFrequently: true });
-  if (!ctx) return Math.max(10, Math.round(h * 0.025));
+  if (!ctx) return { w: img.naturalWidth, h: img.naturalHeight, tH: Math.max(10, Math.round(h * 0.025)) };
   ctx.drawImage(img, 0, 0, w, h);
   const data = ctx.getImageData(0, 0, w, h).data;
-  return estimateTHFromPixels(data, w, h) / sc;
+  return { w: img.naturalWidth, h: img.naturalHeight, tH: estimateTHFromPixels(data, w, h) / sc };
 }
 
 export async function cropImage(src: string, rect: CropRect): Promise<string> {

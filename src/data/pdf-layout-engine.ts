@@ -1,6 +1,14 @@
 import type { LayoutImage, LayoutCell, LayoutPage, PlanLayoutOptions, PlanLayoutResult, CropRect } from '../types';
+import { DEFAULT_STEM_MM, DOUBLE_MIN_RATIO } from './pdf-print-size';
 
-const AW = 210, AH = 297, CGAP = 4, CPAD = 6, MIN_SPLIT = 25;
+const AW = 210, AH = 297, CGAP = 4, CPAD = 6;
+const DEFAULT_MARGIN_MM = 10;
+
+export const MIN_PRINT_SCALE = 0.35;
+
+export function singleColumnWidthMM(sideMM: number): number {
+  return AW - 2 * sideMM;
+}
 
 interface QueueItem {
   key: string;
@@ -10,33 +18,41 @@ interface QueueItem {
 }
 
 export function planLayout(images: LayoutImage[], opts: PlanLayoutOptions = {}): PlanLayoutResult {
-  const MG = opts.marginMM ?? 10;
-  const uws = AW - 2 * MG;
-  const uwd = (uws - CGAP) / 2 - 2 * CPAD;
-  const uh = AH - 2 * MG;
-  const tgt = opts.targetTextMM ?? 4;
+  const MG = opts.marginMM ?? DEFAULT_MARGIN_MM;
+  const MT = opts.marginTopMM ?? MG;
+  const MB = opts.marginBottomMM ?? MG;
+  const SIDE = opts.marginSideMM ?? MG;
+  const uws = AW - 2 * SIDE;
+  const uwd = (uws - CGAP) / 2;
+  const uh = AH - MT - MB;
+  const stem = opts.stemMM ?? DEFAULT_STEM_MM;
+  const MIN_SPLIT = opts.minSplitMM ?? 25;
   const topReserve = opts.topReserveMM ?? 0;
 
   const valid = images.filter(im => im.tH > 0 && im.w > 0 && im.h > 0);
   if (!valid.length) return { pages: [], nSplit: 0, truncated: false };
+  if (uh <= 0 || uws <= 0) return { pages: [], nSplit: 0, truncated: true };
 
-  const scales = valid.map(im => tgt / ((im.tH / im.w) * (im.lm === 'double' ? uwd : uws)));
-  scales.sort((a, b) => a - b);
-  const baseline = scales[Math.floor(scales.length / 2)] || 1;
+  const effLm = new Map<string, 'single' | 'double'>();
+  for (const im of valid) {
+    const naturalInDouble = (im.tH / im.w) * uwd;
+    effLm.set(im.key, im.lm === 'double' && naturalInDouble >= stem * DOUBLE_MIN_RATIO ? 'double' : 'single');
+  }
 
   const norm = new Map<string, number>();
   for (const im of valid) {
-    const uw = im.lm === 'double' ? uwd : uws;
-    const raw = tgt / ((im.tH / im.w) * uw);
-    norm.set(im.key, Math.max(0.35, Math.min(1, raw / baseline)));
+    const uw = effLm.get(im.key) === 'double' ? uwd : uws;
+    const want = (im.w * stem) / im.tH;
+    norm.set(im.key, Math.min(1, Math.max(MIN_PRINT_SCALE, want / uw)));
   }
 
   const byKey = new Map(images.map(im => [im.key, im]));
   const queue: QueueItem[] = [];
   for (const want of ['single', 'double'] as const) {
     for (const im of images) {
-      if (im.lm === want && im.tH > 0 && im.w > 0 && im.h > 0) {
-        queue.push({ key: im.key, cropY: 0, cropH: im.h, lm: im.lm });
+      const el = effLm.get(im.key) ?? 'single';
+      if (el === want && im.tH > 0 && im.w > 0 && im.h > 0) {
+        queue.push({ key: im.key, cropY: 0, cropH: im.h, lm: el });
       }
     }
   }
@@ -93,13 +109,13 @@ export function planLayout(images: LayoutImage[], opts: PlanLayoutOptions = {}):
     if (q.lm === 'single') {
       const need = rh + lh + pad * 2 + gap;
       if (need <= yL) {
-        addCell('L', MG, AH - MG - yL + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
+        addCell('L', SIDE, AH - MB - yL + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
         yL -= need;
       } else {
         const availImg = yL - pad * 2 - lh;
         if (availImg >= MIN_SPLIT && availImg < rh) {
           const cropPx = Math.min(Math.round(q.cropH * (availImg / rh)), q.cropH);
-          addCell('L', MG, AH - MG - yL + pad, rw, availImg, im, q, { sx: 0, sy: q.cropY, sw: im.w, sh: cropPx }, true, nSplit);
+          addCell('L', SIDE, AH - MB - yL + pad, rw, availImg, im, q, { sx: 0, sy: q.cropY, sw: im.w, sh: cropPx }, true, nSplit);
           nSplit++;
           yL = 0;
           const remH = q.cropH - cropPx;
@@ -110,13 +126,13 @@ export function planLayout(images: LayoutImage[], opts: PlanLayoutOptions = {}):
           newPage();
           const need2 = rh + lh + pad * 2 + gap;
           if (need2 <= uh) {
-            addCell('L', MG, MG + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
+            addCell('L', SIDE, MT + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
             yL = uh - need2;
           } else {
             const availImg2 = uh - pad * 2 - lh;
             if (availImg2 < rh) {
               const cropPx2 = Math.min(Math.round(q.cropH * (availImg2 / rh)), q.cropH);
-              addCell('L', MG, MG + pad, rw, availImg2, im, q, { sx: 0, sy: q.cropY, sw: im.w, sh: cropPx2 }, true, nSplit);
+              addCell('L', SIDE, MT + pad, rw, availImg2, im, q, { sx: 0, sy: q.cropY, sw: im.w, sh: cropPx2 }, true, nSplit);
               nSplit++;
               yL = 0;
               const remH2 = q.cropH - cropPx2;
@@ -124,7 +140,7 @@ export function planLayout(images: LayoutImage[], opts: PlanLayoutOptions = {}):
               newPage();
               if (remH2 > 0) queue.unshift({ key: q.key, cropY: sP, cropH: remH2, lm: q.lm });
             } else {
-              addCell('L', MG, MG + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
+              addCell('L', SIDE, MT + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
               yL = availImg2 - rh;
             }
           }
@@ -135,13 +151,13 @@ export function planLayout(images: LayoutImage[], opts: PlanLayoutOptions = {}):
       let placed = false;
 
       if (need + gap <= yL) {
-        addCell('L', MG + CPAD, AH - MG - yL + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
+        addCell('L', SIDE, AH - MB - yL + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
         yL -= need + gap;
         placed = true;
       } else if (yL - pad * 2 - lh >= MIN_SPLIT && yL - pad * 2 - lh < rh) {
         const availImg = yL - pad * 2 - lh;
         const cropPx = Math.min(Math.round(q.cropH * (availImg / rh)), q.cropH);
-        addCell('L', MG + CPAD, AH - MG - yL + pad, rw, availImg, im, q, { sx: 0, sy: q.cropY, sw: im.w, sh: cropPx }, true, nSplit);
+        addCell('L', SIDE, AH - MB - yL + pad, rw, availImg, im, q, { sx: 0, sy: q.cropY, sw: im.w, sh: cropPx }, true, nSplit);
         nSplit++;
         yL = 0;
         const remHpx = q.cropH - cropPx;
@@ -149,7 +165,7 @@ export function planLayout(images: LayoutImage[], opts: PlanLayoutOptions = {}):
         if (remHpx > 0) {
           const remHmm = rw * (remHpx / im.w);
           if (remHmm + lh + pad * 2 <= yR) {
-            addCell('R', AW / 2 + CGAP / 2 + CPAD, AH - MG - yR + pad, rw, remHmm, im, { ...q, cropY: startY2, cropH: remHpx }, { sx: 0, sy: startY2, sw: im.w, sh: remHpx }, true, nSplit - 1);
+            addCell('R', AW - SIDE - uwd, AH - MB - yR + pad, rw, remHmm, im, { ...q, cropY: startY2, cropH: remHpx }, { sx: 0, sy: startY2, sw: im.w, sh: remHpx }, true, nSplit - 1);
             yR -= remHmm + lh + pad * 2;
           } else {
             queue.unshift({ key: q.key, cropY: startY2, cropH: remHpx, lm: q.lm });
@@ -160,20 +176,20 @@ export function planLayout(images: LayoutImage[], opts: PlanLayoutOptions = {}):
 
       if (!placed) {
         if (need + gap <= yR) {
-          addCell('R', AW / 2 + CGAP / 2 + CPAD, AH - MG - yR + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
+          addCell('R', AW - SIDE - uwd, AH - MB - yR + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
           yR -= need + gap;
           placed = true;
         } else {
           newPage();
           if (need + gap <= uh) {
-            addCell('L', MG + CPAD, MG + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
+            addCell('L', SIDE, MT + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
             yL = uh - need - gap;
             placed = true;
           } else {
             const availImg2 = uh - pad * 2 - lh;
             if (availImg2 < rh) {
               const cropPx2 = Math.min(Math.round(q.cropH * (availImg2 / rh)), q.cropH);
-              addCell('L', MG + CPAD, MG + pad, rw, availImg2, im, q, { sx: 0, sy: q.cropY, sw: im.w, sh: cropPx2 }, true, nSplit);
+              addCell('L', SIDE, MT + pad, rw, availImg2, im, q, { sx: 0, sy: q.cropY, sw: im.w, sh: cropPx2 }, true, nSplit);
               nSplit++;
               yL = 0;
               const remH2px = q.cropH - cropPx2;
@@ -181,7 +197,7 @@ export function planLayout(images: LayoutImage[], opts: PlanLayoutOptions = {}):
               newPage();
               if (remH2px > 0) queue.unshift({ key: q.key, cropY: sP2, cropH: remH2px, lm: q.lm });
             } else {
-              addCell('L', MG + CPAD, MG + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
+              addCell('L', SIDE, MT + pad, rw, rh, im, q, q.cropY === 0 && q.cropH === im.h ? undefined : { sx: 0, sy: q.cropY, sw: im.w, sh: q.cropH }, false, nSplit);
               yL = availImg2 - rh;
             }
             placed = true;
