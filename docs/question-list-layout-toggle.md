@@ -118,3 +118,66 @@ TDD 全程：红灯（5 failed，复现 bug：抓到 `grid-template-columns="159
 2. **选中后列表重渲染位移 ~33px**：`#selected-count` 从隐藏到显示推高工具栏，测试点击必须每次重测坐标（`updateSelectedCount` 改变工具栏占高）——是既有 app 行为，非 bug
 3. **行为式点击探测只能钉住区间**：+9/+14 夹逼把热区锁定在 (42,52)，若要精确 44 需 computed-style 断言；当前 2px 容差可接受
 
+---
+
+# 附：平板适配（容器查询，2026-09-11 追加）
+
+## 需求
+
+真机（vivo Pad5 Pro）反馈：平板双栏下卡片很宽（约 440px）但题目图片只有 160px 高、两侧大片留白，内容看不清。要求：平板（约 600–1024px，含横竖屏）双栏充分利用屏宽、图片按比例放大且不裁切不拉伸；不影响手机端与桌面端现有布局。
+
+## 根因
+
+图片尺寸被**固定高度**钉死，与卡片宽度无关：
+
+| 位置 | 规则 |
+|---|---|
+| `main.css:160` | `.question-card img{width:100%;height:130px;object-fit:contain;…}`（基类） |
+| `main.css:275` | `@media(min-width:768px){ .question-card img{height:160px} }` |
+| `main.css:156` | 仅单栏模式有 `height:auto;max-height:420px` |
+
+故平板双栏卡片 440px 宽时，图片仍按 160px 高缩放（竖图约 120×160），既小又浪费空间。
+
+## 方案：容器查询 + 视口上限
+
+| 改动 | 位置 | 内容 |
+|---|---|---|
+| 声明容器 | `main.css:157` | `.question-card` 末尾追加 `container-type:inline-size` |
+| 自适应规则 | `main.css:290-296` | `@media(max-width:1023.98px){ .container{max-width:none} @container (min-width:220px){ .question-card img{height:auto;max-height:70vh} } }` |
+
+**为什么是"容器查询 + 视口上限"**：判定依据用**卡片实际宽度**（220px 阈值）而非视口断点，因此不受设备 CSS 宽度推算误差影响；外层 `max-width:1023.98px` 负责把桌面排除——纯容器查询会波及桌面双栏（卡片约 525px）。
+
+**阈值 220px 推导**：手机竖屏双栏卡片约 175–195px（不命中，保持现状）< 220 < 平板竖屏卡片约 248–276px（命中）；平板横屏卡片约 440px（命中）。手机横屏（844 视口，卡片约 390px）会命中——**已知取舍**。
+
+**安全性**：
+- 单栏模式不受影响：`:156` 特异性 (0,3,1) > 新规则 (0,1,1)，仍保持 420px 上限
+- `.q-checkbox` 定位不受影响：`container-type` 不改变 `.question-card{position:relative}` 的定位祖先关系
+- **降级安全**：不支持 `@container` 的浏览器整块忽略 → 图片维持现状，无破坏性副作用
+
+## 未实测量（诚实标注）
+
+平板 CSS 视口宽度未能直接实测（adb 不可用，"已连接"为互联功能非调试桥）。由截图几何反推：横屏约 939px、竖屏约 617px（±10%）。容器查询方案对此不敏感（判定依据是卡片宽度），但仍以真机复核为最终判据。
+
+## 验证记录
+
+- 防回归 spec：`tests/tablet-grid-layout.spec.js`（4 用例）——手机 390×844 守卫（img=110±1px）、平板竖屏 617×939（2 轨 + `object-fit:contain` 语义 + 未钳制时盒比例==原图 + 内容高>300）、平板横屏 939×617（同上 + 钳制时盒高==70dvh + 容器宽==clientWidth）、桌面 1280×800 守卫（img=160±1px）
+- TDD 红灯：2 passed（手机/桌面守卫）+ 2 failed（平板：实测竖屏 box 264.5×130 比例误差 171%、横屏 box 394×160 误差 228%）✅
+- 绿灯：4 passed。实测——竖屏 box 265×353（**未钳制**分支，比例 0.751≈原图 0.75）；横屏 box 414×432（**钳制**分支，432≈70dvh=431.9）✅
+- **断言有效性演练**（AGENTS.md 要求：新增测试必须能复现它要防的 bug）：
+  - 临时把 `object-fit` 改 `cover` → 平板两条**如期失败**（`Expected: "contain" Received: "cover"`）✅
+  - 临时把 `max-height` 改 `40dvh` → 横屏**如期失败**（比例误差 1.234 > 容差 0.01）✅
+  - 两次演练后经 md5 字节级核对完整还原，无残留
+- 截图人工 Read：平板横/竖屏各一张，确认两栏铺满、图片明显放大、无裁切变形 ✅
+- 全量 CI：typecheck ✅ / 单元测试 **342 passed, 1 skipped, 0 failed** ✅ / build ✅ / **全量 E2E 94 passed, 0 failed (10.8m)** ✅
+  - 既有守卫全绿：`question-list-single-column`（含 1280 桌面多栏）、`question-checkbox-hit-area`（勾选框定位依赖 `.question-card{position:relative}`）、`ui-health`、`modal-anchor-overlap`（弹窗几何）——证明 `container-type` 引入的 containment 未引发任何布局回归
+
+## 本节新坑（重要，测试设计教训）
+
+**用"盒子宽高比"断言"不裁切不拉伸"是错的指标，而用 `scale=min(...)` 反推内容尺寸则退化为恒等式**。`object-fit:contain` 的语义是「内容等比装进盒子，盒子比例可不同于图片比例」——横屏矮视口下 `max-height` 截断盒子，盒子比例必然≠原图比例（实测 0.957 vs 0.75），但**内容其实完好**。
+
+两轮修正后的正确写法：
+1. `expect(getComputedStyle(img).objectFit).toBe('contain')` —— 直接锁语义（改 `cover`/`fill` 才会裁切拉伸，此断言能抓住，已演练验证）
+2. 按 `max-height` 是否触发钳制分叉断言——未钳制：盒比例 == 原图比例；钳制：盒高 ≈ 70dvh（顺带把 max-height 纳入覆盖）
+3. 保留"内容显示高度 >300px"作为实质放大断言（对比旧固定高 110–160px；`contentH = min(boxW·nh/nw, boxH)` 是真实盒尺寸的函数，非恒等式）
+
+
