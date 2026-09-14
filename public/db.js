@@ -1088,11 +1088,12 @@ function setOnSyncDataWarning(fn) { _onSyncDataWarning = fn; }
 
 async function collectDataFingerprint() {
   let questions = 0, tags = 0, questionTags = 0, papers = 0, teachingNodes = 0;
-  await dbQuestions.iterate(() => questions++);
-  await dbTags.iterate(() => tags++);
-  await dbQuestionTags.iterate(() => questionTags++);
-  await dbPapers.iterate(() => papers++);
-  await dbTeachingNodes.iterate(() => teachingNodes++);
+  // FF-1: localforage.iterate 在回调返回非 undefined 时立即终止迭代，必须用块体
+  await dbQuestions.iterate(() => { questions++; });
+  await dbTags.iterate(() => { tags++; });
+  await dbQuestionTags.iterate(() => { questionTags++; });
+  await dbPapers.iterate(() => { papers++; });
+  await dbTeachingNodes.iterate(() => { teachingNodes++; });
   return { questions, tags, questionTags, papers, teachingNodes };
 }
 
@@ -1804,39 +1805,6 @@ async function generatePaperPDF(paperId) {
 
 // ========== 数据导入/导出 ==========
 
-async function exportAllData() {
-  const data = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [], similar_question_links: [], pending_link_list: [], topics: [], topic_questions: [], question_notes: [], pending_photos: [], teaching_nodes: [], teaching_versions: [], node_questions: [] };
-  await dbQuestions.iterate((v) => data.questions.push(v));
-  await dbTags.iterate((v) => data.tags.push(v));
-  await dbQuestionTags.iterate((v) => data.question_tags.push(v));
-  await dbPapers.iterate((v) => data.papers.push(v));
-  await dbPaperQuestions.iterate((v) => data.paper_questions.push(v));
-  await dbSimilarQuestionLinks.iterate((v) => data.similar_question_links.push(v));
-  await dbTopics.iterate((v) => data.topics.push(v));
-  await dbTopicQuestions.iterate((v) => data.topic_questions.push(v));
-  await dbQuestionNotes.iterate((v) => data.question_notes.push(v));
-  await dbPendingPhotos.iterate((v) => data.pending_photos.push(v));
-  await dbTeachingNodes.iterate((v) => data.teaching_nodes.push(v));
-  await dbTeachingVersions.iterate((v) => data.teaching_versions.push(v));
-  await dbNodeQuestions.iterate((v) => data.node_questions.push(v));
-  data.pending_link_list = JSON.parse(localStorage.getItem('pendingLinkList') || '[]');
-  const jsonStr = JSON.stringify(data);
-  const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-  if (isNative && window.Capacitor?.Plugins?.Filesystem) {
-    const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
-    const fileName = `question-bank-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    try {
-      await window.Capacitor.Plugins.Filesystem.writeFile({ path: fileName, data: base64, directory: 'DOCUMENTS' });
-      alert('备份已保存: DOCUMENTS/' + fileName);
-    } catch (e) { alert('保存失败: ' + e.message); }
-  } else {
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `question-bank-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click(); URL.revokeObjectURL(url);
-  }
-}
 
 async function importAllData(file) {
   const data = JSON.parse(await file.text());
@@ -2236,7 +2204,8 @@ async function dbWikiPutLink(link) {
 
 async function dbWikiGetLog(limit = 50) {
   const entries = [];
-  await dbWikiLog.iterate((v) => entries.push(v));
+  // FF-1: localforage.iterate 在回调返回非 undefined 时立即终止迭代，必须用块体
+  await dbWikiLog.iterate((v) => { entries.push(v); });
   return entries.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || '')).slice(0, limit);
 }
 

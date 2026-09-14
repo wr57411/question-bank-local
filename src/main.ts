@@ -430,6 +430,7 @@ assignToWindow({
   showBackupModal: ui.showBackupModal,
   closeBackupModal: ui.closeBackupModal,
   saveBackupToDevice: ui.saveBackupToDevice,
+  exportAllData: ui.exportAllData,
   loadBackupFromDevice: ui.loadBackupFromDevice,
   toggleAutoBackup: ui.toggleAutoBackup,
   doAutoBackup: ui.doAutoBackup,
