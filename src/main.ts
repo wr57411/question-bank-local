@@ -303,6 +303,7 @@ assignToWindow({
   getExportFolder: ui.getExportFolder,
   getExportFileName: ui.getExportFileName,
   previewExportPDF: ui.previewExportPDF,
+  closePdfPreview: ui.closePdfPreview,
   closeExportModal: ui.closeExportModal,
   selectExportMode: ui.selectExportMode,
   selectSpacing: ui.selectSpacing,

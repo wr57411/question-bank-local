@@ -544,6 +544,19 @@
     </div>
 </div>
 
+<!-- PDF 应用内预览弹窗（不再写公共目录文件） -->
+<div id="pdf-preview-modal" class="modal" onclick="if(event.target===this)closePdfPreview()">
+    <div class="modal-content" style="max-width:min(840px,94vw);padding:var(--space-md)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+            <h3 style="margin:0;font-size:17px;font-weight:800;color:var(--text)">👁️ PDF 预览</h3>
+            <span style="cursor:pointer;font-size:28px;color:var(--text-tertiary);line-height:1" onclick="closePdfPreview()">×</span>
+        </div>
+        <div id="pdf-preview-status" style="font-size:13px;color:var(--text-secondary);margin-bottom:8px"></div>
+        <div id="pdf-preview-canvas-wrap" style="max-height:74vh;overflow:auto;background:var(--surface-dim);border-radius:var(--radius-md);padding:12px;display:flex;flex-direction:column;align-items:center"></div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-top:8px;text-align:center">应用内预览，不会在设备公共目录生成文件</div>
+    </div>
+</div>
+
 <!-- 新建标签弹窗 -->
 <div id="new-tag-modal" class="modal" onclick="if(event.target===this)closeNewTagModal()">
     <div class="modal-content" style="max-width:400px">

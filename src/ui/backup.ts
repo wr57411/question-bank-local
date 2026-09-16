@@ -39,9 +39,10 @@ async function writeShardedBackup(
   try {
     await Filesystem.mkdir({ path: dir, directory, recursive: true });
   } catch (e) {
-    // 目录已存在是预期的，容忍之
     const msg = (e as any)?.message ?? String(e);
-    if (!/exist/i.test(msg)) throw e;
+    // 仅容忍「目录已存在」（直接放过，继续往下写）；其它任何错误必须带上原始信息重新抛出，
+    // 不得静默吞掉 → 否则会退化成上层笼统的 FILE_NOTCREATED 而丢失真实原因
+    if (!/exist/i.test(msg)) throw new Error('无法创建备份目录：' + msg);
   }
   // pending_link_list 是数组但属于 localStorage 项，不当作 store 分片，单独作为 others 落盘
   const { pending_link_list, ...rest } = payload;
@@ -84,7 +85,7 @@ export async function writeFullBackup(): Promise<number> {
     const { shards } = await writeShardedBackup(Filesystem, dir, data as unknown as Record<string, unknown>);
     localStorage.setItem('lastBackupTime', new Date().toISOString());
     await updateBackupStatusUI();
-    showStatus(`全量备份完成：已保存到 Documents/${dir}/，共 ${count} 道题目（${shards} 片）`, 'success');
+    showStatus(`全量备份完成：已保存到应用外部目录 ${dir}/，共 ${count} 道题目（${shards} 片）`, 'success');
   } else {
     const jsonStr = JSON.stringify(data);
     const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -133,7 +134,12 @@ export function getBackupPath(): string {
   return custom ? custom + '/question-bank-backup.json' : 'question-bank-backup.json';
 }
 
-export function getBackupDir(): string { return 'DOCUMENTS'; }
+export function getBackupDir(): string {
+  // 防回归：必须是 EXTERNAL（应用专属外部目录 /storage/emulated/0/Android/data/<包名>/files）。
+  // 不能退回 DOCUMENTS（公共目录，targetSdk 34 下需「所有文件访问」权限且插件不引导授权 → 写操作被系统拒绝，本次故障根因）；
+  // 也不能用 DATA（/data/data 真私有，非 root 取不出文件）。
+  return 'EXTERNAL';
+}
 
 export function showBackupModal(): void {
   const toggle = document.getElementById('auto-backup-toggle') as HTMLInputElement | null;
@@ -143,7 +149,7 @@ export function showBackupModal(): void {
   const info = document.getElementById('backup-path-info');
   if (info) {
     const custom = localStorage.getItem('backupPath');
-    info.innerHTML = custom ? '备份到 <b>' + custom + '/</b> 目录下' : '文件将保存在 <b>Documents/question-bank-backup.json</b>';
+    info.innerHTML = custom ? '备份到应用外部目录 <b>' + custom + '/</b> 下' : '文件将保存在应用外部目录 <b>question-bank-backup.json</b>';
   }
   openModal('backup-modal');
 }
@@ -250,7 +256,7 @@ export async function exportAllData(): Promise<void> {
       // 防回归：native 分片目录（逐片 utf8 直写），勿退回一次性 JSON（OOM 闪退）
       const dir = getDatedBackupDir();
       const { shards } = await writeShardedBackup(Filesystem, dir, data as unknown as Record<string, unknown>);
-      showStatus(`已导出 ${count} 道题目到 Documents/${dir}/（共 ${shards} 片）`, 'success');
+      showStatus(`已导出 ${count} 道题目到应用外部目录 ${dir}/（共 ${shards} 片）`, 'success');
     } else {
       const jsonStr = JSON.stringify(data);
       const blob = new Blob([jsonStr], { type: 'application/json' });
@@ -328,6 +334,46 @@ async function restoreFromSharded(
   return { records, shards };
 }
 
+// 探测可恢复的分片备份：按优先级依次尝试
+//   1) 新位置 EXTERNAL 的固定名目录 question-bank-backup
+//   2) 新位置 EXTERNAL 下所有带日期目录 question-bank-backup-YYYY-MM-DD（取日期最新）
+//   3) 旧位置 DOCUMENTS（曾在已授「所有文件访问」权限设备上生成的备份）的固定名与带日期目录
+// 返回首个含合法 sharded_v1 manifest 的候选；都找不到返回 null。
+// 旧位置 DOCUMENTS 必须保留探测：手机等已授权设备上的历史备份就在公共 Documents 下，
+// 切到 EXTERNAL 后若不回退探测旧位置，这些旧备份会彻底找不到。
+async function findShardedBackup(
+  Filesystem: any,
+): Promise<{ dir: string; directory: string; manifest: ShardManifest } | null> {
+  const directories = ['EXTERNAL', 'DOCUMENTS'];
+  for (const directory of directories) {
+    const candidates: string[] = [getShardedBackupDir()];
+    // 枚举该目录下所有带日期的子目录，取名称里日期最新的（YYYY-MM-DD 字典序即时间序）
+    try {
+      const listing = await Filesystem.readdir({ path: '', directory });
+      const dated = (listing.files ?? [])
+        .map((f: any) => (typeof f === 'string' ? f : f.name))
+        .filter((name: string) => /^question-bank-backup-\d{4}-\d{2}-\d{2}$/.test(name))
+        .sort()
+        .reverse();
+      candidates.push(...dated);
+    } catch {
+      // 该目录不可列（如目录不存在 / 插件不支持）则跳过枚举，仅试固定名
+    }
+    for (const dir of candidates) {
+      try {
+        const res = await Filesystem.readFile({ path: `${dir}/manifest.json`, directory, encoding: 'utf8' });
+        const parsed = JSON.parse(res.data as string);
+        if (parsed && parsed.format === 'sharded_v1') {
+          return { dir, directory, manifest: parsed as ShardManifest };
+        }
+      } catch {
+        // 该候选无合法 manifest，试下一个
+      }
+    }
+  }
+  return null;
+}
+
 export async function loadBackupFromDevice(): Promise<void> {
   const cap = (window as any).Capacitor;
   const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
@@ -337,34 +383,44 @@ export async function loadBackupFromDevice(): Promise<void> {
   if (existingCount > 0 && !confirm('当前已有 ' + existingCount + ' 道题目，加载备份将覆盖同名数据。\n\n确定要继续吗？')) return;
   try {
     if (isNative && Filesystem) {
-      const dir = getShardedBackupDir();
-      const directory = getBackupDir();
-      // 先探测分片目录；manifest 不存在则回退旧单文件路径（旧版备份必须仍可恢复）
-      let manifest: ShardManifest | null = null;
-      try {
-        const res = await Filesystem.readFile({ path: `${dir}/manifest.json`, directory, encoding: 'utf8' });
-        const parsed = JSON.parse(res.data as string);
-        if (parsed && parsed.format === 'sharded_v1') manifest = parsed as ShardManifest;
-      } catch {
-        manifest = null;
-      }
-
-      if (manifest) {
+      const found = await findShardedBackup(Filesystem);
+      if (found) {
+        const { dir, directory, manifest } = found;
         const qStore = manifest.stores.find((s) => s.name === 'questions');
         const backupCount = qStore ? qStore.count : 0;
-        if (!confirm(`分片备份包含 ${backupCount} 道题目，确定导入？`)) return;
+        // 把最终实际使用的目录名与位置显示给用户，避免「我到底恢复了哪一份」的模糊
+        const where = directory === 'DOCUMENTS' ? '公共 Documents 目录' : '应用外部目录';
+        if (!confirm(`分片备份（${dir}，位于${where}）包含 ${backupCount} 道题目，确定导入？`)) return;
         const result = await restoreFromSharded(Filesystem, dir, directory, manifest);
         await (window as any).refreshAll?.();
-        showStatus(`备份恢复成功: ${backupCount} 题 / ${result.shards} 片 / ${manifest.stores.length} 个 store`, 'success');
+        showStatus(`备份恢复成功: ${backupCount} 题 / ${result.shards} 片 / ${manifest.stores.length} 个 store（来自 ${dir}，${where}）`, 'success');
       } else {
-        // 旧版单文件兼容路径（保持不变）
-        const result = await Filesystem.readFile({ path: 'question-bank-backup.json', directory, encoding: 'utf8' });
-        const data = JSON.parse(result.data as string);
+        // 旧版单文件兼容路径（历史备份必须仍可恢复）：同时覆盖新位置 EXTERNAL 与旧位置 DOCUMENTS
+        const singleCandidates: Array<{ path: string; directory: string }> = [
+          { path: 'question-bank-backup.json', directory: getBackupDir() },
+          { path: 'question-bank-backup.json', directory: 'DOCUMENTS' },
+        ];
+        let loaded: { data: any; directory: string } | null = null;
+        for (const c of singleCandidates) {
+          try {
+            const res = await Filesystem.readFile({ path: c.path, directory: c.directory, encoding: 'utf8' });
+            loaded = { data: JSON.parse(res.data as string), directory: c.directory };
+            break;
+          } catch {
+            // 该位置无旧版单文件，试下一个
+          }
+        }
+        if (!loaded) {
+          // 明确报错并说明查找过哪些位置，杜绝「恢复成功 0 题」式静默
+          throw new Error('未找到可恢复的备份：已查找 应用外部目录(EXTERNAL) 与 公共 Documents 目录(DOCUMENTS) 下的 question-bank-backup 分片目录及旧版单文件');
+        }
+        const data = loaded.data;
         const backupCount = assertBackupHasData(data);
+        const where = loaded.directory === 'DOCUMENTS' ? '公共 Documents 目录' : '应用外部目录';
         if (!confirm('备份包含 ' + backupCount + ' 道题目，确定导入？')) return;
         await importBackupData(data);
         await (window as any).refreshAll?.();
-        showStatus('备份恢复成功: ' + backupCount + ' 题', 'success');
+        showStatus('备份恢复成功: ' + backupCount + ' 题（来自旧版单文件，' + where + '）', 'success');
       }
     } else {
       const input = document.createElement('input');
