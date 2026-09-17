@@ -71,7 +71,7 @@ function upsertRecord(userId: string, record: Record, config: UpsertConfig): boo
     ? (record.updated_at || record.deleted_at || record.created_at)
     : (record.updated_at || record.created_at);
   const updatedAt = normalizeTimestamp(updatedAtPath as string);
-  if (!isIncomingNewer(existing, updatedAt)) return false;
+  if (!isIncomingNewer(existing as { updated_at?: string; deleted_at?: string; created_at?: string } | undefined, updatedAt)) return false;
 
   const createdAt = normalizeTimestamp((record.created_at || existing?.created_at || updatedAt) as string);
   const deletedAt = config.hasDeletedAt && record.deleted_at ? normalizeTimestamp(record.deleted_at as string) : null;
@@ -152,7 +152,7 @@ export function upsertQuestion(userId: string, question: Record, applied: Applie
   if (!question?.id) return false;
   const existing = db.prepare('SELECT * FROM questions WHERE id = ? AND user_id = ?').get(question.id, userId) as Record | undefined;
   const updatedAt = normalizeTimestamp((question.updated_at || question.deleted_at || question.created_at) as string);
-  if (!isIncomingNewer(existing, updatedAt)) return false;
+  if (!isIncomingNewer(existing as { updated_at?: string; deleted_at?: string; created_at?: string } | undefined, updatedAt)) return false;
 
   if (question.purged_at) {
     db.prepare('DELETE FROM question_tags WHERE question_id = ?').run(question.id);
@@ -198,7 +198,7 @@ export function upsertPaper(userId: string, paper: Record): boolean {
   if (!paper?.id || !paper.name) return false;
   const existing = db.prepare('SELECT * FROM papers WHERE id = ? AND user_id = ?').get(paper.id, userId) as Record | undefined;
   const updatedAt = normalizeTimestamp((paper.updated_at || paper.deleted_at || paper.created_at) as string);
-  if (!isIncomingNewer(existing, updatedAt)) return false;
+  if (!isIncomingNewer(existing as { updated_at?: string; deleted_at?: string; created_at?: string } | undefined, updatedAt)) return false;
 
   const createdAt = normalizeTimestamp((paper.created_at || existing?.created_at || updatedAt) as string);
   const deletedAt = paper.deleted_at ? normalizeTimestamp(paper.deleted_at as string) : null;
