@@ -7,7 +7,7 @@ import { mergeUserSettings } from '../services/user-settings.js';
 import { mergeQuickFavTags, type QuickFavSnapshot } from '../services/quick-fav-merge.js';
 import {
   createAppliedResult, upsertTag, upsertQuestion, upsertPaper,
-  upsertQuestionNote,
+  upsertQuestionNote, upsertQuestionTag,
   listQuestionTagIds, listPaperQuestionIds
 } from '../services/sync-upsert.js';
 
@@ -19,7 +19,7 @@ interface DbRow { [key: string]: unknown; }
 router.post('/push', (req, res) => {
   try {
     const userId = (req as AuthRequest).userId;
-    const { tags = [], questions = [], papers = [], question_notes = [], settings = null } = req.body || {};
+    const { tags = [], questions = [], papers = [], question_tags = [], question_notes = [], settings = null } = req.body || {};
 
     const applied = createAppliedResult();
 
@@ -32,6 +32,9 @@ router.post('/push', (req, res) => {
     }
     for (const paper of papers) {
       if (upsertPaper(userId, paper)) applied.papers.push(paper.id);
+    }
+    for (const qt of question_tags) {
+      upsertQuestionTag(userId, qt, applied);
     }
     for (const note of question_notes) {
       if (upsertQuestionNote(userId, note)) applied.question_notes.push(note.id);
@@ -102,9 +105,24 @@ router.get('/pull', (req, res) => {
     .filter(n => !since || toMillis((n.updated_at || n.created_at) as string) > since)
     .map(n => ({ ...n, created_at: normalizeTimestamp(n.created_at as string), updated_at: normalizeTimestamp(n.updated_at as string) }));
 
+  // 关联独立同步键：始终返回用户全部 question_tags（含软删墓碑与时间戳），由客户端逐条合并。
+  // 不过滤 since：存量行无时间戳时与增量游标比较会漏发，导致新设备拿不全关联。
+  const questionTags = (db.prepare(`
+    SELECT qt.question_id, qt.tag_id, qt.created_at, qt.updated_at, qt.deleted_at
+    FROM question_tags qt
+    JOIN questions q ON q.id = qt.question_id
+    WHERE q.user_id = ?
+  `).all(userId) as DbRow[]).map((qt) => ({
+    question_id: qt.question_id,
+    tag_id: qt.tag_id,
+    created_at: qt.created_at ? normalizeTimestamp(qt.created_at as string) : null,
+    updated_at: qt.updated_at ? normalizeTimestamp(qt.updated_at as string) : null,
+    deleted_at: qt.deleted_at ? normalizeTimestamp(qt.deleted_at as string) : null,
+  }));
+
   const userSettings = settingsRow?.settings ? JSON.parse(settingsRow.settings) : null;
 
-    res.json({ now: nowIso(), tags, questions, papers, question_notes: questionNotes, settings: userSettings });
+    res.json({ now: nowIso(), tags, questions, papers, question_tags: questionTags, question_notes: questionNotes, settings: userSettings });
   } catch (e) {
     res.status(500).json({ error: '同步 pull 失败', detail: e instanceof Error ? e.message : String(e) });
   }

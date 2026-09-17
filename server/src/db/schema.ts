@@ -268,3 +268,9 @@ ensureColumn('pdf_topics', 'sort_order', 'INTEGER DEFAULT 0');
 
 
 ensureColumn('papers', 'pdf_url', 'TEXT');
+
+// Phase 0 (D6): question_tags 升级为带版本的实体，支持「取消关联」增量传播。
+// ensureColumn 先检查列是否存在（ALTER TABLE ADD COLUMN 不幂等，重复执行报 duplicate column name）。
+ensureColumn('question_tags', 'created_at', 'TEXT');
+ensureColumn('question_tags', 'updated_at', 'TEXT');
+ensureColumn('question_tags', 'deleted_at', 'TEXT');

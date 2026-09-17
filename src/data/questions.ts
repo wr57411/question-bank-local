@@ -152,12 +152,21 @@ export async function dbPermanentDeleteQuestion(questionId: string): Promise<voi
 }
 
 export async function dbAddTagToQuestion(questionId: string, tagId: string): Promise<void> {
-  await dbQuestionTags.setItem(`${questionId}_${tagId}`, { question_id: questionId, tag_id: tagId });
+  const now = nowIso();
+  await dbQuestionTags.setItem(`${questionId}_${tagId}`, { question_id: questionId, tag_id: tagId, created_at: now, updated_at: now, deleted_at: null });
   invalidateTagIndex();
 }
 
 export async function dbRemoveTagFromQuestion(questionId: string, tagId: string): Promise<void> {
-  await dbQuestionTags.removeItem(`${questionId}_${tagId}`);
+  const key = `${questionId}_${tagId}`;
+  const now = nowIso();
+  const existing = await dbQuestionTags.getItem(key);
+  if (existing) {
+    await dbQuestionTags.setItem(key, { ...(existing as Record<string, unknown>), updated_at: now, deleted_at: now });
+  } else {
+    // 本地无记录也要写墓碑，确保「取消关联」能跨设备传播（不被另一条设备的陈旧全量 push 复活）
+    await dbQuestionTags.setItem(key, { question_id: questionId, tag_id: tagId, created_at: now, updated_at: now, deleted_at: now });
+  }
   invalidateTagIndex();
 }
 

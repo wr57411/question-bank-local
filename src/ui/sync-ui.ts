@@ -430,16 +430,18 @@ export async function runSync(opts: { forceFullPull?: boolean; skipPush?: boolea
   try {
     setSyncStatus(skipPush ? '正在下载...' : '正在同步...');
 
+    const pullResp = await apiCall('/api/sync/pull');
+    await w.dbApplyRemoteSnapshot(pullResp);
+    w.cloudProviders = JSON.parse(localStorage.getItem('cloud_providers') || '[]');
+    w.currentProviderId = localStorage.getItem('current_provider_id') || '';
+
+    // 先 pull 再 push：逐条合并语义下顺序不影响正确性，但先拉可让首次同步后本地视图即完整
     if (!skipPush) {
       const payload = await w.dbBuildSyncPayload();
       const pushResp = await apiCall('/api/sync/push', 'POST', payload);
       await w.dbFinalizeSuccessfulSync(pushResp.applied || {});
     }
 
-    const pullResp = await apiCall('/api/sync/pull');
-    await w.dbApplyRemoteSnapshot(pullResp);
-    w.cloudProviders = JSON.parse(localStorage.getItem('cloud_providers') || '[]');
-    w.currentProviderId = localStorage.getItem('current_provider_id') || '';
     await w.refreshAll();
 
     const syncTime = pullResp.now || new Date().toISOString();
