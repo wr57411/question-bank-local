@@ -7,18 +7,6 @@ class BrokenImage {
   addEventListener() {} removeEventListener() {}
 }
 
-beforeEach(() => {
-  vi.stubGlobal('localforage', {
-    createInstance: () => ({
-      getItem: async () => null,
-      setItem: async (_k: string, v: unknown) => v,
-      iterate: async () => {},
-      removeItem: async () => {},
-      clear: async () => {},
-    }),
-  });
-});
-
 const NOTE_VERSION_HTML = `
 <div id="add-note-version-modal"><div class="modal-content"></div></div>
 <input id="note-version-label" />
