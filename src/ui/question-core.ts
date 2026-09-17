@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { dbQuestions } from '../data/stores';
+import { compressNoteImage } from '../services/image';
 
 const w = window as any;
 
@@ -56,7 +57,8 @@ export function initQuestionForm(): void {
         if (ev.image) {
           const labelInput = document.getElementById('extra_' + ev.idx + '-label') as HTMLInputElement | null;
           const label = (labelInput ? labelInput.value.trim() : '') || '笔记 v' + noteIdx;
-          await w.dbAddQuestionNote(newQuestion.id, ev.image, label, '');
+          const image = await compressNoteImage(ev.image);
+          await w.dbAddQuestionNote(newQuestion.id, image, label, '');
           noteIdx++;
         }
       }

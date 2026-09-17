@@ -50,7 +50,7 @@
         <button type="button" id="qi-combo-btn" onclick="openComboPanel()" style="flex:0 1 auto;min-width:46px;max-width:calc(100% - 132px);padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="点击切换版本组合">组合 ▾</button>
         <button type="button" id="qi-layout-btn" onclick="toggleQuickLayout()" style="flex-shrink:0;min-width:34px;padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text);font-size:14px;font-weight:500;text-align:center;cursor:pointer;white-space:nowrap" title="点击在单栏/双栏间切换，会记住上次选择">双</button>
         <div style="flex:1"></div>
-        <button type="button" id="qi-note-btn" onclick="toggleQuickNote()" style="flex-shrink:0;padding:7px 12px;border:1.5px dashed var(--accent);border-radius:var(--radius-md);background:var(--accent-light);color:var(--accent-dark);font-size:13px;font-weight:700;cursor:pointer" title="点击展开/收起文字笔记输入区">📝 笔记<span id="qi-note-dot" style="display:none;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:2px"></span></button>
+        <button type="button" id="qi-note-btn" onclick="toggleQuickNote()" style="flex-shrink:0;padding:7px 12px;border:1.5px dashed var(--accent);border-radius:var(--radius-md);background:var(--accent-light);color:var(--accent-dark);font-size:13px;font-weight:700;cursor:pointer" title="点击展开/收起文字笔记与手写笔记照片">📎 附加<span id="qi-note-dot" style="display:none;width:6px;height:6px;border-radius:50%;background:var(--accent);margin-left:4px;vertical-align:2px"></span></button>
         <button type="button" id="qi-confirm-btn" onclick="confirmQuickImport()" style="flex-shrink:0;padding:8px 16px;border:none;border-radius:var(--radius-md);background:var(--primary);color:#fff;font-size:13px;font-weight:700;cursor:pointer">✅ 确认</button>
     </div>
     <div id="qi-note-area" style="margin-top:8px;border:1.5px dashed var(--accent);border-radius:var(--radius-md);background:var(--accent-light)">
@@ -59,6 +59,18 @@
             <span id="qi-note-count" style="font-size:10px;color:var(--accent-dark)">0/500</span>
         </div>
         <textarea id="qi-note-input" maxlength="500" placeholder="输入文字笔记…" style="display:block;width:calc(100% - 24px);box-sizing:border-box;margin:6px 12px 0;padding:8px 10px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;line-height:1.5;background:var(--surface);color:var(--text);min-height:58px;resize:vertical"></textarea>
+        <div id="qi-hw-block" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+                <span style="font-size:12px;font-weight:700;color:var(--accent-dark)">📸 手写笔记照片（本题另一图片版本）</span>
+                <span id="qi-hw-count" style="font-size:10px;color:var(--accent-dark)">0/5</span>
+            </div>
+            <div class="upload-buttons">
+                <button type="button" class="upload-btn camera" onclick="takeQuickHandNote()" style="font-size:12px;padding:10px">📷 拍一张</button>
+                <button type="button" class="upload-btn" onclick="pickQuickHandNoteFromGallery()" style="background:var(--surface-dim);color:var(--text-secondary);box-shadow:0 2px 0 var(--border);font-size:12px;padding:10px">🖼️ 相册</button>
+            </div>
+            <div id="qi-hw-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px"></div>
+            <div style="padding:6px 0 0;font-size:10px;color:var(--text-secondary)">保存后可在题目详情「📝 题目图片」下拉中切换查看，并随同步上传</div>
+        </div>
         <div style="padding:4px 12px 8px;font-size:10px;color:var(--text-secondary)">笔记保存在本题的笔记区，复习时可见，并随同步上传</div>
     </div>
     <div id="qi-hint" style="margin-top:6px;font-size:11px;color:var(--text-secondary)"></div>
@@ -428,6 +440,7 @@
         <div id="modal-note-version-bar" style="display:flex;align-items:center;gap:8px;padding:8px 0;margin-bottom:8px;border-bottom:1px solid var(--border-light)">
             <span style="font-size:12px;color:var(--text-secondary);font-weight:600">📝 题目图片:</span>
             <select id="modal-note-version-select" onchange="switchNoteVersion(this.value)" style="flex:1;padding:6px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)"></select>
+            <button type="button" id="modal-note-version-delete" onclick="deleteCurrentNoteVersion()" style="padding:6px 10px;font-size:11px;background:var(--danger-light);color:var(--danger-dark);border:1px solid var(--danger);border-radius:var(--radius-sm);cursor:pointer" title="删除当前显示的图片版本（同步到所有设备，不可恢复）">🗑 删除</button>
             <button onclick="showAddNoteVersionModal()" style="padding:6px 12px;font-size:12px;border-radius:var(--radius-sm)">+ 添加版本</button>
         </div>
         <div id="modal-question-image"></div>

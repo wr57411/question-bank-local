@@ -28,7 +28,7 @@ test.describe("UI 健康检测 - 存在性", () => {
     // 拍照按钮
     await expect(page.locator('button:has-text("拍照")').first()).toBeVisible();
     // 相册按钮
-    await expect(page.locator('button:has-text("相册")').first()).toBeVisible();
+    await expect(page.locator('#question-form button:has-text("相册")').first()).toBeVisible();
     // 跨页按钮
     await expect(page.locator('button:has-text("跨页")').first()).toBeVisible();
     // 工具栏按钮
