@@ -156,9 +156,9 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 
 ## Git 提交规则
 
-1. **手动提交**：每次完成功能后，检查 git status 并询问用户是否提交
+1. **统一提交（2026-09-15 王先生修订）**：多任务流水线执行期间，AI 不逐任务询问提交；全部功能完成、本地四连绿通过、且用户真机验收通过后，统一一次 commit（附功能说明），再按用户指令 push。单点小修复仍可在完成后询问是否提交
 2. **提交信息格式**：`功能描述 - 简短说明`
-3. **不自动提交**：禁用自动提交脚本，避免频繁提交
+3. **不自动提交**：禁用自动提交脚本，避免频繁提交。用户不看代码 diff，验收对象是运行效果与打包产物（APK/真机行为），不是代码
 
 ## 打包规则（重要）
 
@@ -207,6 +207,7 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 | 本地OCR服务备选方案 | PaddleOCR+UniMERNet本地识别文字/公式 → 免费纯文本LLM提取，与视觉模型模式并存 | docs/local-ocr-service.md | 2026-08-01 | OCR, PaddleOCR, UniMERNet, 纯文本LLM, 本地服务 |
 | UI 整体迁移至明亮友好型风格 | DESIGN.md 契约+token 重写+组件层重构+42 个 TS 文件硬编码清理 | docs/ui-migration-bright-friendly.md | 2026-08-03 | UI, 设计系统, 视觉语言, 设计债 |
 | 架构可视化模型（Architecture Visualization 插件） | C4 系统上下文/容器 DSL + 客户端四层依赖 DOT + 同步流程 Mermaid + 证据索引 | docs/architecture/artifact-summary.md | 2026-08-05 | 架构模型, C4, Graphviz, 证据索引 |
+| 语义检索（WeMM-2B 混合搜索与相似题） | 文字语义搜/以图搜题/详情页找相似题；Python 编码微服务(懒加载+空闲卸载) + question_embeddings 向量表 + 客户端本地余弦检索 + 静默降级；91 题盲测 L3 Recall@5 0.93 vs 现有 0.00；实施计划 docs/plans/2026-09-15-semantic-search.md，评测 tmp/wemm-eval/report.md | docs/semantic-search-wemm2b.md | 2026-09-15 | 语义检索, WeMM-Embedding, FastAPI, Express, E2E |
 | 一键问题反馈与 GitHub Issues 自动提交 | 截图监听（Android 插件+iOS 通知桥接）+ 反馈表单 + 服务端中转 + 图片存 feedback-assets 分支 + 离线重试队列 | docs/auto-issue-feedback.md | 2026-08-27 | 问题反馈, GitHub Issues, 服务端, 原生插件 |
 | E2E 隔离测试账号与数据快照 | 专用测试账号 + 主账号标签/题目快照复制脚本 + 测试数据与真实账号隔离 | docs/e2e-test-account.md | 2026-08-28 | 测试基建, 数据隔离, 服务端 |
 | PDF 排版引擎 v5 集成 | planLayout 纯函数引擎替换 pdf.ts + 单双栏自动分组 + 长图切割 + 修复试卷导出空白 | docs/pdf-layout-engine-v5.md | 2026-08-28 | PDF 生成, 排版引擎, generatePDF, 试卷导出 |

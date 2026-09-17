@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { openModal, closeModal } from './common';
+import { getAllVectors } from '../data/embeddings';
+import { cosineSimilarity } from '../services/semantic';
 const w = window as any;
 
 // Expose _detailLoadToken on window (note-version.ts reads/writes it)
@@ -47,6 +49,11 @@ export function renderDetailContent(q: any): void {
     </div>
     ${reviewEnabled ? `<div style="font-size:11px;color:var(--text-tertiary);margin-top:4px">已复习 ${reviewCount} 次 · 下次复习: ${reviewNextDate}</div>` : ''}`;
   document.getElementById('modal-tags')!.innerHTML += reviewHtml;
+
+  const tagsEl = document.getElementById('modal-tags');
+  if (tagsEl) {
+    tagsEl.innerHTML += `<div style="margin-top:16px"><button onclick="showSimilarQuestions('${q.id}')" style="width:100%;padding:12px 20px;border:none;border-radius:18px;background:linear-gradient(135deg,#9D7BFF,#7C58E8);color:#fff;font-size:14px;font-weight:700;cursor:pointer">🔍 找相似题</button></div>`;
+  }
 
   // AI 摘要
   const aiDiv = document.getElementById('modal-ai-summary')!;
@@ -122,4 +129,37 @@ export function initDetailSwipe(): void {
     const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy, dt = Date.now() - st;
     if (Math.abs(dx) > 60 && dt < 500 && Math.abs(dy) < 100) { dx < 0 ? navigateDetail(1) : navigateDetail(-1); }
   }, { passive: true });
+}
+
+export function closeSimilarModal(): void {
+  closeModal('similar-modal');
+}
+
+export async function showSimilarQuestions(qId: string): Promise<void> {
+  const vectors = await getAllVectors();
+  const self = vectors.get(qId);
+  if (!self) {
+    w.showStatus('该题暂无语义索引（需在服务端执行一次建库）', 'error');
+    return;
+  }
+  const hits: { id: string; score: number }[] = [];
+  vectors.forEach((vec, id) => {
+    if (id !== qId) hits.push({ id, score: cosineSimilarity(self, vec) });
+  });
+  hits.sort((a, b) => b.score - a.score);
+  const top = hits.slice(0, 6);
+  const byId = new Map((w.allQuestions as any[]).map((q: any) => [q.id, q]));
+  const list = document.getElementById('similar-list');
+  if (!list) return;
+  list.replaceChildren();
+  top.forEach((h) => {
+    const q = byId.get(h.id);
+    if (!q || q.deleted_at) return;
+    const card = document.createElement('div');
+    card.className = 'similar-card';
+    card.innerHTML = `<img src="${q.question_image_url}" alt=""><span class="score">${Math.round(h.score * 100)}%</span>`;
+    card.onclick = () => { closeModal('similar-modal'); w.showQuestionDetail(q.id); };
+    list.appendChild(card);
+  });
+  openModal('similar-modal');
 }

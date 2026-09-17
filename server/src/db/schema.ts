@@ -268,3 +268,11 @@ ensureColumn('pdf_topics', 'sort_order', 'INTEGER DEFAULT 0');
 
 
 ensureColumn('papers', 'pdf_url', 'TEXT');
+
+db.exec(`CREATE TABLE IF NOT EXISTS question_embeddings (
+  question_id TEXT PRIMARY KEY,
+  model TEXT NOT NULL,
+  dim INTEGER NOT NULL,
+  vector BLOB NOT NULL,
+  updated_at TEXT DEFAULT (datetime('now'))
+)`);
