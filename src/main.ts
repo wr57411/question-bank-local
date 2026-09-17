@@ -265,6 +265,7 @@ assignToWindow({
   displayCurrentNoteVersion: ui.displayCurrentNoteVersion,
   saveTextNote: ui.saveTextNote,
   switchNoteVersion: ui.switchNoteVersion,
+  deleteCurrentNoteVersion: ui.deleteCurrentNoteVersion,
   showAddNoteVersionModal: ui.showAddNoteVersionModal,
   closeAddNoteVersionModal: ui.closeAddNoteVersionModal,
   takePhotoForNoteVersion: ui.takePhotoForNoteVersion,
@@ -463,6 +464,9 @@ assignToWindow({
   // 快速导入文字笔记（设计：docs/plans/2026-08-30-quick-import-text-note.md）
   toggleQuickNote: ui.toggleQuickNote,
   onQuickNoteInput: ui.onQuickNoteInput,
+  takeQuickHandNote: ui.takeQuickHandNote,
+  pickQuickHandNoteFromGallery: ui.pickQuickHandNoteFromGallery,
+  removeQuickHandNote: ui.removeQuickHandNote,
   // 快速导入常见标签（设计：docs/plans/2026-09-03-quick-import-favorite-tags.md）
   toggleQuickFavPanel: ui.toggleQuickFavPanel,
   renderQuickFavCandidates: ui.renderQuickFavCandidates,

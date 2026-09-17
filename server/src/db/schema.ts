@@ -181,6 +181,7 @@ ensureColumn('questions', 'purged_at', 'TEXT');
 ensureColumn('questions', 'book_name', "TEXT DEFAULT ''");
 ensureColumn('questions', 'page_number', "TEXT DEFAULT ''");
 ensureColumn('questions', 'question_number', "TEXT DEFAULT ''");
+ensureColumn('question_notes', 'deleted_at', 'TEXT');
 
 db.exec(`
     CREATE TABLE IF NOT EXISTS pdf_books (

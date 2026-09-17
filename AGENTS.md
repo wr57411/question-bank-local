@@ -54,6 +54,23 @@ WorkBuddy 会话内派生的 node 进程被注入 `NODE_OPTIONS=--require=.../no
 - E2E/其它 node 命令在 WorkBuddy 会话内跑时手动加前缀：`NODE_OPTIONS= npx playwright test ...`
   （E2E 本就要求 `--reporter=list --output=tmp/...`，bypass shim 无删除保护风险；用户终端无此环境变量，不受影响）
 
+### 数据层双实现警告（2026-09-14 实测，改数据层前必读）
+
+**`src/` 不等于线上在跑的代码。** `src/index.html` 先加载**经典脚本** `/db.js`、`/ai.js`，再加载 `<script type="module" src="/main.ts">`（`dist/index.html:980-981` 相同）；而 `src/main.ts` 的 `assignIfMissing()` 只在 `typeof w[key] === 'undefined'` 时才挂载。经典脚本先执行、module 默认 defer 后执行 → **`db.js` 里定义过的名字，TS 实现运行时从不生效**。
+
+- `assignToWindow()`（`main.ts:11-15`，强制覆盖 → TS 赢）：已接管 **271** 个名字
+- `assignIfMissing()`（`main.ts:17-23`，让位 → 旧 JS 赢）：**62** 个，其中 **28** 个与旧 JS 重叠（= 待搬家清单）
+- 因此 `src/data/sync.ts` 是影子层，`src/data/notes.ts` 几乎全影子（唯一活路径是 `src/init-app.ts:16-18` 的一次性 backfill）
+- 要改同步/笔记行为 → 改 `public/db.js`，而它还有 `www/`、`dist/`、`android/app/src/main/assets/public/` 三份拷贝
+
+**判定方法（别靠读代码猜）**：
+
+```bash
+NODE_OPTIONS= npx playwright test --config=tmp/probe.config.js --reporter=list --output=tmp/test-results-probe -g "线上实际生效"
+```
+
+迁移方案见 `docs/plans/2026-09-14-legacy-js-retirement.md`。
+
 ## E2E 截图评估要求（强制，UI 改动必做）
 
 **背景（真实事故）**：2026-08-29 快速导入顶部条上线后，组合按钮与栏数按钮在真机上**完全看不见**——
@@ -100,6 +117,16 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 
 **硬规则（2026-08-31 王先生确认）**：测试产物不放在项目根目录，一律输出到 `tmp/`
 （已 gitignore）。根目录历史 `test-results-*` 已归档至 `tmp/test-artifacts-20260831/`。
+
+**多 worktree 端口劫持（2026-09-14 实测，会静默测错代码）**：`playwright.config.js` 用的是
+`reuseExistingServer: !process.env.CI`，而本机多个 worktree 并行时谁先起 vite 谁占 3000。
+实测撞到过：`lsof -nP -iTCP:3000 -sTCP:LISTEN` 显示占用进程的 cwd 是**另一个 worktree**，
+于是 E2E 读到的是别人的 `src/index.html`。
+
+- 排查：`lsof -p <PID> | grep cwd`，看是不是本 worktree
+- 规避：用本 worktree 的独立端口配置（如 `tmp/e2e3100.config.js`：`--port 3100` + `reuseExistingServer: false`），或 `CI=1`（端口被占直接报错，比静默测错强）
+- 少数 spec 硬编码了 `BASE_URL = "http://127.0.0.1:3000"`（如 `tests/tablet-grid-layout.spec.js:19`），换端口跑会把它们跑红——那是配置副作用，不是回归
+- 跑完确认服务归属：3000 上的进程 cwd 应是本 worktree
 
 ## 测试分层与真实链路验证（2026-09-17 复盘结论，强制）
 
@@ -191,9 +218,30 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 ## 打包规则（重要）
 
 1. **打包前必须先调用 `ship-feature` skill**：每次完成代码修改后，需要打包时必须先加载 `ship-feature` skill，按其中步骤执行
-2. **构建命令**：`npm run ship -- "功能描述"`（源码在 worktree 但 APK 输出到原项目根目录，默认从 worktree 构建）
-3. **APK 输出**：项目根目录得到 `question-bank-local_YYYYMMDD_HHMM.apk`
-4. **更新记录**：`PROJECT_MEMORY.md` 会自动追加记录
+   - ⚠️ 2026-09-15 实测：该 skill 已不在技能目录（`~/.workbuddy/skills/`）里，AGENTS.md 这一条与现状脱节；`npm run ship` 本身可用（脚本即 `scripts/ship-feature.sh`），但见下一条的 `BUILD_SOURCE` 陷阱
+2. **构建命令**：`BUILD_SOURCE=current npm run ship -- "功能描述"`
+   - ⚠️ **必须显式带 `BUILD_SOURCE=current`**：脚本默认 `BUILD_SOURCE=worktree` 指向 `/Users/john/.codex/worktrees/f640/question-bank-local`（**另一条路径且该目录确实存在**），不带就会打出不含本次改动的 APK
+3. **APK 输出**：原项目根目录（`/Users/john/question-bank-local`）得到 `question-bank-local_YYYYMMDD_HHMM.apk`
+4. **更新记录**：该目录的 `PROJECT_MEMORY.md` 会自动追加记录
+
+## 服务端部署路径（2026-09-17 实测，改服务端代码必读）
+
+服务端由 **launchd** 托管，且**代码与数据分离**：
+
+| 项 | 值 |
+|---|---|
+| LaunchAgent | `~/Library/LaunchAgents/com.questionbank.ts-server.plist` |
+| **加载代码的目录** | `/Users/john/.codex/worktrees/f640/question-bank-local/server`（plist 的 `WorkingDirectory`） |
+| 数据文件 | `/Users/john/question-bank-local/server/data.db`（`DB_PATH`）→ **主仓只放数据文件** |
+| 日志 | 该 worktree 的 `server.log` / `server-error.log` |
+| 重启 | `launchctl kickstart -k gui/501/com.questionbank.ts-server` |
+| 查看配置 | `launchctl print gui/501/com.questionbank.ts-server` |
+
+- **部署 = 把新代码放进上表那个目录 + kickstart 重启。** "合并进主仓"对服务端代码**没有任何作用**（主仓只有数据文件）。
+- Node **不热加载**：改完必须重启；`ensureColumn` 之类的启动期迁移只在重启时执行一次。
+- 改 plist 后需 `launchctl bootout` + `bootstrap`（在沙箱 agent 里 bootstrap 会 EIO，需人工执行）。
+- 那条 worktree 可能**同时有他人未提交改动**（如嵌入服务的 `question_embeddings`）→ 落地前先记录目标文件 `md5`，落地后用 `diff` 自检"只多了预期行"。
+- 另有 `com.questionbank.embed`（uvicorn，`127.0.0.1:3002`）= 嵌入/语义搜索服务。
 
 ## 开发文档索引
 
@@ -220,6 +268,7 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 | 重写 app.spec.js E2E | 图片 file input 移除+标签选择改搜索式+状态提示走 toast+导出按钮改名；改用数据层造带图题目并拆分 4 条独立用例 | docs/fix-app-spec-rewrite.md | 2026-09-01 | E2E, Playwright, 备份导出, PDF |
 | modal-anchor-overlap 固有竞态 | 长尾用例在 applyModalPosition 的 rAF 写入 top 前断言重叠，失败率约 40% 且失败集合漂移；泛化 waitModalSynced 并补齐 8 处插入点后连续 3 次 27/27 全绿 | docs/fix-modal-anchor-flaky.md | 2026-09-01 | E2E, 弹窗锚定, 测试稳定性 |
 | settings 整行替换抹字段风险修复 | `{ ...settings }` 改 `{ ...prev, ...settings }`（routes/sync.ts + server-sync.ts），删除 cloud_providers/appVersions 硬编码保护；副带修好「清空 cloud_providers 永远清不掉」 | docs/quick-import-favorite-tags.md 第五节 | 2026-09-04 | 服务端, user_settings, 同步 |
+| 笔记图片字段名与版本展示顺序修复 | TS 写端 `image_url` 改 `note_image_url`（对齐旧实现/服务端列名/已有数据，唯一活路径是 init-app 的一次性 backfill）；同毫秒写入多条笔记导致详情页默认显示的可能不是题图 → 展示层新增 `sortNoteVersions`（撞车时 笔记 v1 恒首、手写笔记按序号、id 兜底） | docs/quick-import-handwritten-note.md 第五、七节 | 2026-09-15 | question_notes, 排序, 题目详情, 多图片版本 |
 
 ### 功能设计文档
 
@@ -246,4 +295,7 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 | PDF 打印字号可配置 + 双栏版面修复 | targetTextMM 实测为死参数（分子分母约掉）改绝对目标 rw=clamp(w×stemMM/tH,0.35×栏宽,栏宽)+尺寸感知栏位；双栏栏宽去横向 CPAD 81→93mm；导出弹窗 pt 挡位+localStorage+实测回显 | docs/pdf-print-size-and-column-width.md | 2026-09-07 | PDF 生成, 排版引擎, 导出弹窗, 打印字号 |
 | PDF 导出页面设置（边距 + 标题） | 导出弹窗加「页面设置」折叠区（上/下/左右 0–30mm + 标题/副标题显隐）；`deriveTopReserveMM` 紧凑公式省 21mm ≈ 7.6% 页高；localStorage `pdfPageSetup` 持久化；空串守卫防 `Number('')===0` 污染；右侧栏 x `AW−SIDE−uwd` 与旧 `AW/2+CGAP/2` 代数恒等（仅形式化重写） | docs/pdf-page-setup.md | 2026-09-09 | PDF 生成, 排版引擎, 导出弹窗, 页面设置 |
 | 题目列表单栏/双栏切换布局 | 列数改由 .grid-single/.grid-double 模式 class 接管（删除各断点列数强制）；localStorage 持久化（key question-grid-layout，默认单栏）；列表标题行切换按钮（文案=目标模式）；单栏竖图 height:auto+max-height:420px 全宽可读，双栏保持旧行为；TDD 红灯复现 85×110px bug。附：勾选框缩至 24×24+padding:0（全局 button padding 在 border-box 下撑到 48 的陷阱）+::after 热区 44×44，夹逼断言钉住尺寸；平板适配用容器查询（.question-card container-type:inline-size + @container 220px 阈值 + 外层 max-width:1023.98px 排除桌面），阈值判定依据卡片宽度而非视口断点 | docs/question-list-layout-toggle.md | 2026-09-06 | 题目列表, UI 布局, localStorage, 容器查询, E2E |
+| 快速导入栏手写笔记照片 | 「📝 笔记」改「📎 附加」，展开区内新增拍照/相册最多 5 张手写照片（1600px/0.85），确认时逐张挂成该题的额外图片版本（复用 question_notes，服务端零改动）；含 TS 写端字段名对齐 note_image_url、同毫秒写入导致的展示顺序不确定修复（sortNoteVersions）、退出前未保存确认、影子数据层判定方法 | docs/quick-import-handwritten-note.md | 2026-09-15 | 快速导入, question_notes, 多图片版本, 排序, 影子数据层, E2E |
+| 旧版 JS 退场方案 | 实测：数据层双实现并存、`public/db.js` 静默获胜（assignToWindow 已接管 271 个 / assignIfMissing 让位 62 个、其中 28 个重叠）；用 w.NAME 静态扫描得出 116 个旧独有里仅 36 个真被依赖；A–E 五批搬迁顺序 + 四道门禁 + 三个致命地雷（payload 子集/资产上传/缓存失效） | docs/plans/2026-09-14-legacy-js-retirement.md | 2026-09-15 | 架构, 影子数据层, 迁移方案, 同步 |
+| 笔记图片压缩统一 + 笔记版本删除 | 补上两条未压缩的笔记图路径（详情页「+ 添加版本」、表单「额外版本」）统一 1600/0.85；题图/答图压缩真闸门在 `public/db.js:427/429/431`（原是默认 800/0.7 → 显式 1600/0.85），快速导入撤销本地预压缩以消除双代 JPEG 损失；笔记版本删除采用**墓碑机制**（服务端 `question_notes.deleted_at` 列 + `hasDeletedAt` + serialize 清图兜底；活数据层写墓碑/过滤/透传；详情页「🗑 删除」按钮）。**部署顺序硬前提：服务端先升级重启，再装新 APK**。附：断言必须能区分新旧值（首次写成 ≤1600 时撤掉修正仍通过） | docs/note-image-compress-and-delete.md | 2026-09-16 | question_notes, 图片压缩, 墓碑删除, 同步协议, 服务端迁移, 活数据层 |
 >>>>>>> f640/main2

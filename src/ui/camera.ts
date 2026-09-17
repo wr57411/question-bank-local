@@ -282,3 +282,33 @@ export async function captureOneImage(): Promise<string | null> {
     });
   }
 }
+
+export async function captureImage(source: 'CAMERA' | 'PHOTOS'): Promise<string | null> {
+  const cap = (window as any).Capacitor;
+  const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
+  const Camera = isNative ? cap?.Plugins?.Camera : null;
+  if (isNative && Camera) {
+    try {
+      const photo = await Camera.getPhoto({ quality: 85, allowEditing: false, resultType: 'dataUrl', source, direction: source === 'CAMERA' ? 'REAR' : undefined });
+      return photo.dataUrl;
+    } catch (e: any) {
+      if (e?.message === 'User cancelled photos app') return null;
+      w.showStatus('拍照失败: ' + (e?.message || e), 'error');
+      return null;
+    }
+  }
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    if (source === 'CAMERA') input.setAttribute('capture', 'environment');
+    input.onchange = (e: any) => {
+      if (e.target.files && e.target.files[0]) {
+        const reader = new FileReader();
+        reader.onload = (ev: any) => resolve(ev.target.result as string);
+        reader.readAsDataURL(e.target.files[0]);
+      } else resolve(null);
+    };
+    input.click();
+  });
+}

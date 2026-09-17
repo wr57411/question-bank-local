@@ -1,4 +1,4 @@
-import { fetchLatestMedias, getGalleryImageDataUrl } from './camera';
+import { fetchLatestMedias, getGalleryImageDataUrl, captureImage } from './camera';
 import { showStatus, openModal, closeModal } from './common';
 import {
   pickQuestionAnswerPair,
@@ -109,9 +109,7 @@ export function onQuickNoteInput(): void {
   if (input.value.length > NOTE_MAX) input.value = input.value.slice(0, NOTE_MAX);
   const count = document.getElementById('qi-note-count');
   if (count) count.textContent = input.value.length + '/' + NOTE_MAX;
-  // 设计 Task 2：已有笔记时按钮显示圆点标记
-  const dot = noteDot();
-  if (dot) dot.style.display = input.value.trim() ? 'inline-block' : 'none';
+  updateNoteDot();
 }
 
 export function readQuickNoteText(): string {
@@ -124,20 +122,106 @@ export function resetQuickNote(): void {
   if (input) input.value = '';
   const count = document.getElementById('qi-note-count');
   if (count) count.textContent = '0/' + NOTE_MAX;
-  const dot = noteDot();
-  if (dot) dot.style.display = 'none';
   // 默认展开：重置后保持展开，便于连续录入下一条笔记
   const area = document.getElementById('qi-note-area');
   if (area) area.style.display = 'block';
+  resetQuickHandNotes();
   applyQuickBarBodyPadding();
 }
 // ========== 文字笔记结束 ==========
+
+const HAND_NOTE_MAX = 5;
+let pendingHandNotes: string[] = [];
+
+function handNoteListEl(): HTMLElement | null {
+  return document.getElementById('qi-hw-list');
+}
+
+function handNoteCountEl(): HTMLElement | null {
+  return document.getElementById('qi-hw-count');
+}
+
+function updateNoteDot(): void {
+  const dot = noteDot();
+  if (!dot) return;
+  const hasText = !!(noteInput()?.value.trim());
+  dot.style.display = (hasText || pendingHandNotes.length > 0) ? 'inline-block' : 'none';
+}
+
+export async function takeQuickHandNote(): Promise<void> {
+  const url = await captureImage('CAMERA');
+  if (url) await addQuickHandNote(url);
+}
+
+export async function pickQuickHandNoteFromGallery(): Promise<void> {
+  const url = await captureImage('PHOTOS');
+  if (url) await addQuickHandNote(url);
+}
+
+export async function addQuickHandNote(dataUrl: string): Promise<void> {
+  if (pendingHandNotes.length >= HAND_NOTE_MAX) {
+    showStatus('手写笔记最多 ' + HAND_NOTE_MAX + ' 张', 'error');
+    return;
+  }
+  const url = await compress(dataUrl, 1600, 0.85);
+  pendingHandNotes.push(url);
+  renderQuickHandNotes();
+}
+
+export function removeQuickHandNote(idx: number): void {
+  if (idx < 0 || idx >= pendingHandNotes.length) return;
+  pendingHandNotes.splice(idx, 1);
+  renderQuickHandNotes();
+}
+
+export function resetQuickHandNotes(): void {
+  pendingHandNotes = [];
+  renderQuickHandNotes();
+}
+
+export function readPendingHandNotes(): string[] {
+  return [...pendingHandNotes];
+}
+
+export function handNoteLabel(i: number): string {
+  return i === 0 ? '手写笔记' : '手写笔记 ' + (i + 1);
+}
+
+function renderQuickHandNotes(): void {
+  const count = handNoteCountEl();
+  if (count) count.textContent = pendingHandNotes.length + '/' + HAND_NOTE_MAX;
+  updateNoteDot();
+  const list = handNoteListEl();
+  if (!list) return;
+  list.innerHTML = '';
+  pendingHandNotes.forEach((url, i) => {
+    const item = document.createElement('div');
+    item.style.cssText = 'position:relative;width:72px;height:72px;border-radius:var(--radius-md);overflow:hidden;flex-shrink:0;border:1px solid var(--border)';
+    const img = document.createElement('img');
+    img.src = url;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover';
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.textContent = '✕';
+    del.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;line-height:16px;text-align:center;border:none;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:11px;cursor:pointer;padding:0';
+    del.onclick = () => removeQuickHandNote(i);
+    const badge = document.createElement('span');
+    badge.textContent = '笔记 v' + (i + 2);
+    badge.style.cssText = 'position:absolute;left:2px;bottom:2px;font-size:9px;line-height:1.4;padding:0 4px;background:rgba(0,0,0,.55);color:#fff;border-radius:6px';
+    item.append(img, del, badge);
+    list.appendChild(item);
+  });
+  applyQuickBarBodyPadding();
+}
 
 export function isQuickMode(): boolean {
   return quickMode;
 }
 
 export function toggleQuickImportMode(): void {
+  if (quickMode && pendingHandNotes.length > 0) {
+    if (!confirm('有 ' + pendingHandNotes.length + ' 张手写笔记照片还没保存，要放弃吗？')) return;
+  }
   quickMode = !quickMode;
   localStorage.setItem(MODE_KEY, quickMode ? '1' : '0');
   const btn = document.getElementById('quick-import-toggle');
@@ -262,6 +346,7 @@ function syncComboButton(): void {
 
 export async function confirmQuickImport(): Promise<void> {
   if (!pair || loading) return;
+  const handNotes = readPendingHandNotes();
   const combo = resolveActiveCombo(() => getAppVersions().map((v) => v.id));
   const ids = [pair.question.identifier, pair.answer.identifier];
   // 设计 Task 2：确认前读取笔记文本；空白时为空串（空值不产生文本，沿用既有空「笔记 v1」行为）
@@ -269,8 +354,8 @@ export async function confirmQuickImport(): Promise<void> {
   loading = true;
   renderHint('正在导入...');
   try {
-    const qUrl = await compress(await getGalleryImageDataUrl(pair.question.identifier));
-    const aUrl = await compress(await getGalleryImageDataUrl(pair.answer.identifier));
+    const qUrl = await getGalleryImageDataUrl(pair.question.identifier);
+    const aUrl = await getGalleryImageDataUrl(pair.answer.identifier);
     const args = buildQuickCreateArgs(qUrl, aUrl, quickTagIds, combo.versionIds, loadQuickLayoutType());
     const created = await w.dbCreateQuestion(
       args.questionImageUrl,
@@ -284,6 +369,9 @@ export async function confirmQuickImport(): Promise<void> {
     if (created?.question_image_url) {
       // 设计决策：文字写入既有 question_notes 的 text_note 字段（笔记体系已纳入同步，无需改同步链路）
       await w.dbAddQuestionNote(created.id, created.question_image_url, '笔记 v1', noteText);
+      for (let i = 0; i < handNotes.length; i++) {
+        await w.dbAddQuestionNote(created.id, handNotes[i], handNoteLabel(i), '');
+      }
     }
     markImportedIds(ids);
     quickTagIds = [];
@@ -304,9 +392,9 @@ export async function confirmQuickImport(): Promise<void> {
   }
 }
 
-async function compress(dataUrl: string): Promise<string> {
+async function compress(dataUrl: string, maxSize = 1200, quality = 0.8): Promise<string> {
   const fn = w.compressImage as ((i: string, m?: number, q?: number) => Promise<string>) | undefined;
-  return fn ? fn(dataUrl, 1200, 0.8) : dataUrl;
+  return fn ? fn(dataUrl, maxSize, quality) : dataUrl;
 }
 
 export function onQuickTagInput(): void {

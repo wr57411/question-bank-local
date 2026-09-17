@@ -13,7 +13,7 @@ export async function dbGetQuestionNotes(questionId: string): Promise<QuestionNo
 export async function dbAddQuestionNote(questionId: string, imageUrl: string | null, label: string, textNote: string): Promise<QuestionNote> {
   const id = generateId();
   const now = nowIso();
-  const note: QuestionNote = { id, question_id: questionId, image_url: imageUrl, label: label || '', text_note: textNote || '', created_at: now, updated_at: now, deleted_at: null };
+  const note: QuestionNote = { id, question_id: questionId, note_image_url: imageUrl, label: label || '', text_note: textNote || '', created_at: now, updated_at: now, deleted_at: null };
   await dbQuestionNotes.setItem(id, note);
   return note;
 }
@@ -27,5 +27,6 @@ export async function dbUpdateQuestionNote(noteId: string, updates: Partial<Ques
 export async function dbDeleteQuestionNote(noteId: string): Promise<void> {
   const note = await dbQuestionNotes.getItem(noteId) as QuestionNote | null;
   if (!note) return;
-  await dbQuestionNotes.setItem(noteId, { ...note, deleted_at: nowIso() });
+  const now = nowIso();
+  await dbQuestionNotes.setItem(noteId, { ...note, note_image_url: null, deleted_at: now, updated_at: now });
 }
