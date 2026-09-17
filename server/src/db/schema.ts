@@ -274,3 +274,11 @@ ensureColumn('papers', 'pdf_url', 'TEXT');
 ensureColumn('question_tags', 'created_at', 'TEXT');
 ensureColumn('question_tags', 'updated_at', 'TEXT');
 ensureColumn('question_tags', 'deleted_at', 'TEXT');
+
+db.exec(`CREATE TABLE IF NOT EXISTS question_embeddings (
+  question_id TEXT PRIMARY KEY,
+  model TEXT NOT NULL,
+  dim INTEGER NOT NULL,
+  vector BLOB NOT NULL,
+  updated_at TEXT DEFAULT (datetime('now'))
+)`);

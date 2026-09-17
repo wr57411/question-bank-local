@@ -9,3 +9,4 @@ export * from './pdf';
 export * from './review';
 export * from './pdf-print-size';
 export * from './pdf-page-setup';
+export * from './embeddings';
