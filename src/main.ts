@@ -255,6 +255,11 @@ assignToWindow({
   toggleQuestionGridLayout: ui.toggleQuestionGridLayout,
   deleteQuestion: ui.deleteQuestion,
   loadTrashed: ui.loadTrashed,
+  // Batch 3: semantic-search
+  handleImageSearch: ui.handleImageSearch,
+  showSimilarQuestions: ui.showSimilarQuestions,
+  closeSimilarModal: ui.closeSimilarModal,
+  refreshEmbeddings: data.refreshEmbeddings,
   // Batch 3: note-version
   loadNoteVersionsForDetail: ui.loadNoteVersionsForDetail,
   displayCurrentNoteVersion: ui.displayCurrentNoteVersion,

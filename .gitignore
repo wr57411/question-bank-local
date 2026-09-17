@@ -66,3 +66,8 @@ tmp/
 vibe_images/
 diag-top-bar.png
 reasonix.toml
+
+# 语义检索编码服务运行产物
+server/embed/__pycache__/
+server/embed/.pytest_cache/
+server/embed/*.log

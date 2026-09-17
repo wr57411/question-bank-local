@@ -47,7 +47,12 @@ export function initApp(): void {
   ui.renderVersionCheckboxes();
   ui.renderVersionSwitcher();
   ui.updateExportImgModeBtn();
-  ui.initRemoteSync(w.serverUrl, w.apiToken, w.syncEnabled);
+  const lsServerUrl = (localStorage.getItem('serverUrl') || '').replace(/\/+$/, '');
+  const lsApiToken = localStorage.getItem('apiToken') || '';
+  const lsSyncEnabled = localStorage.getItem('syncEnabled') !== '0';
+  ui.initRemoteSync(lsServerUrl, lsApiToken, lsSyncEnabled);
+  data.initRemoteSync(lsServerUrl, lsApiToken, lsSyncEnabled);
+  void data.refreshEmbeddings().catch(() => {});
   data.setOnSyncDataWarning(ui.showSyncWarning);
   const syncToggle = document.getElementById('sync-toggle') as HTMLInputElement | null;
   if (syncToggle) syncToggle.checked = w.syncEnabled;
