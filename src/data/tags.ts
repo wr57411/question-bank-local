@@ -38,7 +38,9 @@ export async function buildTagIndex(): Promise<Map<string, { id: string; name: s
 
   const qtByQuestionId = new Map<string, { id: string; name: string; color: string }[]>();
   await dbQuestionTags.iterate((qt: unknown) => {
-    const record = qt as { question_id: string; tag_id: string };
+    const record = qt as { question_id: string; tag_id: string; deleted_at?: string };
+    // 软删的关联（取消标签）不计入标签索引，且墓碑会随同步传播，避免被另一端复活
+    if (record.deleted_at) return;
     const tag = tagsById.get(record.tag_id);
     if (!tag) return;
     if (!qtByQuestionId.has(record.question_id)) qtByQuestionId.set(record.question_id, []);

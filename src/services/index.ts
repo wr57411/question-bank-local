@@ -6,3 +6,4 @@ export * from './review';
 export * from './app-update';
 export * from './issue-feedback';
 export * from './quick-fav-tags';
+export * from './semantic';

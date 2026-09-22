@@ -8,7 +8,7 @@ import bcrypt from 'bcryptjs';
 
 const SERVER_DIR = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const ROOT_DIR = path.dirname(SERVER_DIR);
-const DB_PATH = path.join(SERVER_DIR, 'data.db');
+const DB_PATH = process.env.DB_PATH || path.join(SERVER_DIR, 'data.db');
 const ENV_PATH = path.join(ROOT_DIR, '.env');
 
 function readEnvFile() {

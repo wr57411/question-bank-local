@@ -5,6 +5,7 @@ import { analyzeImage } from '../data/pdf-image';
 import { MIN_PRINT_SCALE, singleColumnWidthMM } from '../data/pdf-layout-engine';
 import { loadPageSetup, savePageSetup } from '../data/pdf-page-setup';
 import type { PageSetup } from '../types';
+import PdfWorkerSrc from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 const w = window as any;
 
 export function exportSelectedOrAll(): void {
@@ -177,27 +178,73 @@ export async function previewExportPDF(): Promise<void> {
   if (isNative && w.Capacitor?.Plugins?.Filesystem) {
     const ab = doc.output('arraybuffer');
     const bytes = new Uint8Array(ab);
-    let binary = '';
-    const chunk = 0x8000;
-    for (let i = 0; i < bytes.length; i += chunk) { binary += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + chunk))); }
-    const b64 = btoa(binary);
-    const tmpFile = 'preview_temp.pdf';
-    try {
-      try { await w.Capacitor.Plugins.Filesystem.deleteFile({ path: tmpFile, directory: 'CACHE' }); } catch (_) { /* ignore */ }
-      await w.Capacitor.Plugins.Filesystem.writeFile({ path: tmpFile, data: b64, directory: 'CACHE' });
-      const uriResult = await w.Capacitor.Plugins.Filesystem.getUri({ path: tmpFile, directory: 'CACHE' });
-      if (w.Capacitor.Plugins.FileOpener) {
-        await w.Capacitor.Plugins.FileOpener.open({ filePath: uriResult.uri, contentType: 'application/pdf' });
-      } else {
-        await w.Capacitor.Plugins.Browser.open({ url: uriResult.uri });
-      }
-      w.showStatus('预览已打开', 'success');
-      setTimeout(() => { try { w.Capacitor.Plugins.Filesystem.deleteFile({ path: tmpFile, directory: 'CACHE' }); } catch (_) { /* ignore */ } }, 30000);
-    } catch (e: any) { w.showStatus('预览失败: ' + e.message, 'error'); }
+    await renderPdfInApp(bytes);
   } else {
     const blob = doc.output('blob');
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
+  }
+}
+
+let previewPdfTask: any = null;
+let previewGen = 0;
+
+export async function closePdfPreview(): Promise<void> {
+  previewGen++;
+  if (previewPdfTask) {
+    try { await previewPdfTask.destroy(); } catch (_) { /* ignore */ }
+    previewPdfTask = null;
+  }
+  const wrap = document.getElementById('pdf-preview-canvas-wrap');
+  if (wrap) wrap.innerHTML = '';
+  closeModal('pdf-preview-modal');
+}
+
+async function renderPdfInApp(bytes: Uint8Array): Promise<void> {
+  const modal = document.getElementById('pdf-preview-modal');
+  const wrap = document.getElementById('pdf-preview-canvas-wrap');
+  const statusEl = document.getElementById('pdf-preview-status');
+  if (!modal || !wrap) { w.showStatus('预览组件缺失', 'error'); return; }
+  wrap.innerHTML = '';
+  if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = '正在渲染预览…'; }
+  closeExportModal();
+  openModal('pdf-preview-modal');
+  const myGen = ++previewGen;
+  let pdf: any = null;
+  try {
+    const pdfjsLib: any = await import('pdfjs-dist/build/pdf.mjs');
+    if (myGen !== previewGen) return;
+    pdfjsLib.GlobalWorkerOptions.workerSrc = PdfWorkerSrc;
+    const task = pdfjsLib.getDocument({ data: bytes });
+    previewPdfTask = task;
+    pdf = await task.promise;
+    if (myGen !== previewGen) { pdf.destroy(); return; }
+    const containerWidth = (wrap.clientWidth || (modal.clientWidth ? modal.clientWidth - 48 : 600));
+    for (let i = 1; i <= pdf.numPages; i++) {
+      if (myGen !== previewGen) break;
+      const page = await pdf.getPage(i);
+      const baseViewport = page.getViewport({ scale: 1 });
+      const scale = Math.max(0.5, Math.min(2.2, (containerWidth / baseViewport.width) || 1.4));
+      const viewport = page.getViewport({ scale });
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) continue;
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      canvas.style.width = '100%';
+      canvas.style.height = 'auto';
+      canvas.style.marginBottom = '12px';
+      canvas.style.background = '#fff';
+      canvas.style.borderRadius = '8px';
+      canvas.style.boxShadow = '0 2px 10px rgba(0,0,0,.12)';
+      wrap.appendChild(canvas);
+      await page.render({ canvasContext: ctx, viewport }).promise;
+    }
+    if (myGen === previewGen && statusEl) statusEl.style.display = 'none';
+  } catch (e: any) {
+    if (myGen !== previewGen) return;
+    if (statusEl) { statusEl.style.display = 'block'; statusEl.textContent = '预览渲染失败：' + (e && e.message ? e.message : e); }
+    w.showStatus('预览渲染失败', 'error');
   }
 }
 

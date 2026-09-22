@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 
-export function loadDbFunctions({ dbPath = 'www/db.js' } = {}) {
+export function loadDbFunctions({ dbPath = 'public/db.js' } = {}) {
   const dbCode = readFileSync(resolve(process.cwd(), dbPath), 'utf8')
 
   const mockStores = new Map()

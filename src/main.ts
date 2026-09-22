@@ -255,6 +255,11 @@ assignToWindow({
   toggleQuestionGridLayout: ui.toggleQuestionGridLayout,
   deleteQuestion: ui.deleteQuestion,
   loadTrashed: ui.loadTrashed,
+  // Batch 3: semantic-search
+  handleImageSearch: ui.handleImageSearch,
+  showSimilarQuestions: ui.showSimilarQuestions,
+  closeSimilarModal: ui.closeSimilarModal,
+  refreshEmbeddings: data.refreshEmbeddings,
   // Batch 3: note-version
   loadNoteVersionsForDetail: ui.loadNoteVersionsForDetail,
   displayCurrentNoteVersion: ui.displayCurrentNoteVersion,
@@ -304,6 +309,7 @@ assignToWindow({
   getExportFolder: ui.getExportFolder,
   getExportFileName: ui.getExportFileName,
   previewExportPDF: ui.previewExportPDF,
+  closePdfPreview: ui.closePdfPreview,
   closeExportModal: ui.closeExportModal,
   selectExportMode: ui.selectExportMode,
   selectSpacing: ui.selectSpacing,
@@ -431,6 +437,7 @@ assignToWindow({
   showBackupModal: ui.showBackupModal,
   closeBackupModal: ui.closeBackupModal,
   saveBackupToDevice: ui.saveBackupToDevice,
+  exportAllData: ui.exportAllData,
   loadBackupFromDevice: ui.loadBackupFromDevice,
   toggleAutoBackup: ui.toggleAutoBackup,
   doAutoBackup: ui.doAutoBackup,

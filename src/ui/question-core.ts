@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { dbQuestions } from '../data/stores';
+import { encodeQuery, encodeImage, searchSemantic } from '../services/semantic-search';
 import { compressNoteImage } from '../services/image';
 
 const w = window as any;
@@ -120,7 +121,7 @@ export function showTagSuggestions(): void {
   dropdown.classList.add('show');
 }
 
-export function filterQuestions(): void { showTagSuggestions(); renderQuestions(); }
+export function filterQuestions(): void { showTagSuggestions(); renderQuestions(); scheduleSemanticEnhance(); }
 
 export function getFilteredQuestions(): any[] {
   const currentVersionId = w.getCurrentVersionId();
@@ -130,6 +131,103 @@ export function getFilteredQuestions(): any[] {
   if (currentBookFilter) { filtered = filtered.filter((q: any) => q.book_name === currentBookFilter); }
   if (searchText) { filtered = filtered.filter((q: any) => { const bookMatch = (q.book_name || '').toLowerCase().includes(searchText); const pageMatch = (q.page_number || '').toLowerCase().includes(searchText); const numMatch = (q.question_number || '').toLowerCase().includes(searchText); const tagMatch = q.question_tags.some((t: any) => t.tags.name.toLowerCase().includes(searchText)); const summaryMatch = (q.semantic_summary || '').toLowerCase().includes(searchText); return bookMatch || pageMatch || numMatch || tagMatch || summaryMatch; }); }
   return filtered;
+}
+
+let _semanticToken = 0;
+let _imageSearchToken = 0;
+let _semanticDebounce: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleSemanticEnhance(): void {
+  if (_semanticDebounce) clearTimeout(_semanticDebounce);
+  _semanticDebounce = setTimeout(() => { void enhanceWithSemantic(); }, 400);
+}
+
+const SEMANTIC_MIN_SCORE = 0.25;
+
+async function enhanceWithSemantic(): Promise<void> {
+  const input = document.getElementById('search-input') as HTMLInputElement | null;
+  const text = input?.value?.trim() || '';
+  const token = ++_semanticToken;
+  const container = document.getElementById('semantic-results');
+  if (!container) return;
+  if (!text || text.length < 2) { container.replaceChildren(); return; }
+  container.replaceChildren();
+  const loading = document.createElement('div');
+  loading.className = 'semantic-title';
+  loading.textContent = '语义分析中…';
+  container.appendChild(loading);
+  const queryVec = await encodeQuery(text);
+  if (token !== _semanticToken) return;
+  if (!queryVec) { container.replaceChildren(); return; }
+  const hits = await searchSemantic(queryVec);
+  if (token !== _semanticToken) return;
+  const literalIds = new Set(getFilteredQuestions().map((q: any) => q.id));
+  const filtered = hits.filter((h) => !literalIds.has(h.id) && h.score > SEMANTIC_MIN_SCORE);
+  renderSemanticResults(container, filtered, '语义相关');
+  if (filtered.length) container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+export async function handleImageSearch(): Promise<void> {
+  const token = ++_imageSearchToken;
+  if (_semanticDebounce) { clearTimeout(_semanticDebounce); _semanticDebounce = null; }
+  _semanticToken++;
+  if (typeof w.Camera === 'undefined' || !w.Camera) {
+    w.showStatus('以图搜题仅支持原生 App（Web 端请使用文字搜索）', 'error');
+    return;
+  }
+  let dataUrl: string;
+  try {
+    const photo = await w.Camera.getPhoto({
+      quality: 70, allowEditing: false, resultType: 'dataUrl', source: 'prompt', width: 1200,
+    });
+    dataUrl = photo.dataUrl;
+  } catch {
+    return;
+  }
+  const container = document.getElementById('semantic-results');
+  if (!container) return;
+  container.replaceChildren();
+  const loading = document.createElement('div');
+  loading.className = 'semantic-title';
+  loading.textContent = '图片匹配中…';
+  container.appendChild(loading);
+  container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const queryVec = await encodeImage(dataUrl);
+  if (token !== _imageSearchToken) return;
+  if (!queryVec) {
+    container.replaceChildren();
+    w.showStatus('图片匹配服务不可用', 'error');
+    return;
+  }
+  const hits = await searchSemantic(queryVec, 12);
+  if (token !== _imageSearchToken) return;
+  renderSemanticResults(container, hits, '图片匹配');
+  if (hits.length) container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (!hits.length) {
+    const empty = document.createElement('div');
+    empty.className = 'semantic-title';
+    empty.textContent = '图片匹配：没有找到相似题目';
+    container.replaceChildren(empty);
+  }
+}
+
+function renderSemanticResults(container: HTMLElement, hits: { id: string; score: number }[], title: string): void {
+  container.replaceChildren();
+  if (!hits.length) return;
+  const titleEl = document.createElement('div');
+  titleEl.className = 'semantic-title';
+  titleEl.textContent = `${title} (${hits.length})`;
+  container.appendChild(titleEl);
+  const byId = new Map((w.allQuestions as any[]).map((q: any) => [q.id, q]));
+  hits.forEach((h) => {
+    const q = byId.get(h.id);
+    if (!q || q.deleted_at) return;
+    const card = document.createElement('div');
+    card.className = 'semantic-card';
+    card.innerHTML = `<img src="${q.question_image_url}" alt=""><span class="score">${Math.round(h.score * 100)}%</span>`;
+    card.onclick = () => w.showQuestionDetail(q.id);
+    container.appendChild(card);
+  });
 }
 
 export function renderQuestions(): void {

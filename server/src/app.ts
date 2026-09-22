@@ -17,6 +17,7 @@ import versionRouter from './routes/version.js';
 import recoveryRouter from './routes/recovery.js';
 import issuesRouter from './routes/issues.js';
 import uploadPdfRouter from './routes/upload-pdf.js';
+import embedRouter from './routes/embed.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -87,6 +88,7 @@ app.use('/api/version', versionRouter);
 app.use('/api/recovery', recoveryRouter);
 app.use('/api/issues', issuesRouter);
 app.use('/api/upload-pdf', uploadPdfRouter);
+app.use('/api/embed', embedRouter);
 
 app.get('/api/health', (_req, res) => res.json({ status: 'ok' }));
 

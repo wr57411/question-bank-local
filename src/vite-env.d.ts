@@ -3,6 +3,11 @@ declare module '*.css' {
   export default content;
 }
 
+declare module '*?url' {
+  const src: string;
+  export default src;
+}
+
 declare const __TEST_PHONE__: string;
 declare const __TEST_PASSWORD__: string;
 

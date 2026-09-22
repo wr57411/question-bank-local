@@ -2,10 +2,20 @@
 import {
   dbQuestions, dbTags, dbQuestionTags, dbPapers, dbPaperQuestions,
   dbTopics, dbQuestionNotes,
-  nowIso
+  nowIso, toMillis
 } from './stores';
-import type { SyncPayload, DataFingerprint, Paper } from '../types';
+import type { SyncPayload, DataFingerprint, Paper, QuestionTagSync } from '../types';
 import { adoptRemoteQuickFavTags, pendingQuickFavCount } from '../services/quick-fav-tags';
+import { invalidateTagIndex } from './tags';
+import { invalidateQuestionsCache } from './questions';
+
+// 按 updated_at/deleted_at/created_at 取最大值判定「远端是否更新」；空时间戳兜底 0，避免存量记录互相覆盖
+function recNewer(incoming: any, existing: any): boolean {
+  if (!existing) return true;
+  const inc = toMillis(incoming.updated_at || incoming.deleted_at || incoming.created_at || '');
+  const ex = toMillis(existing.updated_at || existing.deleted_at || existing.created_at || '');
+  return inc >= ex;
+}
 
 let _serverUrl = '';
 let _apiToken = '';
@@ -58,7 +68,7 @@ export async function dbBuildSyncPayload(): Promise<SyncPayload> {
   };
   await dbQuestions.iterate((v: unknown) => { if (v) payload.questions.push(v); });
   await dbTags.iterate((v: unknown) => { if (v) payload.tags.push(v); });
-  await dbQuestionTags.iterate((v: unknown) => { if (v) payload.question_tags.push(v); });
+  await dbQuestionTags.iterate((v: unknown) => { if (v) payload.question_tags.push(v as QuestionTagSync); });
   await dbPapers.iterate((v: unknown) => {
     if (!v) return;
     const { pdf_local_path: _local, ...rest } = v as Record<string, unknown>;
@@ -103,7 +113,14 @@ export async function dbApplyRemoteSnapshot(snapshot: any): Promise<void> {
   if (snapshot.tags) {
     for (const t of snapshot.tags) {
       const existing = await dbTags.getItem(t.id);
-      if (!existing) await dbTags.setItem(t.id, t);
+      if (recNewer(t, existing)) await dbTags.setItem(t.id, t);
+    }
+  }
+  if (snapshot.question_tags) {
+    for (const qt of snapshot.question_tags) {
+      const key = `${qt.question_id}_${qt.tag_id}`;
+      const existing = await dbQuestionTags.getItem(key);
+      if (recNewer(qt, existing)) await dbQuestionTags.setItem(key, qt);
     }
   }
   if (snapshot.papers) {
@@ -124,6 +141,9 @@ export async function dbApplyRemoteSnapshot(snapshot: any): Promise<void> {
   if (snapshot.settings && typeof snapshot.settings === 'object' && snapshot.settings.quickFavoriteTags) {
     if (pendingQuickFavCount() === 0) adoptRemoteQuickFavTags(snapshot.settings.quickFavoriteTags);
   }
+
+  invalidateTagIndex();
+  invalidateQuestionsCache();
 }
 
 export async function dbFinalizeSuccessfulSync(applied: any): Promise<void> {
@@ -138,6 +158,7 @@ export async function dbFinalizeSuccessfulSync(applied: any): Promise<void> {
 export async function dbClearAllData(): Promise<void> {
   await dbQuestions.clear();
   await dbTags.clear();
+  await dbQuestionTags.clear();
   await dbPapers.clear();
   await dbPaperQuestions.clear();
   await dbQuestionNotes.clear();

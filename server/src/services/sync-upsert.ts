@@ -12,10 +12,11 @@ export interface AppliedResult {
   papers: string[];
   purged_question_ids: string[];
   question_notes: string[];
+  question_tags: string[];
 }
 
 export function createAppliedResult(): AppliedResult {
-  return { tags: [], questions: [], papers: [], purged_question_ids: [], question_notes: [] };
+  return { tags: [], questions: [], papers: [], purged_question_ids: [], question_notes: [], question_tags: [] };
 }
 
 export function listQuestionTagIds(questionId: string, userId: string): string[] {
@@ -23,7 +24,7 @@ export function listQuestionTagIds(questionId: string, userId: string): string[]
     SELECT qt.tag_id
     FROM question_tags qt
     JOIN tags t ON t.id = qt.tag_id
-    WHERE qt.question_id = ? AND t.user_id = ? AND t.deleted_at IS NULL
+    WHERE qt.question_id = ? AND t.user_id = ? AND qt.deleted_at IS NULL AND t.deleted_at IS NULL
     ORDER BY qt.tag_id
   `).all(questionId, userId).map((row) => (row as { tag_id: string }).tag_id);
 }
@@ -36,14 +37,6 @@ export function listPaperQuestionIds(paperId: string, userId: string): string[] 
     WHERE pq.paper_id = ? AND q.user_id = ?
     ORDER BY pq.order_num ASC, pq.question_id ASC
   `).all(paperId, userId).map((row) => (row as { question_id: string }).question_id);
-}
-
-function replaceQuestionTags(questionId: string, tagIds: string[]): void {
-  db.prepare('DELETE FROM question_tags WHERE question_id = ?').run(questionId);
-  const insert = db.prepare('INSERT OR IGNORE INTO question_tags (question_id, tag_id) VALUES (?, ?)');
-  for (const tagId of tagIds || []) {
-    insert.run(questionId, tagId);
-  }
 }
 
 function replacePaperQuestions(paperId: string, questionIds: string[]): void {
@@ -78,7 +71,7 @@ function upsertRecord(userId: string, record: Record, config: UpsertConfig): boo
     ? (record.updated_at || record.deleted_at || record.created_at)
     : (record.updated_at || record.created_at);
   const updatedAt = normalizeTimestamp(updatedAtPath as string);
-  if (!isIncomingNewer(existing, updatedAt)) return false;
+  if (!isIncomingNewer(existing as { updated_at?: string; deleted_at?: string; created_at?: string } | undefined, updatedAt)) return false;
 
   const createdAt = normalizeTimestamp((record.created_at || existing?.created_at || updatedAt) as string);
   const deletedAt = config.hasDeletedAt && record.deleted_at ? normalizeTimestamp(record.deleted_at as string) : null;
@@ -129,13 +122,38 @@ export function upsertQuestionNote(userId: string, note: Record): boolean {
   });
 }
 
+// 关联逐条 upsert（D6 核心）：以 (question_id, tag_id) 为键，按 isIncomingNewer 合并。
+// 删除表达为软删（deleted_at 非空）；两侧增删均可无歧义合并，取消关联不再被复活。
+export function upsertQuestionTag(userId: string, qt: Record, applied: AppliedResult): boolean {
+  const questionId = qt.question_id;
+  const tagId = qt.tag_id;
+  if (!questionId || !tagId) return false;
+  // 外键约束由 push 事务内「先 questions/tags、后 question_tags」的顺序满足
+  const existing = db.prepare('SELECT * FROM question_tags WHERE question_id = ? AND tag_id = ?').get(questionId, tagId) as { updated_at?: string; deleted_at?: string; created_at?: string } | undefined;
+  const incomingTs = normalizeTimestamp((qt.updated_at || qt.deleted_at || qt.created_at) as string);
+  if (!isIncomingNewer(existing, incomingTs)) return false;
+  const createdAt = normalizeTimestamp((qt.created_at || existing?.created_at || incomingTs) as string);
+  const deletedAt = qt.deleted_at ? normalizeTimestamp(qt.deleted_at as string) : null;
+  const updatedAt = incomingTs || createdAt;
+  db.prepare(`
+    INSERT INTO question_tags (question_id, tag_id, created_at, updated_at, deleted_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(question_id, tag_id) DO UPDATE SET
+      created_at = excluded.created_at,
+      updated_at = excluded.updated_at,
+      deleted_at = excluded.deleted_at
+  `).run(questionId, tagId, createdAt, updatedAt, deletedAt);
+  applied.question_tags.push(`${questionId}_${tagId}`);
+  return true;
+}
+
 // ─── 特殊 upsert（保留独立实现）─────────────────────────────────────
 
 export function upsertQuestion(userId: string, question: Record, applied: AppliedResult): boolean {
   if (!question?.id) return false;
   const existing = db.prepare('SELECT * FROM questions WHERE id = ? AND user_id = ?').get(question.id, userId) as Record | undefined;
   const updatedAt = normalizeTimestamp((question.updated_at || question.deleted_at || question.created_at) as string);
-  if (!isIncomingNewer(existing, updatedAt)) return false;
+  if (!isIncomingNewer(existing as { updated_at?: string; deleted_at?: string; created_at?: string } | undefined, updatedAt)) return false;
 
   if (question.purged_at) {
     db.prepare('DELETE FROM question_tags WHERE question_id = ?').run(question.id);
@@ -174,7 +192,6 @@ export function upsertQuestion(userId: string, question: Record, applied: Applie
       .run(question.id, userId, question.question_image_url || null, question.answer_image_url || null, question.layout_type || 0, question.user_comment || '', question.semantic_summary || '', normalizeAiMetadata(question.ai_metadata), JSON.stringify(insertVersions), question.book_name || '', question.page_number || '', question.question_number || '', createdAt, updatedAt, deletedAt);
   }
 
-  replaceQuestionTags(question.id as string, (question.tag_ids as string[]) || []);
   return true;
 }
 
@@ -182,7 +199,7 @@ export function upsertPaper(userId: string, paper: Record): boolean {
   if (!paper?.id || !paper.name) return false;
   const existing = db.prepare('SELECT * FROM papers WHERE id = ? AND user_id = ?').get(paper.id, userId) as Record | undefined;
   const updatedAt = normalizeTimestamp((paper.updated_at || paper.deleted_at || paper.created_at) as string);
-  if (!isIncomingNewer(existing, updatedAt)) return false;
+  if (!isIncomingNewer(existing as { updated_at?: string; deleted_at?: string; created_at?: string } | undefined, updatedAt)) return false;
 
   const createdAt = normalizeTimestamp((paper.created_at || existing?.created_at || updatedAt) as string);
   const deletedAt = paper.deleted_at ? normalizeTimestamp(paper.deleted_at as string) : null;

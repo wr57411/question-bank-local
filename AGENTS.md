@@ -6,6 +6,19 @@
 2. **等用户确认**：用户同意方案后，再开始编码
 3. **遇到问题及时沟通**：实施过程中发现新问题，先暂停并告知用户
 
+### 硬规则：未经明确指令不得改代码（2026-09-12 王先生要求）
+
+**触发条件**：用户没有说出「开始执行计划」或同等明确的开工指令时。
+
+**允许**：出计划 / 写文档 / 只读排查（读代码、只读查库、跑只读诊断脚本）。
+**禁止**：修改、新增、删除任何源码与配置；包括"顺手修一下""既然发现了就一起改"。
+
+**必须等待的句式**：用户明确说出「开始执行计划」（或等价的明确批准）后，才可动代码。
+
+> 事故记录（2026-09-12）：曾因"用户已批准方案方向与参数"而自行推定可以开工，
+> 在计划未获正式批准前改动了 3 个文件。经王先生纠正后全部回退。
+> 教训：**批准方案方向 ≠ 批准开工**。二者是两次独立的确认，不可合并推定。
+
 ## 编码前置检查清单（强制）
 
 **任何代码修改前，以下 5 步必须按序完成，不可跳步：**
@@ -80,6 +93,13 @@ NODE_OPTIONS= npx playwright test --config=tmp/probe.config.js --reporter=list -
    改为对内部真正承载文字的元素（如 `#quick-combo-panel > div`）做完整检查。
 4. **改完 UI 后，AI 必须实际 Read 截图确认**，不能只看测试变绿。
 5. **新增测试要能复现它要防的 bug**：写完后临时把 bug 改回去，确认测试确实失败，再改回来。
+6. **本规则对所有新功能一视同仁（2026-09-17 补充）**：不只是"改动既有 UI"时适用——
+   新增任何会产生可见结果的区域（结果区、弹层、状态提示），其用例**必须**对关键元素调用
+   `assertVisiblyRendered`。
+   > 事故记录（2026-09-17）：语义检索的以图搜/文字搜结果区 `#semantic-results` 渲染在 91 张题目卡片
+   > **之后**（页面最底部）、而触发按钮在视口顶部，真机上用户"完全看不到结果，以为没反应"。
+   > 当时 T9 的 E2E 用例只做 `toContainText` 断言**照样通过**——与 8-29 事故同构，规则没执行到位。
+   > 修复：结果区移到搜索框正下方 + 渲染后 `scrollIntoView({block:'center'})` + 视口内断言。
 
 **参考实现**：`tests/quick-import-visibility.spec.js`。
 
@@ -107,6 +127,27 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 - 规避：用本 worktree 的独立端口配置（如 `tmp/e2e3100.config.js`：`--port 3100` + `reuseExistingServer: false`），或 `CI=1`（端口被占直接报错，比静默测错强）
 - 少数 spec 硬编码了 `BASE_URL = "http://127.0.0.1:3000"`（如 `tests/tablet-grid-layout.spec.js:19`），换端口跑会把它们跑红——那是配置副作用，不是回归
 - 跑完确认服务归属：3000 上的进程 cwd 应是本 worktree
+
+## 测试分层与真实链路验证（2026-09-17 复盘结论，强制）
+
+**背景**：语义检索功能 E2E 全绿（104 passed）后，真机阶段仍暴露 7 个问题——其中 5 个是测试体系缺口，
+不是代码偶然失误。**E2E 绿 ≠ 真机可用**：现有 E2E 全部 `page.route` mock HTTP，是"mock 世界里的验证"。
+
+**四层验证，缺一不可**：
+
+| 层 | 覆盖什么 | 怎么做 | 拦住了什么（实例） |
+|---|---|---|---|
+| 1. 单元 / E2E（mock） | 逻辑正确性 | `npm run test`、`npx playwright test` | 渲染逻辑、弹层交互、回归 |
+| 2. **真实链路**（连真实 server + 真实模型） | 部署态、配置传递、真实分数分布 | `tests/semantic-diag.spec.js`（真实登录/向量下发/编码接口；不可达时自动 skip） | 服务端跑旧代码 404、`init-app` 悬空引用拿不到凭据 |
+| 3. **真实数据校准** | 与真实数据分布强相关的参数 | `server/embed/calibrate_threshold.py`（建库后跑，输出分数分布与建议阈值） | `SEMANTIC_MIN_SCORE=0.35` 过高导致全部结果被滤 |
+| 4. **产物 / 部署态** | 打包产物内容、部署后接口可用性 | `scripts/verify-apk-assets.sh`、`scripts/verify-server-deploy.sh` | 手机包不含接线代码、服务进程跑旧目录代码 |
+
+**硬规则**：
+- 涉及外部服务/模型的**新增功能**，必须补第 2 层用例；不可达时以 `test.skip` 守卫，不得制造假失败。
+- 调参类常量（阈值等）必须用第 3 层基于**真实数据**校准，禁止拍脑袋取值。
+- 打包后跑第 4 层产物断言；服务改动部署后跑部署探针（health + 关键路由状态 + 进程 cwd）。
+- **提交前 E2E 用串行跑**（`--workers=1`）：并发跑会产生资源竞争假阳性（2026-09-17 实测 8 例假失败，
+  单独重跑全过），而串行才是能暴露跨 spec 竞态与真 bug 的权威口径（同日串行抓到"文字搜防抖覆盖图片搜结果"真竞态）。
 
 ## 项目信息
 
@@ -170,9 +211,9 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 
 ## Git 提交规则
 
-1. **手动提交**：每次完成功能后，检查 git status 并询问用户是否提交
+1. **统一提交（2026-09-15 王先生修订）**：多任务流水线执行期间，AI 不逐任务询问提交；全部功能完成、本地四连绿通过、且用户真机验收通过后，统一一次 commit（附功能说明），再按用户指令 push。单点小修复仍可在完成后询问是否提交
 2. **提交信息格式**：`功能描述 - 简短说明`
-3. **不自动提交**：禁用自动提交脚本，避免频繁提交
+3. **不自动提交**：禁用自动提交脚本，避免频繁提交。用户不看代码 diff，验收对象是运行效果与打包产物（APK/真机行为），不是代码
 
 ## 打包规则（重要）
 
@@ -243,6 +284,7 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 | 本地OCR服务备选方案 | PaddleOCR+UniMERNet本地识别文字/公式 → 免费纯文本LLM提取，与视觉模型模式并存 | docs/local-ocr-service.md | 2026-08-01 | OCR, PaddleOCR, UniMERNet, 纯文本LLM, 本地服务 |
 | UI 整体迁移至明亮友好型风格 | DESIGN.md 契约+token 重写+组件层重构+42 个 TS 文件硬编码清理 | docs/ui-migration-bright-friendly.md | 2026-08-03 | UI, 设计系统, 视觉语言, 设计债 |
 | 架构可视化模型（Architecture Visualization 插件） | C4 系统上下文/容器 DSL + 客户端四层依赖 DOT + 同步流程 Mermaid + 证据索引 | docs/architecture/artifact-summary.md | 2026-08-05 | 架构模型, C4, Graphviz, 证据索引 |
+| 语义检索（WeMM-2B 混合搜索与相似题） | 文字语义搜/以图搜题/详情页找相似题；Python 编码微服务(懒加载+空闲卸载) + question_embeddings 向量表 + 客户端本地余弦检索 + 静默降级；91 题盲测 L3 Recall@5 0.93 vs 现有 0.00；实施计划 docs/plans/2026-09-15-semantic-search.md，评测 tmp/wemm-eval/report.md | docs/semantic-search-wemm2b.md | 2026-09-15 | 语义检索, WeMM-Embedding, FastAPI, Express, E2E |
 | 一键问题反馈与 GitHub Issues 自动提交 | 截图监听（Android 插件+iOS 通知桥接）+ 反馈表单 + 服务端中转 + 图片存 feedback-assets 分支 + 离线重试队列 | docs/auto-issue-feedback.md | 2026-08-27 | 问题反馈, GitHub Issues, 服务端, 原生插件 |
 | E2E 隔离测试账号与数据快照 | 专用测试账号 + 主账号标签/题目快照复制脚本 + 测试数据与真实账号隔离 | docs/e2e-test-account.md | 2026-08-28 | 测试基建, 数据隔离, 服务端 |
 | PDF 排版引擎 v5 集成 | planLayout 纯函数引擎替换 pdf.ts + 单双栏自动分组 + 长图切割 + 修复试卷导出空白 | docs/pdf-layout-engine-v5.md | 2026-08-28 | PDF 生成, 排版引擎, generatePDF, 试卷导出 |
