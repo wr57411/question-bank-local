@@ -143,7 +143,16 @@ test.describe("语义检索真实链路诊断（连真实 server，非 mock）",
       localStorage.setItem("apiToken", "diag-token"); // 假 token 常量，不受自愈影响
       localStorage.setItem("syncEnabled", "1");
     });
-    await page.route("**/api/embed/image", (r) =>
+    await page.route("**/api/embed/engines", (r) =>
+      r.fulfill({ json: [{ id: "mac-mps", fingerprint: "fp-diag", reachable: true }] })
+    );
+    await page.route("**/api/embed/health**", (r) =>
+      r.fulfill({ json: { fingerprint: "fp-diag", dtype: "fp32" } })
+    );
+    await page.route("**/api/embed/text**", (r) =>
+      r.fulfill({ json: { dim: 8, vectors: [[1, 0, 0, 0, 0, 0, 0, 0]] } })
+    );
+    await page.route("**/api/embed/image**", (r) =>
       r.fulfill({ json: { dim: 8, vectors: [[1, 0, 0, 0, 0, 0, 0, 0]] } })
     );
     await page.goto("/");
@@ -159,7 +168,7 @@ test.describe("语义检索真实链路诊断（连真实 server，非 mock）",
       const all = await window.dbGetAllQuestions();
       return all.filter((x) => !x.deleted_at).slice(0, 3).map((x) => x.id);
     });
-    await page.route("**/api/embed/vectors", (r) =>
+    await page.route("**/api/embed/vectors**", (r) =>
       r.fulfill({
         json: {
           count: ids.length,
@@ -167,7 +176,7 @@ test.describe("语义检索真实链路诊断（连真实 server，非 mock）",
         },
       })
     );
-    await page.route("**/api/embed/image", (r) =>
+    await page.route("**/api/embed/image**", (r) =>
       r.fulfill({ json: { dim: 8, vectors: [[1, 0, 0, 0, 0, 0, 0, 0]] } })
     );
     const pulled = await page.evaluate(() => window.refreshEmbeddings());

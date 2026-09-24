@@ -22,11 +22,11 @@ DEFAULT_QUERIES = [
 THRESHOLDS = [0.35, 0.30, 0.25, 0.22, 0.20]
 
 
-def load_index_vectors(db_path):
+def load_index_vectors(db_path, engine_id):
     conn = sqlite3.connect(db_path)
     rows = conn.execute(
-        "SELECT question_id, dim, vector FROM question_embeddings WHERE model = ?",
-        (MODEL_TAG,),
+        "SELECT question_id, dim, vector FROM question_embeddings WHERE engine_id = ? AND model = ?",
+        (engine_id, MODEL_TAG),
     ).fetchall()
     conn.close()
     ids = []
@@ -40,9 +40,9 @@ def load_index_vectors(db_path):
     return ids, np.asarray(matrix, dtype=np.float32)
 
 
-def main(db_path: str, queries: list[str], top_n: int) -> None:
-    qids, matrix = load_index_vectors(db_path)
-    print(f"loaded vectors: {len(qids)} (model={MODEL_TAG})")
+def main(db_path: str, engine_id: str, queries: list[str], top_n: int) -> None:
+    qids, matrix = load_index_vectors(db_path, engine_id)
+    print(f"loaded vectors: {len(qids)} (engine={engine_id}, model={MODEL_TAG})")
     if len(qids) == 0:
         print("no vectors found; abort")
         return
@@ -77,9 +77,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="calibrate SEMANTIC_MIN_SCORE via real cross-modal cosine scores")
     parser.add_argument("db_path", help="path to the SQLite question bank")
+    parser.add_argument("--engine-id", required=True, help="engine id this index belongs to（库与引擎一一绑定，不允许默认）")
     parser.add_argument("--queries", default=None, help="pipe-separated text queries; defaults to 3 built-in physics scenes")
     parser.add_argument("--top", type=int, default=5, help="how many top results to print per query")
     args = parser.parse_args()
 
     queries = args.queries.split("|") if args.queries else DEFAULT_QUERIES
-    main(args.db_path, queries, args.top)
+    main(args.db_path, args.engine_id, queries, args.top)

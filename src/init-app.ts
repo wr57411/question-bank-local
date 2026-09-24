@@ -1,9 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+declare const localforage: typeof import('localforage');
+
 import * as data from './data';
 import * as services from './services';
 import * as ui from './ui';
 
 const w = window as any;
+
+async function _dropLegacyEmbeddingStore(): Promise<void> {
+  if (localStorage.getItem('embeddingsMigratedV3') === '1') return;
+  const legacy = localforage.createInstance({ name: 'questionBank', storeName: 'embeddings' });
+  await legacy.clear();
+  localStorage.setItem('embeddingsMigratedV3', '1');
+}
 
 async function _migrateQuestionNotes(): Promise<void> {
   try {
@@ -39,7 +48,7 @@ export async function refreshAll(): Promise<void> {
   }
 }
 
-export function initApp(): void {
+export async function initApp(): Promise<void> {
   // Register refreshAll on window for cross-module access
   w.refreshAll = refreshAll;
 
@@ -52,6 +61,9 @@ export function initApp(): void {
   const lsSyncEnabled = localStorage.getItem('syncEnabled') !== '0';
   ui.initRemoteSync(lsServerUrl, lsApiToken, lsSyncEnabled);
   data.initRemoteSync(lsServerUrl, lsApiToken, lsSyncEnabled);
+  try {
+    await _dropLegacyEmbeddingStore();
+  } catch (e) { console.error('旧向量库清理失败:', e); }
   void data.refreshEmbeddings().catch(() => {});
   data.setOnSyncDataWarning(ui.showSyncWarning);
   const syncToggle = document.getElementById('sync-toggle') as HTMLInputElement | null;
