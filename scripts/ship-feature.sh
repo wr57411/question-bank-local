@@ -43,7 +43,7 @@ npx cap sync android
 
 # 3. 修复 proguard 兼容性（AGP 9.x）
 echo ">>> 修复 proguard 兼容性..."
-find node_modules/@capacitor node_modules/@hotend -name "build.gradle" -exec grep -l "proguard-android\.txt" {} \; 2>/dev/null | while read f; do
+find -L node_modules/@capacitor node_modules/@hotend -name "build.gradle" -exec grep -l "proguard-android\.txt" {} \; 2>/dev/null | while read f; do
   sed -i '' 's/proguard-android\.txt/proguard-android-optimize.txt/g' "$f"
 done
 
