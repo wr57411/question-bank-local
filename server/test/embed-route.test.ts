@@ -3,7 +3,13 @@ import { createServer, type Server } from 'http';
 import request from 'supertest';
 import app from '../src/app.js';
 import db from '../src/db/connection.js';
-import { buildFingerprint, filterVectorsByEngine, validateTexts } from '../src/routes/embed.js';
+import {
+  FALLBACK_ENGINE_ID,
+  buildFingerprint,
+  configuredEngineIds,
+  filterVectorsByEngine,
+  validateTexts,
+} from '../src/routes/embed.js';
 import { createTestUser, authHeaders } from './helpers/auth.js';
 
 describe('validateTexts', () => {
@@ -54,6 +60,30 @@ describe('buildFingerprint', () => {
   });
 });
 
+describe('configuredEngineIds', () => {
+  it('EMBED_SERVICE_URL__WINDOWS 归一化为 windows', () => {
+    expect(configuredEngineIds({ EMBED_SERVICE_URL__WINDOWS: 'http://windows:3002' })).toEqual(['windows']);
+  });
+
+  it('EMBED_SERVICE_URL__MY_ENGINE_1 归一化为 my_engine_1', () => {
+    expect(configuredEngineIds({ EMBED_SERVICE_URL__MY_ENGINE_1: 'http://x:3002' })).toEqual(['my_engine_1']);
+  });
+
+  it('裸 EMBED_SERVICE_URL 不产生具名引擎', () => {
+    expect(configuredEngineIds({ EMBED_SERVICE_URL: 'http://127.0.0.1:3002' })).toEqual([]);
+  });
+
+  it('多引擎去重且保序', () => {
+    expect(
+      configuredEngineIds({
+        EMBED_SERVICE_URL: 'http://127.0.0.1:3002',
+        EMBED_SERVICE_URL__LINUX_CUDA: 'http://linux:3002',
+        EMBED_SERVICE_URL__MY_ENGINE_1: 'http://my:3002',
+      }),
+    ).toEqual(['linux_cuda', 'my_engine_1']);
+  });
+});
+
 describe('GET /api/embed/engines', () => {
   beforeEach(() => {
     db.prepare('DELETE FROM question_embeddings').run();
@@ -76,7 +106,92 @@ describe('GET /api/embed/engines', () => {
 
     const res = await request(app).get('/api/embed/engines').set(authHeaders(token));
     expect(res.status).toBe(200);
-    expect(res.body.map((e: { id: string }) => e.id)).toEqual(['mac']);
+    const ids = (res.body as { id: string }[]).map((e) => e.id);
+    expect(ids).toContain('mac');
+    expect(ids).not.toContain('legacy-default');
+  });
+});
+
+describe('引擎目录来自配置', () => {
+  const envKey = 'EMBED_SERVICE_URL__MAC';
+  let saved: string | undefined;
+
+  beforeEach(() => {
+    db.prepare('DELETE FROM question_embeddings').run();
+    saved = process.env[envKey];
+    vi.stubGlobal('fetch', vi.fn(async () => {
+      throw new Error('编码服务不可达');
+    }));
+  });
+
+  afterEach(() => {
+    if (saved === undefined) delete process.env[envKey];
+    else process.env[envKey] = saved;
+    vi.unstubAllGlobals();
+  });
+
+  it('返回的 id 数组已去重', async () => {
+    const token = await createTestUser(app, `136${Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')}`);
+    process.env[envKey] = 'http://127.0.0.1:9';
+    db.prepare('INSERT INTO question_embeddings (engine_id, question_id, model, dim, vector) VALUES (?,?,?,?,?)').run(
+      'mac',
+      'q-1',
+      'wemm-embedding-2b',
+      4,
+      Buffer.alloc(16),
+    );
+
+    const res = await request(app).get('/api/embed/engines').set(authHeaders(token));
+    expect(res.status).toBe(200);
+    const ids = (res.body as { id: string }[]).map((e) => e.id);
+    expect(ids).toContain('mac');
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it('未建库的已配置引擎也出现在目录里', async () => {
+    const token = await createTestUser(app, `135${Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')}`);
+    process.env[envKey] = 'http://127.0.0.1:9';
+
+    const res = await request(app).get('/api/embed/engines').set(authHeaders(token));
+    expect(res.status).toBe(200);
+    const ids = (res.body as { id: string }[]).map((e) => e.id);
+    expect(ids).toContain('mac');
+    expect(ids).not.toContain('legacy-default');
+  });
+
+  it('含 fallback 引擎', async () => {
+    const token = await createTestUser(app, `134${Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')}`);
+
+    const res = await request(app).get('/api/embed/engines').set(authHeaders(token));
+    expect(res.status).toBe(200);
+    expect((res.body as { id: string }[]).map((e) => e.id)).toContain(FALLBACK_ENGINE_ID);
+  });
+});
+
+describe('GET /api/embed/vectors/meta', () => {
+  beforeEach(() => {
+    db.prepare('DELETE FROM question_embeddings').run();
+  });
+
+  it('返回指定引擎的向量条数与最近更新时间', async () => {
+    const token = await createTestUser(app, `133${Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')}`);
+    db.prepare(
+      'INSERT INTO question_embeddings (engine_id, question_id, model, dim, vector, updated_at) VALUES (?,?,?,?,?,?)',
+    ).run('mac', 'q-1', 'wemm-embedding-2b', 4, Buffer.alloc(16), '2026-10-01 00:00:00');
+
+    const res = await request(app).get('/api/embed/vectors/meta?engineId=mac').set(authHeaders(token));
+    expect(res.status).toBe(200);
+    expect(res.body.engineId).toBe('mac');
+    expect(res.body.count).toBe(1);
+    expect(res.body.latestUpdatedAt).toBe('2026-10-01 00:00:00');
+  });
+
+  it('缺 engineId 返回 400', async () => {
+    const token = await createTestUser(app, `132${Math.floor(Math.random() * 1000000000).toString().padStart(9, '0')}`);
+
+    const res = await request(app).get('/api/embed/vectors/meta').set(authHeaders(token));
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('缺少 engineId');
   });
 });
 

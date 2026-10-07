@@ -7,6 +7,17 @@ router.use(authMiddleware);
 
 const DEFAULT_EMBED_BASE = 'http://127.0.0.1:3002';
 const MODEL_TAG = 'wemm-embedding-2b';
+const EMBED_SERVICE_ENV_PREFIX = 'EMBED_SERVICE_URL__';
+
+export const FALLBACK_ENGINE_ID = 'local';
+
+export function configuredEngineIds(env: NodeJS.ProcessEnv): string[] {
+  const ids = Object.keys(env)
+    .filter((key) => key.startsWith(EMBED_SERVICE_ENV_PREFIX))
+    .map((key) => key.slice(EMBED_SERVICE_ENV_PREFIX.length).toLowerCase().replace(/[^a-z0-9]/g, '_'))
+    .filter((id) => id.length > 0);
+  return [...new Set(ids)];
+}
 
 export function embedBaseFor(engineId: string): string {
   if (engineId) {
@@ -118,12 +129,30 @@ router.get('/vectors', (req, res) => {
   res.json({ engineId, model: MODEL_TAG, count: embeddings.length, embeddings });
 });
 
+router.get('/vectors/meta', (req, res) => {
+  const engineId = String(req.query.engineId || '');
+  if (!engineId) {
+    res.status(400).json({ error: '缺少 engineId' });
+    return;
+  }
+  const row = db
+    .prepare('SELECT COUNT(*) AS count, MAX(updated_at) AS latestUpdatedAt FROM question_embeddings WHERE engine_id = ?')
+    .get(engineId) as { count: number; latestUpdatedAt: string | null };
+  res.json({ engineId, count: row.count, latestUpdatedAt: row.latestUpdatedAt ?? null });
+});
+
 router.get('/engines', async (_req, res) => {
-  const ids = (
-    db
-      .prepare("SELECT DISTINCT engine_id FROM question_embeddings WHERE engine_id <> 'legacy-default'")
-      .all() as { engine_id: string }[]
-  ).map((r) => r.engine_id);
+  const ids = [
+    ...new Set([
+      ...(
+        db
+          .prepare("SELECT DISTINCT engine_id FROM question_embeddings WHERE engine_id <> 'legacy-default'")
+          .all() as { engine_id: string }[]
+      ).map((r) => r.engine_id),
+      ...configuredEngineIds(process.env),
+      FALLBACK_ENGINE_ID,
+    ]),
+  ];
   const engines = await Promise.all(
     ids.map(async (id) => {
       const { reachable, health } = await fetchEngineHealth(id);
