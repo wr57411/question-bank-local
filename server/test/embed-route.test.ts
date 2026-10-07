@@ -65,8 +65,16 @@ describe('configuredEngineIds', () => {
     expect(configuredEngineIds({ EMBED_SERVICE_URL__WINDOWS: 'http://windows:3002' })).toEqual(['windows']);
   });
 
-  it('EMBED_SERVICE_URL__MY_ENGINE_1 归一化为 my_engine_1', () => {
-    expect(configuredEngineIds({ EMBED_SERVICE_URL__MY_ENGINE_1: 'http://x:3002' })).toEqual(['my_engine_1']);
+  it('EMBED_SERVICE_URL__MY_ENGINE_1 归一化为 my-engine-1', () => {
+    expect(configuredEngineIds({ EMBED_SERVICE_URL__MY_ENGINE_1: 'http://x:3002' })).toEqual(['my-engine-1']);
+  });
+
+  it('与 embedBaseFor 严格互逆：配置出来的 id 能找回同一个 env 键', () => {
+    const env = { EMBED_SERVICE_URL__LINUX_CUDA: 'http://a:3002', EMBED_SERVICE_URL__MY_ENGINE_1: 'http://b:3002' };
+    for (const id of configuredEngineIds(env)) {
+      const key = `EMBED_SERVICE_URL__${id.toUpperCase().replace(/[^A-Z0-9]/g, '_')}`;
+      expect(env).toHaveProperty(key);
+    }
   });
 
   it('裸 EMBED_SERVICE_URL 不产生具名引擎', () => {
@@ -80,7 +88,7 @@ describe('configuredEngineIds', () => {
         EMBED_SERVICE_URL__LINUX_CUDA: 'http://linux:3002',
         EMBED_SERVICE_URL__MY_ENGINE_1: 'http://my:3002',
       }),
-    ).toEqual(['linux_cuda', 'my_engine_1']);
+    ).toEqual(['linux-cuda', 'my-engine-1']);
   });
 });
 

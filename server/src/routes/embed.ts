@@ -14,8 +14,9 @@ export const FALLBACK_ENGINE_ID = 'local';
 export function configuredEngineIds(env: NodeJS.ProcessEnv): string[] {
   const ids = Object.keys(env)
     .filter((key) => key.startsWith(EMBED_SERVICE_ENV_PREFIX))
-    .map((key) => key.slice(EMBED_SERVICE_ENV_PREFIX.length).toLowerCase().replace(/[^a-z0-9]/g, '_'))
-    .filter((id) => id.length > 0);
+    .map((key) => key.slice(EMBED_SERVICE_ENV_PREFIX.length).toLowerCase().replace(/_/g, '-'))
+    .filter((id) => id.length > 0)
+    .map((id) => id.replace(/[^a-z0-9-]/g, '-'));
   return [...new Set(ids)];
 }
 
