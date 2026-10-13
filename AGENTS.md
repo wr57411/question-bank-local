@@ -270,6 +270,7 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 | settings 整行替换抹字段风险修复 | `{ ...settings }` 改 `{ ...prev, ...settings }`（routes/sync.ts + server-sync.ts），删除 cloud_providers/appVersions 硬编码保护；副带修好「清空 cloud_providers 永远清不掉」 | docs/quick-import-favorite-tags.md 第五节 | 2026-09-04 | 服务端, user_settings, 同步 |
 | 修复题目标签形状契约回归 | main.ts 数据层全局由 assignIfMissing 改强制覆盖后，app 从 legacy public/db.js 的 buildTagIndex（`{tags:{...}}`）切到模块版扁平 `{id,name,color}`，而 UI 仍按 `qt.tags.*` 读取 → `undefined.color` 崩溃；形状不一致自 2026-07-25 潜伏、因渲染路径从未走到而未暴露；修复：UI 7 处对齐扁平契约 + dbGetAllPapers 题数 + 级联后刷新 + ui-health 用例 | docs/fix-qtag-shape-regression.md | 2026-10-09 | main.ts, buildTagIndex, question-core, question-detail, papers, E2E |
 | 笔记图片字段名与版本展示顺序修复 | TS 写端 `image_url` 改 `note_image_url`（对齐旧实现/服务端列名/已有数据，唯一活路径是 init-app 的一次性 backfill）；同毫秒写入多条笔记导致详情页默认显示的可能不是题图 → 展示层新增 `sortNoteVersions`（撞车时 笔记 v1 恒首、手写笔记按序号、id 兜底） | docs/quick-import-handwritten-note.md 第五、七节 | 2026-09-15 | question_notes, 排序, 题目详情, 多图片版本 |
+| 修复标签关联同步（契约在 TS、运行时跑 db.js） | 关联的「带版本实体」契约在 TS 侧实现完整、单测全绿，但 `dbBuildSyncPayload`/`dbApplyRemoteSnapshot` **从未挂到 window**，运行时跑的是 `public/db.js` 老实现 → push 不发 `question_tags`（上行 100% 丢）+ pull 用服务端 `tag_ids` 整题替换（本地独有关联被静默抹掉）。修：push 补发 `question_tags`（缺时间戳兜底 **1970 而非 now**，因服务端 `normalizeTimestamp` 会把空值填成 now 从而复活存量墓碑）+ pull 改逐条时间戳合并且「关联不受题目 updated_at 守卫约束」+ `_collectQuestionTagIds` 过滤墓碑 + `dbCreateQuestion` 补四字段。**服务端零改动**。含先红后绿证据 | docs/fix-qtag-dbjs-sync-not-wired.md | 2026-10-13 | 同步, question_tags, 影子数据层, 服务端 push, 标签, 数据安全 |
 
 ### 功能设计文档
 

@@ -136,7 +136,7 @@ export async function dbCreateQuestion(
   await dbQuestions.setItem(id, question);
   invalidateQuestionsCache();
   for (const tagId of selectedTagIds) {
-    await dbQuestionTags.setItem(`${id}_${tagId}`, { question_id: id, tag_id: tagId });
+    await dbQuestionTags.setItem(`${id}_${tagId}`, { question_id: id, tag_id: tagId, created_at: now, updated_at: now, deleted_at: null });
   }
   invalidateTagIndex();
   return question;
