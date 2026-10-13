@@ -1,9 +1,8 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 
-export function loadDbFunctions() {
-  const dbPath = resolve(process.cwd(), 'public/db.js')
-  const dbCode = readFileSync(dbPath, 'utf8')
+export function loadDbFunctions({ dbPath = 'public/db.js' } = {}) {
+  const dbCode = readFileSync(resolve(process.cwd(), dbPath), 'utf8')
 
   const mockStores = new Map()
   const mockLocalforage = {
@@ -38,7 +37,7 @@ export function loadDbFunctions() {
   const script = new Function(
     'localforage', 'window', 'document', 'Image', 'FileReader',
     'fetch', 'console', 'URL', 'localStorage', 'CustomEvent', 'alert', 'atob',
-    `${dbCode}\nreturn { generateId, _toMillis, _normalizeTagRecord, _normalizeQuestionRecord, _normalizePaperRecord, _normalizeSimilarLinkPair, _similarLinkKey, _normalizeSimilarLinkRecord, _needsNormalization, _isRemoteNewer, dataURLtoBlob, _isDataUrl, _isRemoteUrl, _isServerAssetPath, _needsAssetUpload, _normalizeServerAssetUrl, initRemoteSync, dbGetAllTags, dbCreateTag, dbDeleteTag, dbGetAllQuestions, dbCreateQuestion, dbSoftDeleteQuestion, dbRestoreQuestion, dbPermanentDeleteQuestion, dbGetTrashedQuestions, dbAddTagToQuestion, dbRemoveTagFromQuestion, dbGetAllPapers, dbCreatePaper, dbDeletePaper, dbGetPaperQuestions, dbGetAllSimilarLinks, dbAddSimilarQuestionLinks, dbRemoveSimilarQuestionLink, dbGetSimilarQuestionIds, dbImportAllData: importAllData, dbBuildSyncPayload, dbApplyRemoteSnapshot, dbFinalizeSuccessfulSync, dbReplaceWithRemoteSnapshot, dbClearAllData, generatePDF, generatePaperPDF, collectDataFingerprint, checkSyncDataIntegrity, _checkVersionsDiscard }`
+    `${dbCode}\nreturn { generateId, _toMillis, _normalizeTagRecord, _normalizeQuestionRecord, _normalizePaperRecord, _normalizeSimilarLinkPair, _similarLinkKey, _normalizeSimilarLinkRecord, _needsNormalization, _isRemoteNewer, dataURLtoBlob, _isDataUrl, _isRemoteUrl, _isServerAssetPath, _needsAssetUpload, _normalizeServerAssetUrl, initRemoteSync, dbGetAllTags, dbCreateTag, dbDeleteTag, dbGetAllQuestions, dbCreateQuestion, dbSoftDeleteQuestion, dbRestoreQuestion, dbPermanentDeleteQuestion, dbGetTrashedQuestions, dbAddTagToQuestion, dbRemoveTagFromQuestion, dbGetAllPapers, dbCreatePaper, dbDeletePaper, dbGetPaperQuestions, dbGetAllSimilarLinks, dbAddSimilarQuestionLinks, dbRemoveSimilarQuestionLink, dbGetSimilarQuestionIds, dbGetQuestionNotes, dbDeleteQuestionNote, dbAddQuestionNote, dbImportAllData: importAllData, dbBuildSyncPayload, dbApplyRemoteSnapshot, dbFinalizeSuccessfulSync, dbReplaceWithRemoteSnapshot, dbClearAllData, generatePDF, generatePaperPDF, collectDataFingerprint, checkSyncDataIntegrity, _checkVersionsDiscard }`
   )
 
   const funcs = script(

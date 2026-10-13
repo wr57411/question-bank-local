@@ -52,8 +52,22 @@ async function seedTagAndQuestions(page) {
   await expect(page.locator('#questions-list .question-card')).toHaveCount(3);
 }
 
+const ENGINE_ID = 'mac-mps';
+const ENGINE_FINGERPRINT = 'fp-e2e';
+
+async function setupEngineRoutes(page) {
+  await page.route('**/api/embed/engines', (route) =>
+    route.fulfill({
+      json: [{ id: ENGINE_ID, fingerprint: ENGINE_FINGERPRINT, reachable: true }],
+    })
+  );
+  await page.route('**/api/embed/health**', (route) =>
+    route.fulfill({ json: { fingerprint: ENGINE_FINGERPRINT, dtype: 'fp32' } })
+  );
+}
+
 async function setupRoutes(page) {
-  await page.route('**/api/embed/vectors', async (route) => {
+  await page.route('**/api/embed/vectors**', async (route) => {
     const ids = await page.evaluate(async () =>
       (await window.dbGetAllQuestions()).map((q) => q.id)
     );
@@ -66,7 +80,7 @@ async function setupRoutes(page) {
       json: { model: 'wemm-embedding-2b', count: embeddings.length, embeddings },
     });
   });
-  await page.route('**/api/embed/text', async (route) => {
+  await page.route('**/api/embed/text**', async (route) => {
     let text = '';
     try {
       text = (JSON.parse(route.request().postData() || '{}').texts || [])[0] || '';
@@ -75,12 +89,13 @@ async function setupRoutes(page) {
     }
     await route.fulfill({ json: { vectors: [text.includes('游乐场') ? TEXT_HIT_VEC : TEXT_MISS_VEC] } });
   });
-  await page.route('**/api/embed/image', async (route) => {
+  await page.route('**/api/embed/image**', async (route) => {
     await route.fulfill({ json: { vectors: [TEXT_HIT_VEC] } });
   });
 }
 
 async function populateVectors(page) {
+  await page.waitForFunction(() => !!window.SemanticService);
   await page.evaluate(() => window.refreshEmbeddings());
 }
 
@@ -105,6 +120,7 @@ test.describe('语义检索', () => {
         },
       });
     });
+    await setupEngineRoutes(page);
     await page.goto('/');
   });
 
@@ -127,7 +143,7 @@ test.describe('语义检索', () => {
 
   test('语义服务宕机时静默降级', async ({ page }) => {
     await setupRoutes(page);
-    await page.route('**/api/embed/text', (route) => route.abort());
+    await page.route('**/api/embed/text**', (route) => route.abort());
     await seedTagAndQuestions(page);
     await populateVectors(page);
 
@@ -181,7 +197,7 @@ test.describe('语义检索', () => {
 
   test('以图搜题降级', async ({ page }) => {
     await setupRoutes(page);
-    await page.route('**/api/embed/image', (route) => route.abort());
+    await page.route('**/api/embed/image**', (route) => route.abort());
     await seedTagAndQuestions(page);
     await populateVectors(page);
 
@@ -194,5 +210,39 @@ test.describe('语义检索', () => {
       skipContrast: true,
     });
     await captureForReview(page, 'image-search-degraded');
+  });
+
+  test('库中存在维度不符的向量时降级而非挂起', async ({ page }) => {
+    await setupRoutes(page);
+    await page.route('**/api/embed/vectors**', async (route) => {
+      const ids = await page.evaluate(async () =>
+        (await window.dbGetAllQuestions()).map((q) => q.id)
+      );
+      const embeddings = ids.map((id, i) => ({
+        question_id: id,
+        dim: i === 0 ? 8 : 4,
+        vector: i === 0 ? VEC_A : f32b64([1, 0, 0, 0]),
+      }));
+      await route.fulfill({
+        json: { model: 'wemm-embedding-2b', count: embeddings.length, embeddings },
+      });
+    });
+    await seedTagAndQuestions(page);
+    await populateVectors(page);
+
+    const res = await page.evaluate(() =>
+      window.SemanticService.search({ query: { kind: 'text', text: '游乐场里旋转的椅子' }, minScore: 0.25 })
+    );
+    expect(res.degraded && res.degraded.reason).toBe('store-corrupt');
+    expect(res.hits).toHaveLength(0);
+
+    await page.fill('#search-input', '游乐场里旋转的椅子');
+    await page.waitForTimeout(800);
+
+    await expect(page.locator('#semantic-results')).toBeEmpty();
+    await expect(page.locator('#error-modal.active')).toHaveCount(0);
+    await page.locator('#search-input').scrollIntoViewIfNeeded();
+    await assertVisiblyRendered(page, '#search-input', '搜索输入框');
+    await captureForReview(page, 'dim-mismatch-degraded');
   });
 });

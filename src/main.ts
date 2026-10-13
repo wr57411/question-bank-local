@@ -3,6 +3,8 @@ import './styles/main.css';
 import * as data from './data';
 import * as services from './services';
 import * as ui from './ui';
+import * as semanticRuntime from './services/semantic/runtime';
+import * as semanticEngineHttp from './services/semantic/engine-http';
 import { initApp } from './init-app';
 import { initAnchoredModals } from './ui/modal-anchor';
 
@@ -341,6 +343,7 @@ assignToWindow({
   displayCurrentNoteVersion: ui.displayCurrentNoteVersion,
   saveTextNote: ui.saveTextNote,
   switchNoteVersion: ui.switchNoteVersion,
+  deleteCurrentNoteVersion: ui.deleteCurrentNoteVersion,
   showAddNoteVersionModal: ui.showAddNoteVersionModal,
   closeAddNoteVersionModal: ui.closeAddNoteVersionModal,
   takePhotoForNoteVersion: ui.takePhotoForNoteVersion,
@@ -539,6 +542,9 @@ assignToWindow({
   // 快速导入文字笔记（设计：docs/plans/2026-08-30-quick-import-text-note.md）
   toggleQuickNote: ui.toggleQuickNote,
   onQuickNoteInput: ui.onQuickNoteInput,
+  takeQuickHandNote: ui.takeQuickHandNote,
+  pickQuickHandNoteFromGallery: ui.pickQuickHandNoteFromGallery,
+  removeQuickHandNote: ui.removeQuickHandNote,
   // 快速导入常见标签（设计：docs/plans/2026-09-03-quick-import-favorite-tags.md）
   toggleQiTopicPanel: ui.toggleQiTopicPanel,
   renderQiTopicList: ui.renderQiTopicList,
@@ -548,6 +554,11 @@ assignToWindow({
   renderQuickFavSortList: ui.renderQuickFavSortList,
   renderQuickFavSyncState: ui.renderQuickFavSyncState,
   setQuickFavOn: services.setQuickFavOn,
+  // 语义运行时接线（门面实例由 initSemanticRuntime 挂载）
+  HttpEngine: semanticEngineHttp.HttpEngine,
+  createSemanticService: semanticRuntime.createSemanticService,
+  initSemanticRuntime: semanticRuntime.initSemanticRuntime,
+  switchSemanticEngine: semanticRuntime.switchSemanticEngine,
 });
 
 // Batch 2: init review check on startup
@@ -566,14 +577,16 @@ ui.initProviderList();
 // Batch 8: init issue feedback listener
 ui.initIssueFeedbackListener();
 
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    initAnchoredModals();
-    initApp();
-  });
-} else {
+function startApp(): void {
   initAnchoredModals();
-  initApp();
+  void initApp();
+  void semanticRuntime.initSemanticRuntime().catch(() => {});
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startApp);
+} else {
+  startApp();
 }
 
 if (typeof window !== 'undefined') {

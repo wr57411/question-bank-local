@@ -1,8 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { openModal, closeModal } from './common';
 import { isSystemMemberTag } from './question-core';
-import { getAllVectors } from '../data/embeddings';
-import { cosineSimilarity } from '../services/semantic';
 const w = window as any;
 
 // Expose _detailLoadToken on window (note-version.ts reads/writes it)
@@ -146,23 +144,20 @@ export function closeSimilarModal(): void {
 }
 
 export async function showSimilarQuestions(qId: string): Promise<void> {
-  const vectors = await getAllVectors();
-  const self = vectors.get(qId);
-  if (!self) {
-    w.showStatus('该题暂无语义索引（需在服务端执行一次建库）', 'error');
-    return;
-  }
-  const hits: { id: string; score: number }[] = [];
-  vectors.forEach((vec, id) => {
-    if (id !== qId) hits.push({ id, score: cosineSimilarity(self, vec) });
-  });
-  hits.sort((a, b) => b.score - a.score);
-  const top = hits.slice(0, 6);
-  const byId = new Map((w.allQuestions as any[]).map((q: any) => [q.id, q]));
   const list = document.getElementById('similar-list');
   if (!list) return;
+  if (!w.SemanticService) {
+    w.showStatus('语义服务未就绪', 'error');
+    return;
+  }
+  const res = await w.SemanticService.searchSimilar(qId, { topK: 6 });
+  if (res.degraded) {
+    w.showStatus(res.degraded.reason === 'store-absent' ? '该题在当前引擎的向量库中不存在' : '当前引擎的向量库未就绪', 'error');
+    return;
+  }
+  const byId = new Map((w.allQuestions as any[]).map((q: any) => [q.id, q]));
   list.replaceChildren();
-  top.forEach((h) => {
+  res.hits.forEach((h: { id: string; score: number }) => {
     const q = byId.get(h.id);
     if (!q || q.deleted_at) return;
     const card = document.createElement('div');

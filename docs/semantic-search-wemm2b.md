@@ -22,12 +22,13 @@
  搜索框/图片按钮/详情按钮
    │ POST /api/embed/text|image  ──►  转发(带auth+校验)  ──►  WeMM-2B 编码（懒加载+空闲卸载）
    │ ◄── 向量(2048维) ──────────────┘
-   │ GET /api/embed/vectors ──►  base64 向量全量下发（89题≈720KB）
+   │ GET /api/embed/vectors?engineId=<id> ──►  base64 向量全量下发（89题≈720KB）
    │
  本地余弦排序（暴力扫，91题毫秒级）→ 渲染语义卡片（相似度百分比角标）
 ```
 
-- 题图向量在服务端批量预计算（`build_index.py`），随 `/api/embed/vectors` 分发，客户端 `initApp` 时 fire-and-forget 拉取存 localForage（`embeddings` store）
+- 题图向量在服务端批量预计算（`build_index.py`），随 `/api/embed/vectors?engineId=<id>` 分发，客户端 `initApp` 时 fire-and-forget 拉取存 localForage（`embeddings` store）
+- **库与引擎一一绑定、每个引擎一份库**：`question_embeddings` 以 `(engine_id, question_id)` 为复合主键，同一张表可共存多个引擎的向量；建库与下发都按 `engineId` 过滤，每个引擎只与它自己构建的库配对，切换引擎即切换向量库（阈值也按引擎分别校准）；其中 `legacy-default` 是迁移遗留的引擎名（旧数据归属，不对应任何真实编码引擎），不参与 `/api/embed/engines` 的引擎列表，只可经 `/api/embed/vectors?engineId=legacy-default` 显式取回
 - query（文字/图片）每次现场编码——必须与题图同一模型才能落在同一向量空间
 - 离线时：详情页找相似题照常可用（向量在本地）；文字/以图搜静默降级为字面匹配
 
@@ -39,7 +40,7 @@
 | `server/embed/build_index.py` | 建库脚本：默认 diff 只编新题（无新题不加载模型），`--force` 全量 |
 | `server/embed/tests/` | pytest：health / encode-text(2048维+归一化) / encode-images / 422 校验 |
 | `server/src/routes/embed.ts` | Express 转发（auth + 参数校验 + 45s/60s 超时）+ `/vectors` 下发 |
-| `server/src/db/schema.ts` | `question_embeddings` 表（question_id PK, model, dim, vector BLOB） |
+| `server/src/db/schema.ts` | `question_embeddings` 表（`(engine_id, question_id)` 复合主键, model, dim, vector BLOB） |
 | `src/services/semantic.ts` | 纯函数：decodeVector / cosineSimilarity / mergeRankings |
 | `src/services/semantic-search.ts` | encodeQuery / encodeImage / searchSemantic |
 | `src/data/embeddings.ts` | dbEmbeddings store + refreshEmbeddings + getAllVectors |
@@ -54,8 +55,11 @@
 # 启动编码服务（默认懒加载，空闲 15 分钟自动卸载）
 server/embed/start.sh                    # :3002
 
-# 建库/增量更新向量（对 DB_PATH 指向的库，默认 diff）
-cd server/embed && PYTHONPATH= ~/.workbuddy/binaries/python/envs/default/bin/python build_index.py /path/to/data.db
+# 建库/增量更新向量（对 DB_PATH 指向的库，默认 diff；--engine-id 必填，库按引擎隔离）
+cd server/embed && PYTHONPATH= ~/.workbuddy/binaries/python/envs/default/bin/python build_index.py /path/to/data.db --engine-id mac
+
+# 校准该引擎的语义阈值（同样按 --engine-id 过滤，阈值按引擎分桶）
+cd server/embed && PYTHONPATH= ~/.workbuddy/binaries/python/envs/default/bin/python calibrate_threshold.py /path/to/data.db --engine-id mac
 
 # 测试
 PYTHONPATH= .../pytest server/embed/tests -v          # Python 侧 4 用例

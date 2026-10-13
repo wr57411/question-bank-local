@@ -41,7 +41,7 @@ export interface BookInfo {
 export interface QuestionNote {
   id: string;
   question_id: string;
-  image_url: string | null;
+  note_image_url: string | null;
   label: string;
   text_note: string;
   created_at: string;

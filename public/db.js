@@ -424,11 +424,11 @@ async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layout
   const id = generateId();
   
   let qImg = null;
-  if (questionFile) qImg = await compressImage(questionFile);
+  if (questionFile) qImg = await compressImage(questionFile, 1600, 0.85);
   let aImg = null;
-  if (answerFile) aImg = await compressImage(answerFile);
+  if (answerFile) aImg = await compressImage(answerFile, 1600, 0.85);
   let bImg = null;
-  if (blankFile) bImg = await compressImage(blankFile);
+  if (blankFile) bImg = await compressImage(blankFile, 1600, 0.85);
   
   // 远程同步：上传图片到服务器
   let qImgUrl = qImg, aImgUrl = aImg, bImgUrl = bImg;
@@ -892,7 +892,7 @@ async function dbGetQuestionNotes(questionId) {
   const notes = [];
   await dbQuestionNotes.iterate((v, key) => {
     const note = _normalizeQuestionNoteRecord(v, key);
-    if (note && note.question_id === questionId) notes.push(note);
+    if (note && !note.deleted_at && note.question_id === questionId) notes.push(note);
   });
   return notes.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 }
@@ -921,7 +921,10 @@ async function dbUpdateQuestionNote(noteId, updates) {
 }
 
 async function dbDeleteQuestionNote(noteId) {
-  await dbQuestionNotes.removeItem(noteId);
+  const note = await dbQuestionNotes.getItem(noteId);
+  if (!note) return;
+  const now = _nowIso();
+  await dbQuestionNotes.setItem(noteId, Object.assign({}, note, { note_image_url: null, deleted_at: now, updated_at: now }));
 }
 
 async function dbGetLastViewedNote(questionId) {
@@ -1456,7 +1459,8 @@ async function dbApplyRemoteSnapshot(snapshot) {
       label: note.label || '',
       text_note: note.text_note || '',
       created_at: note.created_at || note.updated_at || _nowIso(),
-      updated_at: note.updated_at || note.created_at || _nowIso()
+      updated_at: note.updated_at || note.created_at || _nowIso(),
+      deleted_at: note.deleted_at || null
     };
     if (_isRemoteNewer(nextNote, localNote)) {
       await dbQuestionNotes.setItem(note.id, nextNote);

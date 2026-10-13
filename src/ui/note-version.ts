@@ -1,14 +1,35 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { closeModal, openModal } from './common';
+import { compressNoteImage } from '../services/image';
 const w = window as any;
 
 let currentNoteVersions: any[] = [];
 let currentNoteVersionId: string | null = null;
 let addNoteVersionImage: string | null = null;
 
+function versionRank(label: unknown): number {
+  const l = String(label || '').trim();
+  if (l === '笔记 v1') return 0;
+  const m = l.match(/^手写笔记(?:\s+(\d+))?$/);
+  if (m) return 10 + (m[1] ? parseInt(m[1], 10) : 1);
+  return 1000;
+}
+
+export function sortNoteVersions(notes: any[]): any[] {
+  return [...(notes || [])].sort((a: any, b: any) => {
+    const ta = new Date(a?.created_at || 0).getTime() || 0;
+    const tb = new Date(b?.created_at || 0).getTime() || 0;
+    if (ta !== tb) return ta - tb;
+    const ra = versionRank(a?.label);
+    const rb = versionRank(b?.label);
+    if (ra !== rb) return ra - rb;
+    return String(a?.id ?? '').localeCompare(String(b?.id ?? ''));
+  });
+}
+
 export async function loadNoteVersionsForDetail(questionId: string): Promise<void> {
   const myToken = ++w._detailLoadToken;
-  currentNoteVersions = await w.dbGetQuestionNotes(questionId);
+  currentNoteVersions = sortNoteVersions(await w.dbGetQuestionNotes(questionId));
   if (myToken !== w._detailLoadToken) return;
   const select = document.getElementById('modal-note-version-select') as HTMLSelectElement;
   const bar = document.getElementById('modal-note-version-bar')!;
@@ -64,6 +85,16 @@ export function saveTextNote(): void {
 
 export function switchNoteVersion(_noteId: string): void { displayCurrentNoteVersion(); }
 
+export async function deleteCurrentNoteVersion(): Promise<void> {
+  const select = document.getElementById('modal-note-version-select') as HTMLSelectElement;
+  const noteId = select?.value;
+  if (!noteId) return;
+  if (!confirm('删除这个图片版本？\n\n将同步到所有设备，且不可恢复。\n（若删光所有版本，会自动用题图重建「笔记 v1」）')) return;
+  await w.dbDeleteQuestionNote(noteId);
+  w.dbSetLastViewedNote(w.currentQuestionId, '');
+  await loadNoteVersionsForDetail(w.currentQuestionId);
+}
+
 export function showAddNoteVersionModal(): void {
   addNoteVersionImage = null;
   (document.getElementById('note-version-label') as HTMLInputElement).value = '';
@@ -115,7 +146,8 @@ export async function confirmAddNoteVersion(): Promise<void> {
   if (!addNoteVersionImage) { w.showStatus('请先选择题目图片', 'error'); return; }
   const label = (document.getElementById('note-version-label') as HTMLInputElement).value.trim() || '笔记 ' + (currentNoteVersions.length + 1);
   const textNote = (document.getElementById('note-version-text') as HTMLInputElement).value.trim();
-  const note = await w.dbAddQuestionNote(w.currentQuestionId, addNoteVersionImage, label, textNote);
+  const image = await compressNoteImage(addNoteVersionImage);
+  const note = await w.dbAddQuestionNote(w.currentQuestionId, image, label, textNote);
   closeAddNoteVersionModal();
   await loadNoteVersionsForDetail(w.currentQuestionId);
   (document.getElementById('modal-note-version-select') as HTMLSelectElement).value = note.id;

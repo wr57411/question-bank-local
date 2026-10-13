@@ -4,6 +4,7 @@ import { dbCreateTag, dbUpdateTag, dbGetAllGroups, dbGetGroup, getGroupManualMem
 import { populateCategorySelect } from './tag-manage';
 import { openModal, closeModal } from './common';
 import { encodeQuery, encodeImage, searchSemantic } from '../services/semantic-search';
+import { compressNoteImage } from '../services/image';
 
 const w = window as any;
 
@@ -78,7 +79,8 @@ export function initQuestionForm(): void {
         if (ev.image) {
           const labelInput = document.getElementById('extra_' + ev.idx + '-label') as HTMLInputElement | null;
           const label = (labelInput ? labelInput.value.trim() : '') || '笔记 v' + noteIdx;
-          await w.dbAddQuestionNote(newQuestion.id, ev.image, label, '');
+          const image = await compressNoteImage(ev.image);
+          await w.dbAddQuestionNote(newQuestion.id, image, label, '');
           noteIdx++;
         }
       }
@@ -168,7 +170,15 @@ function scheduleSemanticEnhance(): void {
   _semanticDebounce = setTimeout(() => { void enhanceWithSemantic(); }, 400);
 }
 
-const SEMANTIC_MIN_SCORE = 0.25;
+const minScoreFor = (engineId: string): number => {
+  try {
+    const raw = localStorage.getItem('semanticMinScoreByEngine');
+    const map = raw ? (JSON.parse(raw) as Record<string, number>) : {};
+    return map[engineId] ?? 0.25;
+  } catch {
+    return 0.25;
+  }
+};
 
 async function enhanceWithSemantic(): Promise<void> {
   const input = document.getElementById('search-input') as HTMLInputElement | null;
@@ -182,13 +192,12 @@ async function enhanceWithSemantic(): Promise<void> {
   loading.className = 'semantic-title';
   loading.textContent = '语义分析中…';
   container.appendChild(loading);
-  const queryVec = await encodeQuery(text);
+  if (!w.SemanticService) { container.replaceChildren(); return; }
+  const res = await w.SemanticService.search({ query: { kind: 'text', text }, minScore: minScoreFor(w.semanticEngineId) });
   if (token !== _semanticToken) return;
-  if (!queryVec) { container.replaceChildren(); return; }
-  const hits = await searchSemantic(queryVec);
-  if (token !== _semanticToken) return;
+  if (res.degraded) { container.replaceChildren(); return; }
   const literalIds = new Set(getFilteredQuestions().map((q: any) => q.id));
-  const filtered = hits.filter((h) => !literalIds.has(h.id) && h.score > SEMANTIC_MIN_SCORE);
+  const filtered = res.hits.filter((h: { id: string }) => !literalIds.has(h.id));
   renderSemanticResults(container, filtered, '语义相关');
   if (filtered.length) container.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -218,18 +227,21 @@ export async function handleImageSearch(): Promise<void> {
   loading.textContent = '图片匹配中…';
   container.appendChild(loading);
   container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  const queryVec = await encodeImage(dataUrl);
-  if (token !== _imageSearchToken) return;
-  if (!queryVec) {
+  if (!w.SemanticService) {
     container.replaceChildren();
     w.showStatus('图片匹配服务不可用', 'error');
     return;
   }
-  const hits = await searchSemantic(queryVec, 12);
+  const res = await w.SemanticService.search({ query: { kind: 'image', dataUrl }, topK: 12 });
   if (token !== _imageSearchToken) return;
-  renderSemanticResults(container, hits, '图片匹配');
-  if (hits.length) container.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  if (!hits.length) {
+  if (res.degraded) {
+    container.replaceChildren();
+    w.showStatus('图片匹配服务不可用', 'error');
+    return;
+  }
+  renderSemanticResults(container, res.hits, '图片匹配');
+  if (res.hits.length) container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (!res.hits.length) {
     const empty = document.createElement('div');
     empty.className = 'semantic-title';
     empty.textContent = '图片匹配：没有找到相似题目';

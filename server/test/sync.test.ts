@@ -64,4 +64,32 @@ describe('同步', () => {
     const hasPrivate = pullRes.body.tags.some((t: { id: string }) => t.id === 'tag-private');
     expect(hasPrivate).toBe(false);
   });
+
+  it('笔记墓碑：push 带 deleted_at 应落库并在 pull 原样返回', async () => {
+    const note = {
+      id: 'note-tomb-1', question_id: 'q-tomb',
+      note_image_url: 'data:image/jpeg;base64,AAA', label: '手写笔记', text_note: '',
+      created_at: '2026-09-16T08:00:00.000Z', updated_at: '2026-09-16T08:00:00.000Z',
+      deleted_at: '2026-09-16T09:00:00.000Z',
+    };
+    const push = await request(app).post('/api/sync/push').set(authHeaders(tokenA)).send({ question_notes: [note] });
+    expect(push.status).toBe(200);
+    const pull = await request(app).get('/api/sync/pull').set(authHeaders(tokenA));
+    const row = pull.body.question_notes.find((n: any) => n.id === 'note-tomb-1');
+    expect(row, '墓碑行应随 pull 返回（客户端靠它感知删除）').toBeTruthy();
+    expect(row.deleted_at).toBe('2026-09-16T09:00:00.000Z');
+    expect(row.note_image_url).toBeNull();
+  });
+
+  it('旧客户端 push 不带 deleted_at 应存为 null（向后兼容）', async () => {
+    const note = {
+      id: 'note-tomb-2', question_id: 'q-tomb',
+      note_image_url: 'data:image/jpeg;base64,BBB', label: '笔记 v1', text_note: '有文字',
+      created_at: '2026-09-16T08:00:00.000Z', updated_at: '2026-09-16T08:00:00.000Z',
+    };
+    await request(app).post('/api/sync/push').set(authHeaders(tokenA)).send({ question_notes: [note] });
+    const pull = await request(app).get('/api/sync/pull').set(authHeaders(tokenA));
+    const row = pull.body.question_notes.find((n: any) => n.id === 'note-tomb-2');
+    expect(row.deleted_at ?? null).toBeNull();
+  });
 });
