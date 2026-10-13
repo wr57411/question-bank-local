@@ -11,33 +11,26 @@ test.describe("UI 健康检测 - 存在性", () => {
   });
 
   test("所有 Tab 按钮存在且可见", async ({ page }) => {
-    const tabs = ["题目管理", "标签管理", "试卷管理"];
+    const tabs = ["题目管理", "标签管理", "试卷管理", "垃圾篓"];
     for (const tabName of tabs) {
       const tab = page.locator(`.tab:has-text("${tabName}")`);
       await expect(tab).toBeAttached({ timeout: 5000 });
     }
-    // 专题 Tab（带 emoji）
-    await expect(page.locator('.tab:has-text("专题")')).toBeAttached({ timeout: 5000 });
-    // 待关联 Tab
-    await expect(page.locator('.tab:has-text("待关联")')).toBeAttached({ timeout: 5000 });
-    // 待补拍 Tab
-    await expect(page.locator('button#pending-blank-tab')).toBeAttached({ timeout: 5000 });
-    // 待处理 Tab
-    await expect(page.locator('button#pending-photos-tab')).toBeAttached({ timeout: 5000 });
-    // 验证 Tab 数量至少 6 个
+    // 已移除功能（专题/待关联/待补拍/待处理/AI教学/书库/Wiki）的 Tab 不应再存在
+    await expect(page.locator('.tab:has-text("专题")')).toHaveCount(0);
+    await expect(page.locator('button#pending-photos-tab')).toHaveCount(0);
+    // 验证 Tab 数量为 4 个
     const tabCount = await page.locator('.tabs .tab').count();
-    expect(tabCount).toBeGreaterThanOrEqual(6);
+    expect(tabCount).toBe(4);
   });
 
   test("题目管理页按钮存在", async ({ page }) => {
     // 拍照按钮
     await expect(page.locator('button:has-text("拍照")').first()).toBeVisible();
     // 相册按钮
-    await expect(page.locator('button:has-text("相册")').first()).toBeVisible();
+    await expect(page.locator('#question-form button:has-text("相册")').first()).toBeVisible();
     // 跨页按钮
     await expect(page.locator('button:has-text("跨页")').first()).toBeVisible();
-    // 悬浮窗按钮
-    await expect(page.locator('#floating-toggle-btn')).toBeVisible();
     // 工具栏按钮
     await expect(page.locator('button:has-text("导出")').first()).toBeVisible();
     await expect(page.locator('button:has-text("备份")').first()).toBeVisible();
@@ -47,8 +40,8 @@ test.describe("UI 健康检测 - 存在性", () => {
   test("initApp 已恢复：添加题目表单初始化", async ({ page }) => {
     // 题目管理 Tab 默认激活，beforeEach 已 mock Capacitor=android 且 goto("/")
     // 断言恢复 initApp 后关键表单元素已初始化并可见
-    await expect(page.locator('#book-name')).toBeVisible();
-    await expect(page.locator('#mode-photo-btn')).toBeVisible();
+    await expect(page.locator('#book-name')).toHaveCount(0);
+    await expect(page.locator('#photo-section')).toBeVisible();
     await expect(page.locator('#question-form button[type="submit"]')).toContainText('添加题目');
   });
 
@@ -59,17 +52,12 @@ test.describe("UI 健康检测 - 存在性", () => {
     await expect(page.locator('#tag-form button')).toBeVisible();
   });
 
-  test("试卷管理页表单存在", async ({ page }) => {
+  test("试卷管理页建卷表单已移除，试卷列表可用", async ({ page }) => {
     await page.locator('.tab:has-text("试卷管理")').click();
-    await expect(page.locator('#paper-name')).toBeVisible();
-    await expect(page.locator('#paper-form button')).toBeVisible();
-    await expect(page.locator('button:has-text("AI 智能推荐")')).toBeVisible();
-  });
-
-  test("专题页表单存在", async ({ page }) => {
-    await page.locator('.tab:has-text("专题")').click();
-    await expect(page.locator('#topic-name')).toBeVisible();
-    await expect(page.locator('#topic-form button')).toBeVisible();
+    await expect(page.locator('#paper-form')).toHaveCount(0);
+    await expect(page.locator('#paper-name')).toHaveCount(0);
+    await expect(page.locator('button:has-text("AI 智能推荐")')).toHaveCount(0);
+    await expect(page.locator('#papers-list')).toBeAttached();
   });
 
   test("备份弹窗版本切换器存在", async ({ page }) => {
@@ -125,13 +113,12 @@ test.describe("UI 健康检测 - 功能性", () => {
     // 先切换到其他 Tab
     await page.locator('.tab:has-text("标签管理")').click();
     await page.locator('.tab:has-text("试卷管理")').click();
-    await page.locator('.tab:has-text("专题")').click();
     await page.locator('.tab:has-text("题目管理")').click();
 
     // 验证所有 Tab 按钮仍可见
     const tabButtons = page.locator('.tabs .tab');
     const count = await tabButtons.count();
-    expect(count).toBeGreaterThanOrEqual(6);
+    expect(count).toBe(4);
 
     for (let i = 0; i < count; i++) {
       await expect(tabButtons.nth(i)).toBeVisible();
@@ -149,24 +136,22 @@ test.describe("UI 健康检测 - 功能性", () => {
     await expect(page.locator('#tags-list .tag')).toContainText("测试标签");
   });
 
-  test("创建试卷成功", async ({ page }) => {
+  test("数据层建卷后试卷出现在列表中（导出入册链路）", async ({ page }) => {
+    await page.evaluate(async () => {
+      await window.dbCreateQuestion(
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        null, [], 0, null, [], null
+      );
+      const questions = await window.dbGetAllQuestions();
+      const q = questions.find((x) => !x.deleted_at);
+      await window.dbCreatePaperFromExport("测试试卷", [q.id], null, null);
+      await window.loadPapers();
+    });
     await page.locator('.tab:has-text("试卷管理")').click();
-    await page.locator('#paper-name').fill("测试试卷");
-    await page.locator('#paper-form button').click();
 
-    // 验证试卷出现在列表中
     await expect(page.locator('#papers-list .paper-card')).toHaveCount(1);
     await expect(page.locator('#papers-list .paper-card')).toContainText("测试试卷");
-  });
-
-  test("创建专题成功", async ({ page }) => {
-    await page.locator('.tab:has-text("专题")').click();
-    await page.locator('#topic-name').fill("测试专题");
-    await page.locator('#topic-form button').click();
-
-    // 验证专题出现在列表中
-    await expect(page.locator('#topics-list .paper-card')).toHaveCount(1);
-    await expect(page.locator('#topics-list .paper-card')).toContainText("测试专题");
+    await expect(page.locator('#papers-list .paper-card')).toContainText("题目数量: 1");
   });
 
   test("备份弹窗打开和关闭", async ({ page }) => {
@@ -298,43 +283,6 @@ test.describe("UI 健康检测 - 扩展功能", () => {
     await expect(page.locator('#backup-modal')).not.toHaveClass(/active/);
   });
 
-  test("专题创建和管理", async ({ page }) => {
-    // 1. 创建专题
-    await page.locator('.tab:has-text("专题")').click();
-    await page.locator('#topic-name').fill("测试专题管理");
-    await page.locator('#topic-desc').fill("这是测试描述");
-    await page.locator('#topic-form button').click();
-
-    // 2. 专题出现在列表
-    await expect(page.locator('#topics-list .paper-card')).toHaveCount(1);
-    await expect(page.locator('#topics-list .paper-card')).toContainText("测试专题管理");
-
-    // 3. 查看专题详情（通过 JS 注入题目并关联）
-    await page.evaluate(async () => {
-      await dbCreateQuestion(
-        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-        null, [], 0, null, []
-      );
-    });
-
-    // 4. 删除专题
-    await page.locator('#topics-list .paper-card .danger').click();
-    await expect(page.locator('#topics-list .paper-card')).toHaveCount(0);
-  });
-
-  test("待处理 Tab 功能", async ({ page }) => {
-    // 1. 点击待处理 Tab
-    await page.locator('button#pending-photos-tab').click();
-
-    // 2. 验证 Tab 数量至少 6 个
-    const tabCount = await page.locator('.tabs .tab').count();
-    expect(tabCount).toBeGreaterThanOrEqual(6);
-
-    // 3. 其他 Tab 按钮仍可见
-    await expect(page.locator('.tab:has-text("题目管理")')).toBeAttached();
-    await expect(page.locator('.tab:has-text("标签管理")')).toBeAttached();
-  });
-
   test("工具栏按钮可点击", async ({ page }) => {
     // 1. 导出按钮
     await expect(page.locator('button:has-text("导出")').first()).toBeEnabled();
@@ -346,5 +294,139 @@ test.describe("UI 健康检测 - 扩展功能", () => {
 
     // 3. 导入按钮存在
     await expect(page.locator('button:has-text("导入")').first()).toBeVisible();
+  });
+
+  test("导出弹窗提供添加到试卷管理的勾选且默认不勾", async ({ page }) => {
+    await page.evaluate(async () => {
+      await window.dbCreateQuestion(
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        null, [], 0, null, [], null
+      );
+      await window.loadQuestions();
+      const qs = await window.dbGetAllQuestions();
+      window.showExportModal(qs.filter((x) => !x.deleted_at));
+    });
+    await expect(page.locator('#export-modal')).toHaveClass(/active/);
+    const cb = page.locator('#export-to-paper');
+    await expect(cb).toBeVisible();
+    expect(await cb.isChecked()).toBe(false);
+  });
+});
+
+// 账号隔离：以下用例全部只操作 localStorage / 本地 IndexedDB，不登录、不同步、不调服务端。
+// 见 docs/e2e-test-account.md —— E2E 一律使用 E2E_TEST_PHONE，禁止使用主账号。
+test.describe("快速导入题目", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.confirm = () => true;
+      window.alert = () => {};
+      window.prompt = () => null;
+      window.Capacitor = { getPlatform: () => 'android', Plugins: {} };
+    });
+    await page.goto("/");
+  });
+
+  test("模式开关与顶部条降级提示", async ({ page }) => {
+    await expect(page.locator('#quick-import-toggle')).toBeVisible();
+    await expect(page.locator('#quick-import-bar')).toBeHidden();
+
+    await page.click('#quick-import-toggle');
+    await expect(page.locator('#quick-import-bar')).toBeVisible();
+    await expect(page.locator('#qi-confirm-btn')).toBeDisabled();
+    // Web 环境没有原生相册插件，应给出降级提示而不是崩溃
+    await expect(page.locator('#qi-hint')).toContainText('不是原生环境');
+
+    await page.click('#quick-import-toggle');
+    await expect(page.locator('#quick-import-bar')).toBeHidden();
+  });
+
+  test("版本组合可创建并显示在顶部条", async ({ page }) => {
+    await page.evaluate(() => localStorage.setItem('quickImportMode', '1'));
+    await page.reload();
+    await expect(page.locator('#quick-import-bar')).toBeVisible();
+
+    await page.click('#qi-combo-btn');
+    await expect(page.locator('#quick-combo-panel')).toBeVisible();
+
+    await page.fill('#qi-combo-name', '组合一');
+    await page.locator('#quick-combo-panel button:has-text("新建")').click();
+    await expect(page.locator('#qi-combo-btn')).toHaveAttribute('title', /^组合一/);
+
+    await page.locator('#quick-combo-panel button:has-text("×")').click();
+    await expect(page.locator('#quick-combo-panel')).toBeHidden();
+  });
+
+  test("顶部标签输入与已选 chip", async ({ page }) => {
+    await page.evaluate(async () => {
+      localStorage.setItem('quickImportMode', '1');
+      await window.dbCreateTag('函数', '#4CC3FF');
+    });
+    await page.reload();
+    await expect(page.locator('#quick-import-bar')).toBeVisible();
+
+    await page.fill('#qi-tag-input', '函');
+    await expect(page.locator('#qi-tag-results')).toBeVisible();
+    await page.locator('#qi-tag-results > span').first().click();
+    await expect(page.locator('#qi-tags')).toContainText('函数');
+
+    await page.fill('#qi-tag-input', '全新标签XYZ');
+    // Phase 1 起新建标签必须归属类别：先在顶部条选择类别再回车创建
+    await page.selectOption('#qi-tag-category', { index: 1 });
+    await page.press('#qi-tag-input', 'Enter');
+    await expect(page.locator('#qi-tags')).toContainText('全新标签XYZ');
+
+    await page.locator('#qi-tags > span').first().locator('text=✕').click();
+    await expect(page.locator('#qi-tags')).not.toContainText('函数');
+  });
+
+  test("顶部栏数可切换、同步表单并持久化", async ({ page }) => {
+    await page.evaluate(() => localStorage.setItem('quickImportMode', '1'));
+    await page.reload();
+    await expect(page.locator('#qi-layout-btn')).toContainText('双');
+
+    await page.click('#qi-layout-btn');
+    await expect(page.locator('#qi-layout-btn')).toContainText('单');
+    await expect(page.locator('input[name="layout_type"][value="0"]')).toBeChecked();
+
+    await page.reload();
+    await expect(page.locator('#qi-layout-btn')).toContainText('单');
+  });
+
+  test("组合与栏数设置不被清空", async ({ page }) => {
+    await page.evaluate(() => {
+      localStorage.setItem('quickImportMode', '1');
+      localStorage.setItem('quickImportLayoutType', '0');
+    });
+    await page.reload();
+
+    await page.click('#qi-combo-btn');
+    await page.fill('#qi-combo-name', '组合一');
+    await page.locator('#quick-combo-panel button:has-text("新建")').click();
+    await page.locator('#quick-combo-panel button:has-text("×")').click();
+
+    await page.reload();
+    await expect(page.locator('#qi-combo-btn')).toHaveAttribute('title', /^组合一/);
+    await expect(page.locator('#qi-layout-btn')).toContainText('单');
+    await expect(page.locator('#qi-tags')).toContainText('未选标签');
+  });
+
+  test("组合按钮可显示自定义名称", async ({ page }) => {
+    await page.evaluate(() => localStorage.setItem('quickImportMode', '1'));
+    await page.reload();
+    await page.click('#qi-combo-btn');
+    await page.fill('#qi-combo-name', '组合一');
+    await page.locator('#quick-combo-panel button:has-text("新建")').click();
+
+    const displayInput = page.locator('#qi-combo-list input[type="text"]').first();
+    const initial = await displayInput.inputValue();
+    expect(initial.length, '新建组合应预填首字建议，不应为空').toBeGreaterThan(0);
+    expect(initial, '预填的应是首字建议，不应等于组合名').not.toBe('组合一');
+
+    await displayInput.fill('高三专用');
+    await page.locator('#quick-combo-panel button:has-text("×")').click();
+    await expect(page.locator('#qi-combo-btn')).toContainText('高三专用');
+
+    await page.reload();
+    await expect(page.locator('#qi-combo-btn')).toContainText('高三专用');
   });
 });

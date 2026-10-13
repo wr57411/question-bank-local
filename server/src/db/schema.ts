@@ -1,3 +1,4 @@
+import type Database from 'better-sqlite3';
 import db, { ensureColumn } from './connection.js';
 
 db.exec(`
@@ -14,6 +15,7 @@ db.exec(`
         user_id TEXT NOT NULL,
         name TEXT NOT NULL,
         color TEXT DEFAULT '#3B82F6',
+        category_id TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now')),
         deleted_at TEXT,
@@ -181,6 +183,11 @@ ensureColumn('questions', 'purged_at', 'TEXT');
 ensureColumn('questions', 'book_name', "TEXT DEFAULT ''");
 ensureColumn('questions', 'page_number', "TEXT DEFAULT ''");
 ensureColumn('questions', 'question_number', "TEXT DEFAULT ''");
+ensureColumn('question_notes', 'deleted_at', 'TEXT');
+
+// Phase 1（标签分类）：tags 加 category_id。CREATE TABLE 与 ensureColumn 必须同时检查——
+// 前者覆盖全新库、后者给既有库补列（ALTER TABLE ADD COLUMN 不幂等，重复执行报 duplicate column name）。
+ensureColumn('tags', 'category_id', 'TEXT');
 
 db.exec(`
     CREATE TABLE IF NOT EXISTS pdf_books (
@@ -266,3 +273,52 @@ ensureColumn('pdf_docs', 'category_id', 'TEXT');
 ensureColumn('pdf_topics', 'parent_id', 'TEXT');
 ensureColumn('pdf_topics', 'sort_order', 'INTEGER DEFAULT 0');
 
+
+ensureColumn('papers', 'pdf_url', 'TEXT');
+
+// Phase 0 (D6): question_tags 升级为带版本的实体，支持「取消关联」增量传播。
+// ensureColumn 先检查列是否存在（ALTER TABLE ADD COLUMN 不幂等，重复执行报 duplicate column name）。
+ensureColumn('question_tags', 'created_at', 'TEXT');
+ensureColumn('question_tags', 'updated_at', 'TEXT');
+ensureColumn('question_tags', 'deleted_at', 'TEXT');
+
+function createEmbeddingsTableIfMissing(database: Database.Database): void {
+  database.exec(`CREATE TABLE IF NOT EXISTS question_embeddings (
+    engine_id TEXT NOT NULL,
+    question_id TEXT NOT NULL,
+    model TEXT NOT NULL,
+    dim INTEGER NOT NULL,
+    vector BLOB NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (engine_id, question_id)
+  )`);
+}
+
+function ensureEmbeddingsIndex(database: Database.Database): void {
+  database.exec(`CREATE INDEX IF NOT EXISTS idx_embeddings_engine ON question_embeddings(engine_id)`);
+}
+
+export function ensureEmbeddingsTable(database: Database.Database): void {
+  createEmbeddingsTableIfMissing(database);
+  migrateEmbeddingsToCompositeKey(database);
+  ensureEmbeddingsIndex(database);
+}
+
+function migrateEmbeddingsToCompositeKey(database: Database.Database): void {
+  const cols = database.prepare('PRAGMA table_info(question_embeddings)').all() as { name: string }[];
+  if (cols.some((c) => c.name === 'engine_id')) return;
+  database.exec('BEGIN');
+  try {
+    database.exec(`ALTER TABLE question_embeddings RENAME TO question_embeddings_old`);
+    createEmbeddingsTableIfMissing(database);
+    database.exec(`INSERT INTO question_embeddings (engine_id, question_id, model, dim, vector, updated_at)
+                   SELECT 'legacy-default', question_id, model, dim, vector, updated_at FROM question_embeddings_old`);
+    database.exec('DROP TABLE question_embeddings_old');
+    database.exec('COMMIT');
+  } catch (e) {
+    database.exec('ROLLBACK');
+    throw e;
+  }
+}
+
+ensureEmbeddingsTable(db);

@@ -37,25 +37,6 @@ export async function runFullAIAutomation(): Promise<void> {
     console.log('🛠️ [自动化] 当前引擎状态: ', JSON.stringify(status));
     if (status.ready) {
       clearInterval(checkReady);
-      console.log('🛠️ [自动化] ✅ Step 3: AI 引擎已就绪，准备进入智能组卷阶段');
-
-      // 4. 模拟输入需求
-      console.log('🛠️ [自动化] Step 4: 正在模拟用户输入组卷需求...');
-      (document.getElementById('ai-paper-requirement') as HTMLInputElement).value = '给我 1 道最难的测试题';
-      await w.startAIPaperGeneration();
-
-      // 5. 延迟后自动生成
-      setTimeout(async () => {
-        const modal = document.getElementById('ai-recommend-modal');
-        if (modal && modal.classList.contains('active')) {
-          console.log('🛠️ [自动化] ✅ Step 5: AI 推荐成功！正在自动生成最终试卷...');
-          await w.createPaperFromAI(w.currentAIRecommendedIds);
-          w.showStatus('✨ 全自动调试任务完成！', 'success');
-          console.log('🛠️ [自动化] 🎉 任务达成：试卷已入库并完成全链路闭环。');
-        } else {
-          console.warn('🛠️ [自动化] ❌ Step 5 失败：AI 推荐弹窗未弹出。');
-        }
-      }, 3000);
     }
   }, 2000);
 }

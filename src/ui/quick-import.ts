@@ -1,0 +1,1177 @@
+import { fetchLatestMedias, getGalleryImageDataUrl, captureImage } from './camera';
+import { showStatus, openModal, closeModal } from './common';
+import {
+  pickQuestionAnswerPair,
+  countFreshMedias,
+  loadImportedIds,
+  markImportedIds,
+  buildQuickCreateArgs,
+  loadQuickLayoutType,
+  saveQuickLayoutType,
+  toggleLayoutType,
+  layoutLabel,
+  layoutFullLabel,
+  type GalleryMediaLite,
+  type QuickPair,
+} from '../services/quick-import';
+import {
+  resolveActiveCombo,
+  comboVersionNames,
+  comboPreviewText,
+  getComboById,
+  getComboDisplayText,
+  getActiveComboId,
+  loadVersionCombos,
+  createVersionCombo,
+  updateVersionCombo,
+  deleteVersionCombo,
+  setActiveComboId,
+  type VersionCombo,
+} from '../services/version-combo';
+import { getAppVersions, getCurrentVersionId, type AppVersion } from '../services/version-skin';
+import {
+  loadQuickFavTags,
+  visibleQuickFavIds,
+  setQuickFavOn,
+  reorderQuickFavIds,
+  pendingQuickFavCount,
+  adoptRemoteQuickFavTags,
+  resolveQuickFavConflicts,
+  markQuickFavSynced,
+  beginQuickFavPush,
+  endQuickFavPush,
+  type QuickFavConflict,
+} from '../services/quick-fav-tags';
+
+const w = window as unknown as Record<string, any>;
+const MODE_KEY = 'quickImportMode';
+const FETCH_COUNT = 6;
+
+let quickMode = false;
+let pair: QuickPair | null = null;
+let questionThumb = '';
+let answerThumb = '';
+let quickTagIds: string[] = [];
+let quickTopicId: string | null = null;
+let loading = false;
+let lastFetchAt = 0;
+let tagPollTimer: number | null = null;
+let lastTagInputValue = '';
+
+function bar(): HTMLElement | null {
+  return document.getElementById('quick-import-bar');
+}
+
+// ========== 文字笔记（设计：docs/plans/2026-08-30-quick-import-text-note.md） ==========
+// 设计决策（已确认）：复用 question_notes 体系，文字写入 text_note 字段，不在题目记录上新增 note 字段
+// 交互决策（2026-08-30 用户确认）：输入区默认展开——默认场景就是写文字笔记；确认后清空文字并保持展开
+
+const NOTE_MAX = 500;
+
+function noteInput(): HTMLTextAreaElement | null {
+  return document.getElementById('qi-note-input') as HTMLTextAreaElement | null;
+}
+
+function noteDot(): HTMLElement | null {
+  return document.getElementById('qi-note-dot');
+}
+
+function applyQuickBarBodyPadding(): void {
+  // 设计 Task 7：栏高从硬编码 312px/196px 改为动态测量。
+  // 包 rAF：展开/收起后 DOM 尚未重排，同步读 offsetHeight 会拿到旧值（与 modal-anchor 竞态同一病根）
+  if (!quickMode || !bar()) {
+    document.body.style.paddingTop = '';
+    window.dispatchEvent(new CustomEvent('quickImportBarChange', { detail: { height: 0, visible: false } }));
+    return;
+  }
+  requestAnimationFrame(() => {
+    const h = bar()?.offsetHeight ?? 0;
+    document.body.style.paddingTop = h ? h + 'px' : '';
+    window.dispatchEvent(new CustomEvent('quickImportBarChange', { detail: { height: h, visible: true } }));
+  });
+}
+
+export function isQuickNoteExpanded(): boolean {
+  const area = document.getElementById('qi-note-area');
+  return !!area && area.style.display !== 'none';
+}
+
+export function toggleQuickNote(): void {
+  const area = document.getElementById('qi-note-area');
+  if (!area) return;
+  area.style.display = isQuickNoteExpanded() ? 'none' : 'block';
+  if (isQuickNoteExpanded()) noteInput()?.focus();
+  applyQuickBarBodyPadding();
+}
+
+export function onQuickNoteInput(): void {
+  const input = noteInput();
+  if (!input) return;
+  if (input.value.length > NOTE_MAX) input.value = input.value.slice(0, NOTE_MAX);
+  const count = document.getElementById('qi-note-count');
+  if (count) count.textContent = input.value.length + '/' + NOTE_MAX;
+  updateNoteDot();
+}
+
+export function readQuickNoteText(): string {
+  const value = noteInput()?.value ?? '';
+  return value.trim().slice(0, NOTE_MAX);
+}
+
+export function resetQuickNote(): void {
+  const input = noteInput();
+  if (input) input.value = '';
+  const count = document.getElementById('qi-note-count');
+  if (count) count.textContent = '0/' + NOTE_MAX;
+  // 默认展开：重置后保持展开，便于连续录入下一条笔记
+  const area = document.getElementById('qi-note-area');
+  if (area) area.style.display = 'block';
+  resetQuickHandNotes();
+  applyQuickBarBodyPadding();
+}
+// ========== 文字笔记结束 ==========
+
+const HAND_NOTE_MAX = 5;
+let pendingHandNotes: string[] = [];
+
+function handNoteListEl(): HTMLElement | null {
+  return document.getElementById('qi-hw-list');
+}
+
+function handNoteCountEl(): HTMLElement | null {
+  return document.getElementById('qi-hw-count');
+}
+
+function updateNoteDot(): void {
+  const dot = noteDot();
+  if (!dot) return;
+  const hasText = !!(noteInput()?.value.trim());
+  dot.style.display = (hasText || pendingHandNotes.length > 0) ? 'inline-block' : 'none';
+}
+
+export async function takeQuickHandNote(): Promise<void> {
+  const url = await captureImage('CAMERA');
+  if (url) await addQuickHandNote(url);
+}
+
+export async function pickQuickHandNoteFromGallery(): Promise<void> {
+  const url = await captureImage('PHOTOS');
+  if (url) await addQuickHandNote(url);
+}
+
+export async function addQuickHandNote(dataUrl: string): Promise<void> {
+  if (pendingHandNotes.length >= HAND_NOTE_MAX) {
+    showStatus('手写笔记最多 ' + HAND_NOTE_MAX + ' 张', 'error');
+    return;
+  }
+  const url = await compress(dataUrl, 1600, 0.85);
+  pendingHandNotes.push(url);
+  renderQuickHandNotes();
+}
+
+export function removeQuickHandNote(idx: number): void {
+  if (idx < 0 || idx >= pendingHandNotes.length) return;
+  pendingHandNotes.splice(idx, 1);
+  renderQuickHandNotes();
+}
+
+export function resetQuickHandNotes(): void {
+  pendingHandNotes = [];
+  renderQuickHandNotes();
+}
+
+export function readPendingHandNotes(): string[] {
+  return [...pendingHandNotes];
+}
+
+export function handNoteLabel(i: number): string {
+  return i === 0 ? '手写笔记' : '手写笔记 ' + (i + 1);
+}
+
+function renderQuickHandNotes(): void {
+  const count = handNoteCountEl();
+  if (count) count.textContent = pendingHandNotes.length + '/' + HAND_NOTE_MAX;
+  updateNoteDot();
+  const list = handNoteListEl();
+  if (!list) return;
+  list.innerHTML = '';
+  pendingHandNotes.forEach((url, i) => {
+    const item = document.createElement('div');
+    item.style.cssText = 'position:relative;width:72px;height:72px;border-radius:var(--radius-md);overflow:hidden;flex-shrink:0;border:1px solid var(--border)';
+    const img = document.createElement('img');
+    img.src = url;
+    img.style.cssText = 'width:100%;height:100%;object-fit:cover';
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.textContent = '✕';
+    del.style.cssText = 'position:absolute;top:2px;right:2px;width:18px;height:18px;line-height:16px;text-align:center;border:none;border-radius:50%;background:rgba(0,0,0,.55);color:#fff;font-size:11px;cursor:pointer;padding:0';
+    del.onclick = () => removeQuickHandNote(i);
+    const badge = document.createElement('span');
+    badge.textContent = '笔记 v' + (i + 2);
+    badge.style.cssText = 'position:absolute;left:2px;bottom:2px;font-size:9px;line-height:1.4;padding:0 4px;background:rgba(0,0,0,.55);color:#fff;border-radius:6px';
+    item.append(img, del, badge);
+    list.appendChild(item);
+  });
+  applyQuickBarBodyPadding();
+}
+
+export function isQuickMode(): boolean {
+  return quickMode;
+}
+
+export function toggleQuickImportMode(): void {
+  if (quickMode && pendingHandNotes.length > 0) {
+    if (!confirm('有 ' + pendingHandNotes.length + ' 张手写笔记照片还没保存，要放弃吗？')) return;
+  }
+  quickMode = !quickMode;
+  localStorage.setItem(MODE_KEY, quickMode ? '1' : '0');
+  const btn = document.getElementById('quick-import-toggle');
+  if (btn) btn.style.background = quickMode ? 'var(--primary)' : '';
+  render();
+  if (quickMode) void refreshGalleryPair();
+  showStatus(quickMode ? '快速导入已开启' : '快速导入已关闭', 'success');
+  // 设计 Task 2：退出快速导入模式时清空并收起笔记输入
+  if (!quickMode) resetQuickNote();
+}
+
+export async function refreshGalleryPair(): Promise<void> {
+  if (!quickMode || loading) return;
+  const now = Date.now();
+  if (now - lastFetchAt < 3000) return;
+  lastFetchAt = now;
+  loading = true;
+  renderHint('正在读取相册...');
+  try {
+    const medias = await fetchLatestMedias(FETCH_COUNT);
+    if (!medias) {
+      renderHint('当前不是原生环境，快速导入需要相册权限');
+      pair = null;
+      return;
+    }
+    const imported = new Set(loadImportedIds());
+    pair = pickQuestionAnswerPair(medias as GalleryMediaLite[], imported);
+    if (!pair) {
+      const fresh = countFreshMedias(medias as GalleryMediaLite[], imported);
+      renderHint(fresh === 1 ? '只检测到 1 张新照片，请再拍一张后返回' : '相册没有新照片，拍两张后切回本 App');
+    } else {
+      questionThumb = thumbOf(pair.question);
+      answerThumb = thumbOf(pair.answer);
+      renderHint('');
+    }
+  } catch (e: any) {
+    renderHint('相册读取失败：' + (e?.message || e));
+    pair = null;
+  } finally {
+    loading = false;
+    render();
+  }
+}
+
+function thumbOf(m: GalleryMediaLite): string {
+  if (!m?.data) return '';
+  return m.data.startsWith('data:') ? m.data : 'data:image/jpeg;base64,' + m.data;
+}
+
+function renderHint(text: string): void {
+  const el = document.getElementById('qi-hint');
+  if (el) el.textContent = text;
+}
+
+// 复用 window 上已挂载的 dbGetAllTagCategories，避免静态引入 data 层（会拖入需要 localforage 全局的 stores）。
+async function fillQiCategorySelect(): Promise<void> {
+  const sel = document.getElementById('qi-tag-category') as HTMLSelectElement | null;
+  if (!sel) return;
+  const cats: any[] = (await (w.dbGetAllTagCategories as (() => Promise<any[]>) | undefined)?.()) || [];
+  const list = cats.filter((c: any) => !c.is_system);
+  sel.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = '— 请选择类别 —';
+  sel.appendChild(none);
+  for (const c of list) {
+    const o = document.createElement('option');
+    o.value = c.id;
+    o.textContent = c.name;
+    sel.appendChild(o);
+  }
+}
+
+export function swapQuickPair(): void {
+  if (!pair) return;
+  pair = { question: pair.answer, answer: pair.question };
+  const t = questionThumb;
+  questionThumb = answerThumb;
+  answerThumb = t;
+  render();
+}
+
+function render(): void {
+  const el = bar();
+  if (!el) return;
+  el.style.display = quickMode ? '' : 'none';
+  applyQuickBarBodyPadding();
+  if (!quickMode) return;
+
+  const q = document.getElementById('qi-thumb-question') as HTMLImageElement | null;
+  const a = document.getElementById('qi-thumb-answer') as HTMLImageElement | null;
+  if (q) q.src = questionThumb;
+  if (a) a.src = answerThumb;
+
+  renderQuickSelectedTags();
+
+  renderQuickFavTags();
+
+  syncQiTopicBtn();
+
+  syncComboButton();
+
+  const layoutBtn = document.getElementById('qi-layout-btn');
+  if (layoutBtn) layoutBtn.textContent = layoutLabel(loadQuickLayoutType());
+
+  const confirmBtn = document.getElementById('qi-confirm-btn') as HTMLButtonElement | null;
+  if (confirmBtn) {
+    confirmBtn.disabled = !pair;
+    confirmBtn.style.opacity = pair ? '1' : '.45';
+  }
+
+  const tagInput = document.getElementById('qi-tag-input') as HTMLInputElement | null;
+  if (tagInput && !tagInput.dataset.qiBound) {
+    tagInput.dataset.qiBound = '1';
+    tagInput.addEventListener('input', onQuickTagInput);
+    tagInput.addEventListener('focus', () => {
+      startQuickTagPoll();
+      collapseQuickFavPanel();
+    });
+    tagInput.addEventListener('blur', () => {
+      stopQuickTagPoll();
+    });
+    tagInput.addEventListener('keydown', onQuickTagKeydown);
+  }
+  void fillQiCategorySelect();
+
+  // 设计 Task 2：笔记输入绑定字数统计与圆点标记
+  const noteArea = document.getElementById('qi-note-area');
+  const noteField = noteInput();
+  if (noteArea && noteField && !noteField.dataset.qiBound) {
+    noteField.dataset.qiBound = '1';
+    noteField.addEventListener('input', onQuickNoteInput);
+  }
+}
+
+function syncComboButton(): void {
+  const comboBtn = document.getElementById('qi-combo-btn');
+  if (!comboBtn) return;
+  const combo = getComboById(getActiveComboId());
+  const names = comboVersionNames(combo, (id) => getAppVersions().find((v) => v.id === id)?.name ?? null);
+  comboBtn.textContent = (getComboDisplayText(combo) || '组合') + ' ▾';
+  comboBtn.title = combo?.name ? combo.name + '：' + names.join('、') : '点击新建版本组合';
+}
+
+export async function confirmQuickImport(): Promise<void> {
+  if (!pair || loading) return;
+  const handNotes = readPendingHandNotes();
+  const combo = resolveActiveCombo(() => getAppVersions().map((v) => v.id));
+  const ids = [pair.question.identifier, pair.answer.identifier];
+  // 设计 Task 2：确认前读取笔记文本；空白时为空串（空值不产生文本，沿用既有空「笔记 v1」行为）
+  const noteText = readQuickNoteText();
+  loading = true;
+  renderHint('正在导入...');
+  try {
+    const qUrl = await getGalleryImageDataUrl(pair.question.identifier);
+    const aUrl = await getGalleryImageDataUrl(pair.answer.identifier);
+    const args = buildQuickCreateArgs(qUrl, aUrl, quickTagIds, combo.versionIds, loadQuickLayoutType());
+    const created = await w.dbCreateQuestion(
+      args.questionImageUrl,
+      args.answerImageUrl,
+      args.tagIds,
+      args.layoutType,
+      args.blankImageUrl,
+      args.versions,
+      null
+    );
+    if (created?.question_image_url) {
+      // 设计决策：文字写入既有 question_notes 的 text_note 字段（笔记体系已纳入同步，无需改同步链路）
+      await w.dbAddQuestionNote(created.id, created.question_image_url, '笔记 v1', noteText);
+      for (let i = 0; i < handNotes.length; i++) {
+        await w.dbAddQuestionNote(created.id, handNotes[i], handNoteLabel(i), '');
+      }
+    }
+    // 2.11 专题匹配：导入后归入所选专题（写入其系统成员标签）
+    if (created?.id && quickTopicId) {
+      const g = await (w.dbGetGroup as ((id: string) => Promise<any>) | undefined)?.(quickTopicId);
+      if (g?.member_tag_id) await w.dbAddTagToQuestion(created.id, g.member_tag_id);
+    }
+    markImportedIds(ids);
+    quickTagIds = [];
+    quickTopicId = null;
+    syncQiTopicBtn();
+    collapseQiTopicPanel();
+    pair = null;
+    questionThumb = '';
+    answerThumb = '';
+    // 设计 Task 2：确认成功后清空笔记输入（默认展开语义：保持展开，便于连续录入）
+    resetQuickNote();
+    showStatus('题目已导入', 'success');
+    await Promise.resolve(w.loadQuestions?.());
+  } catch (e: any) {
+    showStatus('导入失败：' + (e?.message || e), 'error');
+  } finally {
+    loading = false;
+    lastFetchAt = 0;
+    render();
+    void refreshGalleryPair();
+  }
+}
+
+async function compress(dataUrl: string, maxSize = 1200, quality = 0.8): Promise<string> {
+  const fn = w.compressImage as ((i: string, m?: number, q?: number) => Promise<string>) | undefined;
+  return fn ? fn(dataUrl, maxSize, quality) : dataUrl;
+}
+
+export function onQuickTagInput(): void {
+  const input = document.getElementById('qi-tag-input') as HTMLInputElement | null;
+  const box = document.getElementById('qi-tag-results');
+  if (!input || !box) return;
+  const query = input.value.trim().toLowerCase();
+  const all: any[] = w.allTags || [];
+  let matches = all.filter((t: any) => !quickTagIds.includes(t.id));
+  if (query) matches = matches.filter((t: any) => String(t.name).toLowerCase().includes(query));
+  matches = matches.slice(0, 50);
+
+  box.innerHTML = '';
+  if (matches.length === 0 && !query) {
+    box.style.display = 'none';
+    return;
+  }
+  box.style.display = 'flex';
+
+  if (matches.length === 0) {
+    box.appendChild(createTagChip(input.value.trim()));
+    return;
+  }
+  for (const t of matches) box.appendChild(tagCandidateChip(t, input));
+}
+
+function tagCandidateChip(tag: any, input: HTMLInputElement): HTMLSpanElement {
+  const btn = document.createElement('span');
+  btn.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:5px 10px;background:var(--surface-dim);border:1px solid var(--border-light);border-radius:var(--radius-xl);font-size:12px;cursor:pointer;flex-shrink:0';
+  const dot = document.createElement('span');
+  dot.style.cssText = 'width:8px;height:8px;border-radius:50%;background:' + tag.color + ';flex-shrink:0';
+  const nameSpan = document.createElement('span');
+  nameSpan.textContent = tag.name;
+  btn.append(dot, nameSpan);
+  btn.onclick = () => {
+    addQuickTag(tag.id);
+    input.value = '';
+    onQuickTagInput();
+  };
+  return btn;
+}
+
+function createTagChip(name: string): HTMLSpanElement {
+  const btn = document.createElement('span');
+  btn.style.cssText = 'display:inline-flex;align-items:center;padding:5px 10px;background:var(--accent-light);border:1px solid var(--accent);border-radius:var(--radius-xl);font-size:12px;cursor:pointer;color:var(--accent);flex-shrink:0';
+  btn.textContent = '＋ 创建: "' + name + '"';
+  btn.onclick = () => void createQuickTag(name);
+  return btn;
+}
+
+export function addQuickTag(id: string): void {
+  if (quickTagIds.includes(id)) return;
+  quickTagIds.push(id);
+  render();
+}
+
+export function removeQuickTag(id: string): void {
+  quickTagIds = quickTagIds.filter((x) => x !== id);
+  render();
+  onQuickTagInput();
+}
+
+export async function createQuickTag(name: string): Promise<void> {
+  const trimmed = (name || '').trim();
+  if (!trimmed) {
+    showStatus('请输入标签名', 'error');
+    return;
+  }
+  const catId = (document.getElementById('qi-tag-category') as HTMLSelectElement | null)?.value || null;
+  if (!catId) { showStatus('请先选择类别', 'error'); return; }
+  let tag = (w.allTags || []).find((t: any) => t.name === trimmed);
+  if (!tag) {
+    tag = await w.dbCreateTag(trimmed, '#4CC3FF');
+    await w.dbUpdateTag(tag.id, { category_id: catId });
+    await Promise.resolve(w.loadTags?.());
+  }
+  if (tag?.id) addQuickTag(tag.id);
+  const input = document.getElementById('qi-tag-input') as HTMLInputElement | null;
+  if (input) input.value = '';
+  onQuickTagInput();
+  showStatus('已添加标签: ' + trimmed, 'success');
+}
+
+export function onQuickTagKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Enter') return;
+  event.preventDefault();
+  const box = document.getElementById('qi-tag-results');
+  const first = box ? box.querySelector('span') : null;
+  if (first) (first as HTMLElement).click();
+}
+
+export function renderQuickSelectedTags(): void {
+  const div = document.getElementById('qi-tags');
+  if (!div) return;
+  div.innerHTML = '';
+  if (quickTagIds.length === 0) {
+    const empty = document.createElement('span');
+    empty.style.cssText = 'font-size:11px;color:var(--text-tertiary);flex-shrink:0';
+    empty.textContent = '（未选标签）';
+    div.appendChild(empty);
+    return;
+  }
+  quickTagIds.forEach((tagId) => {
+    const tag = (w.allTags || []).find((t: any) => t.id === tagId);
+    if (!tag) return;
+    const el = document.createElement('span');
+    el.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:' + tag.color + '15;border:1px solid ' + tag.color + '40;border-radius:var(--radius-xl);font-size:11px;font-weight:500;color:var(--text);white-space:nowrap;flex-shrink:0';
+    const dot = document.createElement('span');
+    dot.style.cssText = 'width:6px;height:6px;border-radius:50%;background:' + tag.color + ';flex-shrink:0';
+    const name = document.createElement('span');
+    name.textContent = tag.name;
+    const rm = document.createElement('span');
+    rm.textContent = '✕';
+    rm.style.cssText = 'cursor:pointer;color:var(--text-tertiary);margin-left:2px';
+    rm.onclick = () => removeQuickTag(tag.id);
+    el.append(dot, name, rm);
+    div.appendChild(el);
+  });
+}
+
+export function startQuickTagPoll(): void {
+  stopQuickTagPoll();
+  lastTagInputValue = (document.getElementById('qi-tag-input') as HTMLInputElement | null)?.value || '';
+  tagPollTimer = window.setInterval(() => {
+    const input = document.getElementById('qi-tag-input') as HTMLInputElement | null;
+    if (!input) return;
+    if (input.value !== lastTagInputValue) {
+      lastTagInputValue = input.value;
+      onQuickTagInput();
+    }
+  }, 150);
+}
+
+export function stopQuickTagPoll(): void {
+  if (tagPollTimer !== null) {
+    clearInterval(tagPollTimer);
+    tagPollTimer = null;
+  }
+}
+
+export function openComboPanel(): void {
+  const panel = document.getElementById('quick-combo-panel');
+  if (!panel) return;
+  panel.style.display = '';
+  renderComboList();
+}
+
+export function closeComboPanel(): void {
+  const panel = document.getElementById('quick-combo-panel');
+  if (panel) panel.style.display = 'none';
+}
+
+export function renderComboList(): void {
+  const list = document.getElementById('qi-combo-list');
+  if (!list) return;
+  const combos = loadVersionCombos();
+  const activeId = getActiveComboId();
+  list.innerHTML = '';
+  if (combos.length === 0) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'font-size:12px;color:var(--text-tertiary);margin:0 0 8px';
+    empty.textContent = '还没有组合，下面输入名称新建一个。';
+    list.appendChild(empty);
+  }
+  for (const c of combos) list.appendChild(comboRow(c, c.id === activeId));
+}
+
+function comboRow(combo: VersionCombo, active: boolean): HTMLDivElement {
+  const row = document.createElement('div');
+  row.style.cssText = 'padding:10px;border:1.5px solid ' + (active ? 'var(--primary)' : 'var(--border)')
+    + ';border-radius:var(--radius-md);margin-bottom:8px;background:' + (active ? 'var(--primary-light)' : 'var(--surface)');
+
+  const head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;gap:8px';
+
+  const title = document.createElement('span');
+  title.style.cssText = 'flex:1;min-width:0;font-size:13px;font-weight:700;cursor:pointer';
+  title.textContent = (active ? '✅ ' : '') + combo.name;
+  title.onclick = () => {
+    setActiveComboId(combo.id);
+    renderComboList();
+    render();
+  };
+
+  const rename = document.createElement('button');
+  rename.type = 'button';
+  rename.textContent = '✏️';
+  rename.style.cssText = 'border:none;background:transparent;cursor:pointer;font-size:14px';
+  rename.onclick = () => {
+    const next = prompt('组合名称', combo.name);
+    if (next && next.trim()) {
+      updateVersionCombo(combo.id, { name: next.trim() });
+      renderComboList();
+      render();
+    }
+  };
+
+  const del = document.createElement('button');
+  del.type = 'button';
+  del.textContent = '🗑';
+  del.style.cssText = 'border:none;background:transparent;cursor:pointer;font-size:14px';
+  del.onclick = () => {
+    if (!confirm('删除组合「' + combo.name + '」？')) return;
+    deleteVersionCombo(combo.id);
+    renderComboList();
+    render();
+  };
+
+  head.append(title, rename, del);
+
+  const displayInput = document.createElement('input');
+  displayInput.type = 'text';
+  displayInput.value = combo.displayName || '';
+  displayInput.placeholder = '显示名（留空用组合名）';
+  displayInput.autocomplete = 'off';
+  displayInput.style.cssText = 'display:block;width:100%;box-sizing:border-box;margin:8px 0 2px;padding:7px 9px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:13px;background:var(--surface);color:var(--text)';
+  displayInput.oninput = () => {
+    updateVersionCombo(combo.id, { displayName: displayInput.value.trim() });
+    syncComboButton();
+  };
+
+  const chips = document.createElement('div');
+  chips.style.cssText = 'display:flex;flex-wrap:wrap;gap:6px;margin-top:8px';
+  for (const v of getAppVersions()) chips.appendChild(versionChip(combo, v));
+
+  row.append(head, displayInput, chips);
+  return row;
+}
+
+function versionChip(combo: VersionCombo, version: AppVersion): HTMLDivElement {
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;align-items:center;gap:4px;padding:5px 9px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;cursor:pointer;background:var(--surface)';
+
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.checked = combo.versionIds.includes(version.id);
+  cb.style.cssText = 'accent-color:' + version.theme.primary + ';width:15px;height:15px;cursor:pointer';
+
+  const span = document.createElement('span');
+  span.textContent = version.emoji + ' ' + version.name;
+
+  const updateStyle = () => {
+    wrap.style.background = cb.checked ? version.theme.primary + '15' : 'var(--surface)';
+    wrap.style.borderColor = cb.checked ? version.theme.primary : 'var(--border)';
+  };
+
+  const toggle = () => {
+    const nextIds = cb.checked
+      ? [...new Set([...combo.versionIds, version.id])]
+      : combo.versionIds.filter((id) => id !== version.id);
+    updateVersionCombo(combo.id, { versionIds: nextIds });
+    combo.versionIds = nextIds;
+    updateStyle();
+    render();
+  };
+
+  cb.onchange = toggle;
+  wrap.onclick = (e) => {
+    if (e.target === cb) return;
+    cb.checked = !cb.checked;
+    toggle();
+  };
+
+  updateStyle();
+  wrap.append(cb, span);
+  return wrap;
+}
+
+export function createComboFromPanel(): void {
+  const input = document.getElementById('qi-combo-name') as HTMLInputElement | null;
+  const name = input?.value.trim();
+  if (!name) {
+    showStatus('请输入组合名称', 'error');
+    return;
+  }
+  const currentVersionId = getCurrentVersionId();
+  const combo = createVersionCombo(name, currentVersionId ? [currentVersionId] : []);
+  const suggested = comboPreviewText(combo, (id) => getAppVersions().find((v) => v.id === id)?.name ?? null);
+  if (suggested) updateVersionCombo(combo.id, { displayName: suggested });
+  setActiveComboId(combo.id);
+  if (input) input.value = '';
+  renderComboList();
+  render();
+  showStatus('已创建' + combo.name, 'success');
+}
+
+export function toggleQuickLayout(): void {
+  const next = toggleLayoutType(loadQuickLayoutType());
+  saveQuickLayoutType(next);
+  syncFormLayoutRadio(next);
+  render();
+  showStatus('已设为' + layoutFullLabel(next), 'success');
+}
+
+function syncFormLayoutRadio(layoutType: number): void {
+  const radio = document.querySelector('input[name="layout_type"][value="' + layoutType + '"]') as HTMLInputElement | null;
+  if (!radio) return;
+  radio.checked = true;
+  const option = radio.closest('.layout-option') as HTMLElement | null;
+  if (option && typeof w.selectLayout === 'function') w.selectLayout(option, String(layoutType));
+}
+
+export function renderQuickImportBar(): void {
+  render();
+}
+
+export function initQuickImportMode(): void {
+  quickMode = localStorage.getItem(MODE_KEY) === '1';
+  const btn = document.getElementById('quick-import-toggle');
+  if (btn) btn.style.background = quickMode ? 'var(--primary)' : '';
+  syncFormLayoutRadio(loadQuickLayoutType());
+  render();
+
+  const onForeground = () => {
+    if (!quickMode) return;
+    lastFetchAt = 0;
+    void refreshGalleryPair();
+  };
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) onForeground();
+  });
+  window.addEventListener('focus', onForeground);
+  window.addEventListener('pageshow', onForeground);
+
+  if (quickMode) void refreshGalleryPair();
+}
+
+export function getQuickImportBarRect(): DOMRect | null {
+  const barEl = document.getElementById('quick-import-bar');
+  if (!barEl || !isQuickImportBarVisible()) return null;
+  return barEl.getBoundingClientRect();
+}
+export function isQuickImportBarVisible(): boolean {
+  const barEl = document.getElementById('quick-import-bar');
+  if (!barEl) return false;
+  const cs = getComputedStyle(barEl);
+  if (cs.display === 'none' || cs.visibility === 'hidden') return false;
+  const rect = barEl.getBoundingClientRect();
+  return rect.height > 0 && rect.width > 0;
+}
+
+// ========== 常见标签（设计：docs/plans/2026-09-03-quick-import-favorite-tags.md） ==========
+// 设计决策（v3）：逐项状态合并 + rev 判「是否知情」+ 按标签粒度冲突弹窗。
+// 离线可改、永不静默丢弃；门禁已降级为状态条提示。
+
+const FAV_PUSH_DEBOUNCE_MS = 800;
+
+let favPushTimer: number | null = null;
+let favConflictServerRev = 0;
+let favPushFailReason: string | null = null;
+
+function favPanel(): HTMLElement | null {
+  return document.getElementById('qi-fav-panel');
+}
+
+function isQuickFavPanelOpen(): boolean {
+  const panel = favPanel();
+  return !!panel && panel.style.display !== 'none';
+}
+
+export function renderQuickFavTags(): void {
+  const div = document.getElementById('qi-fav-tags');
+  if (!div) return;
+  div.innerHTML = '';
+  const all: any[] = w.allTags || [];
+  const tagById = new Map(all.map((t: any) => [t.id, t]));
+  const ids = visibleQuickFavIds().filter((id) => tagById.has(id));
+  if (ids.length === 0) {
+    const empty = document.createElement('span');
+    empty.style.cssText = 'font-size:11px;color:var(--text-tertiary);flex-shrink:0;white-space:nowrap';
+    empty.textContent = '（无常见标签，点右侧 ＋ 添加）';
+    div.appendChild(empty);
+    return;
+  }
+  for (const id of ids) div.appendChild(quickFavChip(tagById.get(id)));
+}
+
+function quickFavChip(tag: any): HTMLSpanElement {
+  const selected = quickTagIds.includes(tag.id);
+  const el = document.createElement('span');
+  el.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:3px 9px;flex:0 0 auto;max-width:88px;border:1.5px solid var(--border);background:var(--surface);color:var(--text);border-radius:var(--radius-xl);font-size:11px;font-weight:500;white-space:nowrap;cursor:pointer'
+    + (selected ? ';border-color:' + tag.color + ';background:' + tag.color + '15' : '');
+  const name = document.createElement('span');
+  name.textContent = tag.name;
+  name.style.cssText = 'overflow:hidden;text-overflow:ellipsis';
+  el.appendChild(name);
+  el.onclick = () => {
+    if (quickTagIds.includes(tag.id)) removeQuickTag(tag.id);
+    else addQuickTag(tag.id);
+    renderQuickFavTags();
+  };
+  return el;
+}
+
+export function toggleQuickFavPanel(): void {
+  const panel = favPanel();
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  panel.style.display = opening ? 'block' : 'none';
+  if (!opening) {
+    applyQuickBarBodyPadding();
+    return;
+  }
+  collapseQiTopicPanel();
+  renderQuickFavSortList();
+  renderQuickFavCandidates();
+  renderQuickFavSyncState();
+  applyQuickBarBodyPadding();
+  void fetchQuickFavRemote();
+}
+
+function collapseQuickFavPanel(): void {
+  const panel = favPanel();
+  if (!panel || panel.style.display === 'none') return;
+  panel.style.display = 'none';
+  applyQuickBarBodyPadding();
+}
+
+// ========== 2.11 快速导入栏 · 专题匹配框（行 3 尾部圆钮「专」，常态 0 高度） ==========
+function qiTopicPanel(): HTMLElement | null {
+  return document.getElementById('qi-topic-panel');
+}
+
+export function toggleQiTopicPanel(): void {
+  const panel = qiTopicPanel();
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  panel.style.display = opening ? 'block' : 'none';
+  if (opening) { collapseQuickFavPanel(); void renderQiTopicList(); }
+  applyQuickBarBodyPadding();
+}
+
+function collapseQiTopicPanel(): void {
+  const panel = qiTopicPanel();
+  if (!panel || panel.style.display === 'none') return;
+  panel.style.display = 'none';
+  applyQuickBarBodyPadding();
+}
+
+function syncQiTopicBtn(): void {
+  const b = document.getElementById('qi-topic-btn');
+  if (!b) return;
+  b.style.background = quickTopicId ? 'var(--primary)' : 'var(--surface)';
+  b.style.color = quickTopicId ? '#fff' : 'var(--text-secondary)';
+}
+
+export async function renderQiTopicList(): Promise<void> {
+  const box = document.getElementById('qi-topic-list');
+  if (!box) return;
+  box.replaceChildren();
+  const groups: any[] = (await (w.dbGetAllGroups as ((kind: string) => Promise<any[]>) | undefined)?.('topic')) || [];
+  if (!groups.length) {
+    const empty = document.createElement('span');
+    empty.style.cssText = 'font-size:11px;color:var(--text-tertiary)';
+    empty.textContent = '暂无专题，请到「标签管理」新建';
+    box.appendChild(empty);
+    return;
+  }
+  for (const g of groups) {
+    const selected = quickTopicId === g.id;
+    const chip = document.createElement('span');
+    chip.dataset.topicId = g.id;
+    chip.style.cssText = 'display:inline-flex;align-items:center;padding:4px 10px;border:1.5px solid '
+      + (selected ? 'var(--primary)' : 'var(--border)') + ';background:'
+      + (selected ? 'var(--primary)' : 'var(--surface)') + ';color:'
+      + (selected ? '#fff' : 'var(--text)') + ';border-radius:var(--radius-xl);font-size:12px;cursor:pointer;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    chip.textContent = g.name;
+    chip.onclick = () => {
+      quickTopicId = selected ? null : g.id;
+      syncQiTopicBtn();
+      void renderQiTopicList();
+    };
+    box.appendChild(chip);
+  }
+}
+
+async function fetchQuickFavRemote(): Promise<void> {
+  if (typeof w.apiCall !== 'function') {
+    renderQuickFavSyncState();
+    return;
+  }
+  try {
+    const resp = await w.apiCall('/api/sync/settings', 'GET');
+    const remote = resp?.settings?.quickFavoriteTags;
+    if (remote && typeof remote === 'object') {
+      if (pendingQuickFavCount() === 0) adoptRemoteQuickFavTags(remote);
+      renderQuickFavSortList();
+      renderQuickFavTags();
+    }
+  } catch {
+    renderQuickFavSyncState();
+  }
+  if (pendingQuickFavCount() > 0) void pushQuickFavTags();
+}
+
+function classifyQuickFavPushError(e: unknown): string {
+  const msg = e instanceof Error ? e.message : String(e);
+  if (/非JSON|404|Cannot POST|Cannot GET/.test(msg)) return '服务端版本过旧，请升级服务端';
+  if (/未配置服务器/.test(msg)) return '未登录，登录后会自动同步';
+  if (/token|登录|401/.test(msg)) return '登录已过期，请重新登录';
+  return '无法连接服务器';
+}
+
+export function renderQuickFavSyncState(): void {
+  const el = document.getElementById('qi-fav-sync-state');
+  if (!el) return;
+  const pending = pendingQuickFavCount();
+  if (pending > 0) {
+    el.textContent = favPushFailReason
+      ? '⚠️ 有 ' + pending + ' 项改动待同步——' + favPushFailReason
+      : '⚠️ 有 ' + pending + ' 项改动待同步，联网后会自动合并';
+    el.style.display = 'block';
+  } else {
+    el.style.display = 'none';
+  }
+}
+
+function favOrderableIds(): string[] {
+  const state = loadQuickFavTags();
+  const on = new Set(Object.keys(state.items).filter((k) => state.items[k].on));
+  const ordered = state.order.ids.filter((id) => on.has(id));
+  const extras = visibleQuickFavIds().filter((id) => !ordered.includes(id));
+  return [...ordered, ...extras];
+}
+
+export function renderQuickFavSortList(): void {
+  const list = document.getElementById('qi-fav-sort-list');
+  if (!list) return;
+  const all: any[] = w.allTags || [];
+  const tagById = new Map(all.map((t: any) => [t.id, t]));
+  const ids = favOrderableIds().filter((id) => tagById.has(id));
+  renderQuickFavSortRows(list, ids);
+}
+
+function renderQuickFavSortRows(list: HTMLElement, ids: string[]): void {
+  list.innerHTML = '';
+  const all: any[] = w.allTags || [];
+  const tagById = new Map(all.map((t: any) => [t.id, t]));
+  ids.forEach((id) => {
+    const tag = tagById.get(id);
+    const row = document.createElement('div');
+    row.dataset.favId = id;
+    row.style.cssText = 'display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--border-light)';
+    const dot = document.createElement('span');
+    dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + tag.color;
+    const name = document.createElement('span');
+    name.textContent = tag.name;
+    name.style.cssText = 'flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;color:var(--text)';
+    const handle = document.createElement('span');
+    handle.textContent = '☰';
+    handle.style.cssText = 'cursor:grab;touch-action:none;color:var(--text-tertiary);font-size:14px;padding:2px 6px;flex-shrink:0;user-select:none';
+    handle.addEventListener('pointerdown', (e) => startQuickFavDrag(e, list, id));
+    const rm = document.createElement('span');
+    rm.textContent = '移除';
+    rm.style.cssText = 'cursor:pointer;color:var(--danger);font-size:12px;flex-shrink:0';
+    rm.onclick = () => {
+      setQuickFavOn(id, false);
+      renderQuickFavSortList();
+      renderQuickFavCandidates();
+      renderQuickFavTags();
+      renderQuickFavSyncState();
+      scheduleQuickFavPush();
+    };
+    row.append(dot, name, handle, rm);
+    list.appendChild(row);
+  });
+}
+
+function startQuickFavDrag(event: PointerEvent, list: HTMLElement, id: string): void {
+  event.preventDefault();
+  const all = favOrderableIds();
+  const tagIds = new Set(((w.allTags || []) as any[]).map((t: any) => t.id));
+  const displayed = all.filter((x) => tagIds.has(x));
+  let ids = [...displayed];
+  const onMove = (e: PointerEvent) => {
+    const rows = Array.from(list.children) as HTMLElement[];
+    let target = -1;
+    for (let i = 0; i < rows.length; i++) {
+      const rect = rows[i].getBoundingClientRect();
+      if (e.clientY >= rect.top && e.clientY <= rect.bottom && ids[i] !== id) {
+        target = i;
+        break;
+      }
+    }
+    if (target < 0) return;
+    const from = ids.indexOf(id);
+    if (from < 0) return;
+    ids.splice(from, 1);
+    ids.splice(target, 0, id);
+    renderQuickFavSortRows(list, ids);
+  };
+  const onUp = () => {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    if (ids.join(',') !== displayed.join(',')) {
+      const hidden = all.filter((x) => !displayed.includes(x));
+      reorderQuickFavIds([...ids, ...hidden]);
+      renderQuickFavTags();
+      renderQuickFavSyncState();
+      scheduleQuickFavPush();
+    }
+  };
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', onUp);
+}
+
+export function renderQuickFavCandidates(): void {
+  const box = document.getElementById('qi-fav-candidates');
+  if (!box) return;
+  box.innerHTML = '';
+  const input = document.getElementById('qi-fav-search') as HTMLInputElement | null;
+  const query = (input?.value || '').trim().toLowerCase();
+  const all: any[] = w.allTags || [];
+  const inList = new Set(visibleQuickFavIds());
+  const matches = all
+    .filter((t: any) => !inList.has(t.id))
+    .filter((t: any) => !query || String(t.name).toLowerCase().includes(query))
+    .slice(0, 30);
+  if (matches.length === 0) {
+    const empty = document.createElement('span');
+    empty.style.cssText = 'font-size:11px;color:var(--text-tertiary)';
+    empty.textContent = '没有可添加的标签';
+    box.appendChild(empty);
+    return;
+  }
+  for (const t of matches) {
+    const chip = document.createElement('span');
+    chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:4px 9px;background:var(--surface);border:1px solid var(--border-light);border-radius:var(--radius-xl);font-size:12px;cursor:pointer;max-width:120px';
+    const dot = document.createElement('span');
+    dot.style.cssText = 'width:8px;height:8px;border-radius:50%;flex-shrink:0;background:' + t.color;
+    const name = document.createElement('span');
+    name.textContent = t.name;
+    name.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)';
+    chip.append(dot, name);
+    chip.onclick = () => {
+      setQuickFavOn(t.id, true);
+      renderQuickFavSortList();
+      renderQuickFavCandidates();
+      renderQuickFavTags();
+      renderQuickFavSyncState();
+      scheduleQuickFavPush();
+    };
+    box.appendChild(chip);
+  }
+}
+
+function scheduleQuickFavPush(): void {
+  if (favPushTimer !== null) clearTimeout(favPushTimer);
+  favPushTimer = window.setTimeout(() => {
+    favPushTimer = null;
+    void pushQuickFavTags();
+  }, FAV_PUSH_DEBOUNCE_MS);
+}
+
+export async function pushQuickFavTags(): Promise<void> {
+  const local = loadQuickFavTags();
+  if (pendingQuickFavCount() === 0) return;
+  if (typeof w.apiCall !== 'function') {
+    renderQuickFavSyncState();
+    return;
+  }
+  if (!beginQuickFavPush()) {
+    renderQuickFavSyncState();
+    return;
+  }
+  try {
+    const resp = await w.apiCall('/api/sync/favorite-tags', 'POST', {
+      items: local.items,
+      order: local.order,
+      rev: local.rev,
+    });
+    favPushFailReason = null;
+    if (resp?.conflict) {
+      endQuickFavPush();
+      showQuickFavConflict(resp.conflicts || [], Number(resp.serverRev) || 0);
+      renderQuickFavSyncState();
+      return;
+    }
+    markQuickFavSynced(resp.rev, resp.items, resp.order);
+    if (endQuickFavPush()) scheduleQuickFavPush();
+    renderQuickFavSyncState();
+  } catch (e) {
+    favPushFailReason = classifyQuickFavPushError(e);
+    endQuickFavPush();
+    renderQuickFavSyncState();
+  }
+}
+
+function fmtFavAt(at: string): string {
+  const t = new Date(at);
+  if (Number.isNaN(t.getTime())) return '未知时间';
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return (t.getMonth() + 1) + '月' + t.getDate() + '日 ' + pad(t.getHours()) + ':' + pad(t.getMinutes());
+}
+
+function quickFavConflictRow(c: QuickFavConflict): HTMLElement {
+  const all: any[] = w.allTags || [];
+  const tag = all.find((t: any) => t.id === c.id);
+  const wrap = document.createElement('div');
+  wrap.dataset.favId = c.id;
+  wrap.style.cssText = 'text-align:left;padding:10px;border:1px solid var(--border-light);border-radius:var(--radius-md);margin-bottom:8px;background:var(--surface)';
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:13px;font-weight:600;color:var(--text);margin-bottom:6px';
+  title.textContent = '「' + (tag ? tag.name : c.id) + '」在多台设备上被同时修改';
+  const localLine = document.createElement('div');
+  localLine.style.cssText = 'font-size:12px;color:var(--text-secondary);margin-bottom:2px';
+  localLine.textContent = '本机：' + (c.local.on ? '在列表' : '不在列表') + '（' + fmtFavAt(c.local.at) + '）';
+  const remoteLine = document.createElement('div');
+  remoteLine.style.cssText = 'font-size:12px;color:var(--text-secondary);margin-bottom:8px';
+  remoteLine.textContent = '云端：' + (c.remote.on ? '在列表' : '不在列表') + '（' + fmtFavAt(c.remote.at) + '）';
+  const btnRow = document.createElement('div');
+  btnRow.style.cssText = 'display:flex;gap:8px';
+  const useRemote = document.createElement('button');
+  useRemote.type = 'button';
+  useRemote.textContent = '用云端';
+  useRemote.style.cssText = 'flex:1;padding:8px 0;font-size:13px;border:1.5px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text);cursor:pointer;font-weight:600';
+  const useLocal = document.createElement('button');
+  useLocal.type = 'button';
+  useLocal.textContent = '用本机';
+  useLocal.style.cssText = 'flex:1;padding:8px 0;font-size:13px;border:none;border-radius:var(--radius-sm);background:var(--primary);color:#fff;cursor:pointer;font-weight:600';
+  useRemote.onclick = () => resolveQuickFavConflictPick(c.id, c.remote.on);
+  useLocal.onclick = () => resolveQuickFavConflictPick(c.id, c.local.on);
+  btnRow.append(useRemote, useLocal);
+  wrap.append(title, localLine, remoteLine, btnRow);
+  return wrap;
+}
+
+export function showQuickFavConflict(conflicts: QuickFavConflict[], serverRev: number): void {
+  const modal = document.getElementById('qi-fav-conflict-modal');
+  const list = document.getElementById('qi-fav-conflict-list');
+  if (!modal || !list) return;
+  favConflictServerRev = serverRev;
+  list.innerHTML = '';
+  for (const c of conflicts) list.appendChild(quickFavConflictRow(c));
+  openModal('qi-fav-conflict-modal');
+}
+
+function resolveQuickFavConflictPick(id: string, on: boolean): void {
+  resolveQuickFavConflicts({ [id]: on }, favConflictServerRev);
+  const list = document.getElementById('qi-fav-conflict-list');
+  if (!list) return;
+  const row = list.querySelector('[data-fav-id="' + CSS.escape(id) + '"]');
+  if (row) row.remove();
+  if (list.children.length === 0) {
+    closeModal('qi-fav-conflict-modal');
+    scheduleQuickFavPush();
+  }
+}
+

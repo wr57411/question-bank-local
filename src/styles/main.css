@@ -150,15 +150,19 @@
         .inline-tag-added .tag{font-size:11px;padding:3px 8px;background:var(--primary-light);color:var(--primary-dark);border:none}
 
         /* Question Grid */
-        .question-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:var(--space-md)}
-        .question-card{position:relative;background:var(--surface);border-radius:var(--radius-md);overflow:visible;box-shadow:var(--shadow-md);cursor:pointer;transition:all .2s ease;border:none}
+        .question-grid{display:grid;gap:var(--space-md)}
+        .question-grid.grid-single{grid-template-columns:1fr}
+        .question-grid.grid-double{grid-template-columns:repeat(2,1fr)}
+        .question-grid.grid-single .question-card img{height:auto;max-height:420px}
+        .question-card{position:relative;background:var(--surface);border-radius:var(--radius-md);overflow:visible;box-shadow:var(--shadow-md);cursor:pointer;transition:all .2s ease;border:none;container-type:inline-size}
         .question-card:active{transform:scale(.97);box-shadow:var(--shadow-sm)}
         .question-card.selected{box-shadow:0 0 0 3px var(--primary),var(--shadow-md)}
         .question-card img{width:100%;height:130px;object-fit:contain;background:var(--surface-dim);border-radius:var(--radius-md) var(--radius-md) 0 0}
         .question-card .info{padding:10px 12px}
         .question-card .tags{display:flex;flex-wrap:wrap;gap:4px}
         .question-card .tag{font-size:10px;padding:2px 8px;border-radius:999px}
-        .q-checkbox{position:absolute;top:6px;left:6px;width:40px;height:40px;border-radius:var(--radius-sm);border:none;background:rgba(255,255,255,.95);font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;color:var(--primary);font-weight:bold;backdrop-filter:blur(4px);transition:all .2s;box-shadow:var(--shadow-md)}
+        .q-checkbox{position:absolute;top:6px;left:6px;width:24px;height:24px;border-radius:var(--radius-sm);border:none;padding:0;background:rgba(255,255,255,.95);font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:10;color:var(--primary);font-weight:bold;backdrop-filter:blur(4px);transition:all .2s;box-shadow:var(--shadow-sm)}
+        .q-checkbox::after{content:"";position:absolute;inset:-10px}
                 .q-checkbox:active{transform:scale(1.15)}
         .q-checkbox.checked{background:var(--primary);color:#fff}
 
@@ -171,6 +175,9 @@
         .modal{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(46,42,59,.4);backdrop-filter:blur(6px);z-index:1000;-webkit-overflow-scrolling:touch}
         .modal.active{display:flex;align-items:center;justify-content:center}
         .modal-content{background:var(--surface);padding:var(--space-lg);border-radius:var(--radius-lg);max-width:500px;width:94%;max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;box-shadow:var(--shadow-xl)}
+        .modal--anchored{ /* 仅作语义钩子，实际几何由 JS 写入；不改 z-index/动画 */ }
+        .modal--anchored.active{ align-items:flex-start; }
+        .modal-content--anchored{ overflow-y:auto; -webkit-overflow-scrolling:touch; }
         .modal-content h2,.modal-content h3{font-size:20px;margin-bottom:var(--space-md);font-weight:800;color:var(--text)}
         .hidden{display:none!important}
 
@@ -236,6 +243,9 @@
         .spacing-option{flex:1;text-align:center;padding:12px 6px;border:2px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;transition:all .2s;font-weight:500;background:var(--surface)}
         .spacing-option:hover{border-color:var(--primary-mid);background:var(--primary-light)}
         .spacing-option.selected{border-color:var(--primary);background:var(--primary-light)}
+        .print-size-option{flex:1;text-align:center;padding:12px 6px;border:2px solid var(--border-light);border-radius:var(--radius-md);cursor:pointer;transition:all .2s;font-weight:500;background:var(--surface)}
+        .print-size-option:hover{border-color:var(--primary-mid);background:var(--primary-light)}
+        .print-size-option.selected{border-color:var(--primary);background:var(--primary-light)}
 
         /* AI Styles —— grape 知识紫 */
         .ai-summary-wrap{margin:var(--space-xs) 0 var(--space-sm);padding:10px 12px;background:var(--accent-light);border-left:3px solid var(--accent);border-radius:0 var(--radius-sm) var(--radius-sm) 0;font-size:12px;color:var(--text-secondary);line-height:1.5;display:flex;align-items:flex-start;gap:8px}
@@ -253,7 +263,7 @@
             .container{padding:12px}
             header{padding:20px 18px;border-radius:var(--radius-md)}
             header h1{font-size:20px}
-            .question-grid{grid-template-columns:repeat(2,1fr);gap:var(--space-sm)}
+            .question-grid{gap:var(--space-sm)}
             .question-card img{height:110px}
             .modal-content{width:98%;padding:var(--space-md);border-radius:var(--radius-md)}
             .toolbar{gap:6px}
@@ -261,7 +271,7 @@
         }
         @media(min-width:768px){
             .container{padding:var(--space-lg)}
-            .question-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:var(--space-md)}
+            .question-grid{gap:var(--space-md)}
             .question-card img{height:160px}
             .card{padding:var(--space-lg)}
             .modal-content{max-width:600px}
@@ -269,15 +279,25 @@
         /* iPad / 大屏适配（阶段3） */
         @media(min-width:768px){
             .container{max-width:900px}
-            .question-grid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}
             .toolbar{gap:12px}
             .tabs{flex-wrap:wrap;overflow-x:visible}
         }
         @media(min-width:1024px){
             .container{max-width:1100px}
-            .question-grid{grid-template-columns:repeat(auto-fill,minmax(240px,1fr))}
             .modal-content{max-width:720px}
             .card{max-width:1100px;margin-left:auto;margin-right:auto}
+        }
+        /* 平板：按卡片宽度自适应（容器查询），用输入特性（触屏）区分平板与桌面，
+           不依赖视口宽度断点——避免桌面窗口宽度与平板重叠时误判。
+           container-type 使卡片成为 stacking context 与包含块：卡内勿放需跨卡片浮层的 fixed 元素；
+           该写法要求卡片始终处于显式宽度的 grid 中（否则 inline-size 归零会导致卡片塌陷）。 */
+        @supports (container-type:inline-size){
+            @media (pointer:coarse){
+                .container{max-width:none}
+                @container (min-width:225px){
+                    .question-card img{height:auto;max-height:70dvh}
+                }
+            }
         }
         /* 横屏：弹层与阅读区不顶满、不拉伸 */
         @media(orientation:landscape) and (min-width:768px){
@@ -411,3 +431,74 @@
         .crop-rotate-btn{padding:10px 16px;font-size:14px;border-radius:999px;background:rgba(255,255,255,.15);color:#fff;box-shadow:none}
 
         .projection-exit-btn{padding:6px 14px;font-size:13px;border-radius:999px;background:rgba(46,42,59,.06);color:var(--text-secondary);border:none;cursor:pointer;box-shadow:none}
+
+.semantic-title { font-size: 13px; font-weight: 600; color: var(--ink-2, #8A87A0); margin: 8px 0 4px; grid-column: 1 / -1; }
+.semantic-card { position: relative; border-radius: 10px; overflow: hidden; cursor: pointer; background: var(--surface, #fff); border: 0.5px solid var(--hairline, #EFEBFF); aspect-ratio: 3/4; }
+.semantic-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.semantic-card .score { position: absolute; right: 6px; bottom: 6px; font-size: 11px; padding: 2px 8px; border-radius: 999px; background: #F0EBFF; color: #7C58E8; }
+
+.similar-card { position: relative; border-radius: 10px; overflow: hidden; cursor: pointer; background: var(--surface, #fff); border: 0.5px solid var(--hairline, #EFEBFF); aspect-ratio: 3/4; }
+.similar-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.similar-card .score { position: absolute; right: 4px; bottom: 4px; font-size: 11px; padding: 2px 6px; border-radius: 999px; background: #F0EBFF; color: #7C58E8; }
+
+/* ===== 章节 · 专题（2.4~2.8）：只用现有 token，分层折叠控制信息密度 ===== */
+.gexpr-summary{font-size:13px;font-weight:700;color:var(--text);margin-top:10px}
+.gexpr-echo{font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.5;word-break:break-word}
+.gexpr-warn{font-size:11px;color:var(--danger-dark);margin-top:4px}
+
+.gexpr-node{border:1px solid var(--border-light);border-radius:var(--radius-md);padding:8px 10px;background:var(--surface)}
+.gexpr-group{margin-top:6px;background:var(--surface-hover)}
+.gexpr-node-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.gexpr-children{display:flex;flex-direction:column;gap:6px;margin:6px 0 6px 4px}
+.gexpr-leaf{display:flex;align-items:center;gap:8px;background:var(--surface);padding:6px 10px}
+.gexpr-dot,.gexpr-tag-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.gexpr-leaf-name{flex:1;min-width:0;font-size:13px;color:var(--text);overflow-wrap:anywhere}
+.gexpr-remove{cursor:pointer;color:var(--text-tertiary);font-size:15px;line-height:1;padding:0 4px}
+.gexpr-remove:hover{color:var(--danger)}
+
+.gexpr-op-group{display:inline-flex;border:1px solid var(--border-light);border-radius:999px;overflow:hidden}
+.gexpr-op{padding:4px 12px;font-size:12px;font-weight:700;border:none;border-radius:0;background:var(--surface);color:var(--text-secondary);box-shadow:none;min-width:auto}
+.gexpr-op.active{background:var(--accent);color:#fff}
+.gexpr-count{font-size:11px;font-weight:700;color:var(--text-secondary);background:var(--surface-dim);border-radius:999px;padding:2px 8px;white-space:nowrap}
+
+.gexpr-add-member,.gexpr-add-subgroup{padding:6px 12px;font-size:12px;border-radius:var(--radius-sm);background:var(--surface-dim);color:var(--text-secondary);border:1px dashed var(--border);box-shadow:none;min-width:auto}
+.gexpr-node-actions{display:flex;gap:6px;flex-wrap:wrap}
+
+.gexpr-picker{margin-top:8px;padding:10px;border-radius:var(--radius-sm);background:var(--surface);border:1px solid var(--border)}
+.gexpr-hide-unused-label{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);margin-top:8px;font-weight:600}
+.gexpr-tag-results{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;max-height:180px;overflow-y:auto}
+.gexpr-tag-item{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:var(--surface-dim);border:1px solid var(--border-light);border-radius:999px;font-size:12px;cursor:pointer;color:var(--text)}
+.gexpr-tag-item:hover{background:var(--primary-light);border-color:var(--primary)}
+.gexpr-tag-name{font-weight:600}
+.gexpr-tag-count{font-size:11px;color:var(--text-secondary)}
+.gexpr-tag-ref{font-size:10px;padding:1px 7px;border-radius:999px;background:var(--accent-light);color:var(--accent-dark);font-weight:700}
+.gexpr-picker-empty{font-size:12px;color:var(--text-secondary);padding:6px 2px}
+.gexpr-unclassified-hint{font-size:11px;color:var(--warning-dark);margin-top:8px}
+.gexpr-goto-category{color:var(--accent-dark);font-weight:700;text-decoration:underline}
+
+.group-section{margin-bottom:14px}
+.group-section-head{font-size:14px;font-weight:800;color:var(--text);margin:0 0 8px}
+.group-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-light)}
+.group-row-main{flex:1;min-width:0}
+.group-row-name{font-size:14px;font-weight:700;color:var(--text)}
+.group-row-echo{font-size:12px;color:var(--text-secondary);word-break:break-word;line-height:1.5}
+.group-row-meta{font-size:12px;font-weight:700;color:var(--text-secondary);white-space:nowrap}
+.group-row-actions{display:flex;gap:4px;flex-shrink:0}
+
+.cascade-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-light)}
+.cascade-name{font-size:13px;font-weight:700;color:var(--text)}
+.cascade-delta{font-size:12px;color:var(--text-secondary)}
+
+/* ===== 2.9 筛选区：章节行 / 专题行 + 表达式回显（只用现有 token） ===== */
+.ffilter-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+.ffilter-label{font-size:12px;font-weight:700;color:var(--text-secondary);flex-shrink:0;min-width:32px}
+.ffilter-echo{width:100%;font-size:11px;color:var(--text-secondary);line-height:1.5;word-break:break-word}
+.ffilter-divider{width:100%;height:1px;background:var(--border-light);margin-top:10px}
+
+/* ===== 2.10 加入/移出专题弹窗 ===== */
+.gassign-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-light)}
+.gassign-name{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--text);overflow-wrap:anywhere}
+.gassign-meta{font-size:11px;color:var(--text-secondary);white-space:nowrap}
+
+/* ===== 2.12 系统成员标签 chip 区分标记 ===== */
+.tag.tag-system{border-style:dashed !important;font-weight:700}

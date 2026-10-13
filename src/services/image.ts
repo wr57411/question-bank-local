@@ -22,6 +22,15 @@ export function compressImage(input: string | File | Blob, maxWidth = 800, quali
   });
 }
 
+export async function compressNoteImage(image: string): Promise<string> {
+  if (!image) return image;
+  try {
+    return await compressImage(image, 1600, 0.85);
+  } catch {
+    return image;
+  }
+}
+
 export function mergeImagesVertically(dataUrl1: string, dataUrl2: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const img1 = new Image();

@@ -1,5 +1,5 @@
 import db from '../db/connection.js';
-import { normalizeTimestamp, toMillis, isIncomingNewer, normalizeAiMetadata, normalizeSimilarPair } from '../utils/helpers.js';
+import { normalizeTimestamp, toMillis, isIncomingNewer, normalizeAiMetadata } from '../utils/helpers.js';
 
 interface Record {
   id?: string;
@@ -10,22 +10,13 @@ export interface AppliedResult {
   tags: string[];
   questions: string[];
   papers: string[];
-  similar_links: string[];
   purged_question_ids: string[];
-  topics: string[];
   question_notes: string[];
-  teaching_nodes: string[];
-  teaching_versions: string[];
-  node_questions: string[];
-  pdf_books: string[];
-  pdf_chapters: string[];
-  pdf_topics: string[];
-  pdf_docs: string[];
-  pdf_categories: string[];
+  question_tags: string[];
 }
 
 export function createAppliedResult(): AppliedResult {
-  return { tags: [], questions: [], papers: [], similar_links: [], purged_question_ids: [], topics: [], question_notes: [], teaching_nodes: [], teaching_versions: [], node_questions: [], pdf_books: [], pdf_chapters: [], pdf_topics: [], pdf_docs: [], pdf_categories: [] };
+  return { tags: [], questions: [], papers: [], purged_question_ids: [], question_notes: [], question_tags: [] };
 }
 
 export function listQuestionTagIds(questionId: string, userId: string): string[] {
@@ -33,7 +24,7 @@ export function listQuestionTagIds(questionId: string, userId: string): string[]
     SELECT qt.tag_id
     FROM question_tags qt
     JOIN tags t ON t.id = qt.tag_id
-    WHERE qt.question_id = ? AND t.user_id = ? AND t.deleted_at IS NULL
+    WHERE qt.question_id = ? AND t.user_id = ? AND qt.deleted_at IS NULL AND t.deleted_at IS NULL
     ORDER BY qt.tag_id
   `).all(questionId, userId).map((row) => (row as { tag_id: string }).tag_id);
 }
@@ -46,14 +37,6 @@ export function listPaperQuestionIds(paperId: string, userId: string): string[] 
     WHERE pq.paper_id = ? AND q.user_id = ?
     ORDER BY pq.order_num ASC, pq.question_id ASC
   `).all(paperId, userId).map((row) => (row as { question_id: string }).question_id);
-}
-
-function replaceQuestionTags(questionId: string, tagIds: string[]): void {
-  db.prepare('DELETE FROM question_tags WHERE question_id = ?').run(questionId);
-  const insert = db.prepare('INSERT OR IGNORE INTO question_tags (question_id, tag_id) VALUES (?, ?)');
-  for (const tagId of tagIds || []) {
-    insert.run(questionId, tagId);
-  }
 }
 
 function replacePaperQuestions(paperId: string, questionIds: string[]): void {
@@ -88,7 +71,7 @@ function upsertRecord(userId: string, record: Record, config: UpsertConfig): boo
     ? (record.updated_at || record.deleted_at || record.created_at)
     : (record.updated_at || record.created_at);
   const updatedAt = normalizeTimestamp(updatedAtPath as string);
-  if (!isIncomingNewer(existing, updatedAt)) return false;
+  if (!isIncomingNewer(existing as { updated_at?: string; deleted_at?: string; created_at?: string } | undefined, updatedAt)) return false;
 
   const createdAt = normalizeTimestamp((record.created_at || existing?.created_at || updatedAt) as string);
   const deletedAt = config.hasDeletedAt && record.deleted_at ? normalizeTimestamp(record.deleted_at as string) : null;
@@ -116,16 +99,8 @@ function upsertRecord(userId: string, record: Record, config: UpsertConfig): boo
 
 // ─── 简单表的 upsert（配置驱动）─────────────────────────────────────
 
-const TAG_COLUMNS = ['id', 'user_id', 'name', 'color', 'created_at', 'updated_at', 'deleted_at'];
-const TOPIC_COLUMNS = ['id', 'user_id', 'name', 'description', 'created_at', 'updated_at', 'deleted_at'];
-const NOTE_COLUMNS = ['id', 'user_id', 'question_id', 'note_image_url', 'label', 'text_note', 'created_at', 'updated_at'];
-const TEACHING_NODE_COLUMNS = ['id', 'user_id', 'chapter', 'subject', 'name', 'difficulty', 'key_concept', 'diagram', 'current_version_id', 'created_at', 'updated_at'];
-const TEACHING_VERSION_COLUMNS = ['id', 'user_id', 'node_id', 'version_num', 'model_name', 'status', 'content_markdown', 'content_json', 'drawings', 'error_msg', 'retry_count', 'is_current', 'created_at', 'updated_at'];
-const PDF_BOOK_COLUMNS = ['id', 'user_id', 'name', 'created_at', 'updated_at', 'deleted_at'];
-const PDF_CHAPTER_COLUMNS = ['id', 'user_id', 'book_id', 'parent_id', 'name', 'sort_order', 'created_at', 'updated_at', 'deleted_at'];
-const PDF_TOPIC_COLUMNS = ['id', 'user_id', 'name', 'created_at', 'updated_at', 'deleted_at'];
-const PDF_CATEGORY_COLUMNS = ['id', 'user_id', 'parent_id', 'name', 'level', 'sort_order', 'created_at', 'updated_at', 'deleted_at'];
-const PDF_DOC_COLUMNS = ['id', 'user_id', 'filename', 'page_count', 'file_size', 'server_path', 'chapter_id', 'topic_id', 'category_id', 'created_at', 'updated_at', 'deleted_at'];
+const TAG_COLUMNS = ['id', 'user_id', 'name', 'color', 'category_id', 'created_at', 'updated_at', 'deleted_at'];
+const NOTE_COLUMNS = ['id', 'user_id', 'question_id', 'note_image_url', 'label', 'text_note', 'created_at', 'updated_at', 'deleted_at'];
 
 export function upsertTag(userId: string, tag: Record): boolean {
   return upsertRecord(userId, tag, {
@@ -137,108 +112,39 @@ export function upsertTag(userId: string, tag: Record): boolean {
   });
 }
 
-export function upsertTopic(userId: string, topic: Record): boolean {
-  const ok = upsertRecord(userId, topic, {
-    table: 'topics',
-    requiredFields: [],
-    columns: TOPIC_COLUMNS,
-    hasDeletedAt: true,
-  });
-  if (ok && topic.topic_questions) {
-    db.prepare('DELETE FROM topic_questions WHERE topic_id = ? AND user_id = ?').run(topic.id, userId);
-    const ins = db.prepare('INSERT OR IGNORE INTO topic_questions (topic_id, question_id, user_id, order_num, teacher_comment) VALUES (?, ?, ?, ?, ?)');
-    for (const tq of topic.topic_questions as { question_id: string; order_num?: number; teacher_comment?: string }[]) {
-      ins.run(topic.id, tq.question_id, userId, tq.order_num || 0, tq.teacher_comment || '');
-    }
-  }
-  return ok;
-}
-
 export function upsertQuestionNote(userId: string, note: Record): boolean {
   return upsertRecord(userId, note, {
     table: 'question_notes',
     requiredFields: [],
     columns: NOTE_COLUMNS,
-    hasDeletedAt: false,
-  });
-}
-
-export function upsertTeachingNode(userId: string, node: Record): boolean {
-  return upsertRecord(userId, node, {
-    table: 'teaching_nodes',
-    requiredFields: [],
-    columns: TEACHING_NODE_COLUMNS,
-    hasDeletedAt: false,
-    serialize: (r) => ({ ...r, difficulty: (r.difficulty as string) || '基础', subject: (r.subject as string) || '物理' }),
-  });
-}
-
-export function upsertTeachingVersion(userId: string, ver: Record): boolean {
-  return upsertRecord(userId, ver, {
-    table: 'teaching_versions',
-    requiredFields: [],
-    columns: TEACHING_VERSION_COLUMNS,
-    hasDeletedAt: false,
-    serialize: (r) => ({
-      ...r,
-      content_json: r.content_json ? JSON.stringify(r.content_json) : null,
-      drawings: typeof r.drawings === 'string' ? r.drawings : JSON.stringify(r.drawings || {}),
-      is_current: r.is_current ? 1 : 0,
-    }),
-  });
-}
-
-export function upsertPdfBook(userId: string, book: Record): boolean {
-  return upsertRecord(userId, book, {
-    table: 'pdf_books',
-    requiredFields: ['name'],
-    columns: PDF_BOOK_COLUMNS,
     hasDeletedAt: true,
+    serialize: (r) => (r.deleted_at ? { ...r, note_image_url: null } : r),
   });
 }
 
-export function upsertPdfChapter(userId: string, ch: Record): boolean {
-  return upsertRecord(userId, ch, {
-    table: 'pdf_chapters',
-    requiredFields: ['book_id', 'name'],
-    columns: PDF_CHAPTER_COLUMNS,
-    hasDeletedAt: true,
-  });
-}
-
-export function upsertPdfTopic(userId: string, topic: Record): boolean {
-  return upsertRecord(userId, topic, {
-    table: 'pdf_topics',
-    requiredFields: ['name'],
-    columns: PDF_TOPIC_COLUMNS,
-    hasDeletedAt: true,
-  });
-}
-
-export function upsertPdfCategory(userId: string, cat: Record): boolean {
-  return upsertRecord(userId, cat, {
-    table: 'pdf_categories',
-    requiredFields: ['name'],
-    columns: PDF_CATEGORY_COLUMNS,
-    hasDeletedAt: true,
-  });
-}
-
-export function upsertPdfDoc(userId: string, doc: Record): boolean {
-  const ok = upsertRecord(userId, doc, {
-    table: 'pdf_docs',
-    requiredFields: ['filename'],
-    columns: PDF_DOC_COLUMNS,
-    hasDeletedAt: true,
-  });
-  if (ok && doc.tag_ids) {
-    db.prepare('DELETE FROM pdf_doc_tags WHERE pdf_id = ?').run(doc.id);
-    const ins = db.prepare('INSERT OR IGNORE INTO pdf_doc_tags (pdf_id, tag_id) VALUES (?, ?)');
-    for (const tagId of doc.tag_ids as string[]) {
-      ins.run(doc.id, tagId);
-    }
-  }
-  return ok;
+// 关联逐条 upsert（D6 核心）：以 (question_id, tag_id) 为键，按 isIncomingNewer 合并。
+// 删除表达为软删（deleted_at 非空）；两侧增删均可无歧义合并，取消关联不再被复活。
+export function upsertQuestionTag(userId: string, qt: Record, applied: AppliedResult): boolean {
+  const questionId = qt.question_id;
+  const tagId = qt.tag_id;
+  if (!questionId || !tagId) return false;
+  // 外键约束由 push 事务内「先 questions/tags、后 question_tags」的顺序满足
+  const existing = db.prepare('SELECT * FROM question_tags WHERE question_id = ? AND tag_id = ?').get(questionId, tagId) as { updated_at?: string; deleted_at?: string; created_at?: string } | undefined;
+  const incomingTs = normalizeTimestamp((qt.updated_at || qt.deleted_at || qt.created_at) as string);
+  if (!isIncomingNewer(existing, incomingTs)) return false;
+  const createdAt = normalizeTimestamp((qt.created_at || existing?.created_at || incomingTs) as string);
+  const deletedAt = qt.deleted_at ? normalizeTimestamp(qt.deleted_at as string) : null;
+  const updatedAt = incomingTs || createdAt;
+  db.prepare(`
+    INSERT INTO question_tags (question_id, tag_id, created_at, updated_at, deleted_at)
+    VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT(question_id, tag_id) DO UPDATE SET
+      created_at = excluded.created_at,
+      updated_at = excluded.updated_at,
+      deleted_at = excluded.deleted_at
+  `).run(questionId, tagId, createdAt, updatedAt, deletedAt);
+  applied.question_tags.push(`${questionId}_${tagId}`);
+  return true;
 }
 
 // ─── 特殊 upsert（保留独立实现）─────────────────────────────────────
@@ -247,7 +153,7 @@ export function upsertQuestion(userId: string, question: Record, applied: Applie
   if (!question?.id) return false;
   const existing = db.prepare('SELECT * FROM questions WHERE id = ? AND user_id = ?').get(question.id, userId) as Record | undefined;
   const updatedAt = normalizeTimestamp((question.updated_at || question.deleted_at || question.created_at) as string);
-  if (!isIncomingNewer(existing, updatedAt)) return false;
+  if (!isIncomingNewer(existing as { updated_at?: string; deleted_at?: string; created_at?: string } | undefined, updatedAt)) return false;
 
   if (question.purged_at) {
     db.prepare('DELETE FROM question_tags WHERE question_id = ?').run(question.id);
@@ -286,34 +192,6 @@ export function upsertQuestion(userId: string, question: Record, applied: Applie
       .run(question.id, userId, question.question_image_url || null, question.answer_image_url || null, question.layout_type || 0, question.user_comment || '', question.semantic_summary || '', normalizeAiMetadata(question.ai_metadata), JSON.stringify(insertVersions), question.book_name || '', question.page_number || '', question.question_number || '', createdAt, updatedAt, deletedAt);
   }
 
-  replaceQuestionTags(question.id as string, (question.tag_ids as string[]) || []);
-  return true;
-}
-
-export function upsertSimilarLink(userId: string, link: Record): boolean {
-  const pair = normalizeSimilarPair(link?.question_id as string, link?.similar_question_id as string);
-  if (!pair) return false;
-  const [questionId, similarQuestionId] = pair;
-  const ownsBoth = db.prepare(`SELECT COUNT(*) as count FROM questions WHERE user_id = ? AND id IN (?, ?)`).get(userId, questionId, similarQuestionId) as { count: number };
-  if (ownsBoth.count !== 2) return false;
-
-  const existing = db.prepare(`SELECT * FROM similar_question_links WHERE user_id = ? AND question_id = ? AND similar_question_id = ?`).get(userId, questionId, similarQuestionId) as Record | undefined;
-  const updatedAt = normalizeTimestamp((link.updated_at || link.deleted_at || link.created_at) as string);
-  if (!isIncomingNewer(existing, updatedAt)) return false;
-
-  const createdAt = normalizeTimestamp((link.created_at || existing?.created_at || updatedAt) as string);
-  const deletedAt = link.deleted_at ? normalizeTimestamp(link.deleted_at as string) : null;
-  db.prepare(`INSERT INTO similar_question_links (question_id, similar_question_id, user_id, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(question_id, similar_question_id) DO UPDATE SET user_id = excluded.user_id, created_at = excluded.created_at, updated_at = excluded.updated_at, deleted_at = excluded.deleted_at`)
-    .run(questionId, similarQuestionId, userId, createdAt, updatedAt, deletedAt);
-  return true;
-}
-
-export function upsertNodeQuestion(userId: string, nq: Record): boolean {
-  if (!nq?.id) return false;
-  const existing = db.prepare('SELECT * FROM node_questions WHERE id = ? AND user_id = ?').get(nq.id, userId);
-  if (existing) return false;
-  db.prepare('INSERT INTO node_questions (id, user_id, node_id, question_id, created_at) VALUES (?, ?, ?, ?, ?)')
-    .run(nq.id, userId, nq.node_id || '', nq.question_id || '', normalizeTimestamp(nq.created_at as string));
   return true;
 }
 
@@ -321,17 +199,17 @@ export function upsertPaper(userId: string, paper: Record): boolean {
   if (!paper?.id || !paper.name) return false;
   const existing = db.prepare('SELECT * FROM papers WHERE id = ? AND user_id = ?').get(paper.id, userId) as Record | undefined;
   const updatedAt = normalizeTimestamp((paper.updated_at || paper.deleted_at || paper.created_at) as string);
-  if (!isIncomingNewer(existing, updatedAt)) return false;
+  if (!isIncomingNewer(existing as { updated_at?: string; deleted_at?: string; created_at?: string } | undefined, updatedAt)) return false;
 
   const createdAt = normalizeTimestamp((paper.created_at || existing?.created_at || updatedAt) as string);
   const deletedAt = paper.deleted_at ? normalizeTimestamp(paper.deleted_at as string) : null;
 
   if (existing) {
-    db.prepare(`UPDATE papers SET name = ?, created_at = ?, updated_at = ?, deleted_at = ? WHERE id = ? AND user_id = ?`)
-      .run(paper.name, createdAt, updatedAt, deletedAt, paper.id, userId);
+    db.prepare(`UPDATE papers SET name = ?, pdf_url = ?, created_at = ?, updated_at = ?, deleted_at = ? WHERE id = ? AND user_id = ?`)
+      .run(paper.name, (paper.pdf_url as string) ?? null, createdAt, updatedAt, deletedAt, paper.id, userId);
   } else {
-    db.prepare(`INSERT INTO papers (id, user_id, name, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?)`)
-      .run(paper.id, userId, paper.name, createdAt, updatedAt, deletedAt);
+    db.prepare(`INSERT INTO papers (id, user_id, name, pdf_url, created_at, updated_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run(paper.id, userId, paper.name, (paper.pdf_url as string) ?? null, createdAt, updatedAt, deletedAt);
   }
 
   replacePaperQuestions(paper.id as string, (paper.question_ids as string[]) || []);

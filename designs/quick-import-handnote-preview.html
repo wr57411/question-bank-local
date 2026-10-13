@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>快速导入栏 · 手写笔记照片入口 排版样稿</title>
+<style>
+  :root {
+    --primary: #FF7847;
+    --primary-light: #FFF1E9;
+    --primary-dark: #E85D2C;
+    --primary-mid: #FFD3BE;
+    --accent: #9D7BFF;
+    --accent-light: #F0EBFF;
+    --accent-dark: #7C58E8;
+    --mint: #3ED598;
+    --mint-light: #E4F9F0;
+    --sky: #4CC3FF;
+    --sky-light: #E5F6FF;
+    --text: #2E2A3B;
+    --text-secondary: #8A87A0;
+    --text-tertiary: #B9B6CB;
+    --surface: #FFFFFF;
+    --surface-dim: #F4F2FB;
+    --border: #E4DFFF;
+    --border-light: #EFEBFF;
+    --radius-sm: 10px;
+    --radius-md: 18px;
+    --radius-lg: 26px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'PingFang SC', 'Noto Sans SC', -apple-system, sans-serif;
+    background: linear-gradient(170deg, #F7F5FF 0%, #FFF4EC 100%);
+    color: var(--text);
+    padding: 34px 26px 60px;
+    line-height: 1.5;
+  }
+  .page { max-width: 1400px; margin: 0 auto; }
+  .page-head { max-width: 860px; margin-bottom: 26px; }
+  .page-head h1 { font-size: 24px; font-weight: 800; letter-spacing: -.4px; margin-bottom: 8px; }
+  .page-head p { font-size: 13px; color: var(--text-secondary); line-height: 1.75; }
+  .page-head b { color: var(--accent-dark); }
+
+  .stage { display: flex; flex-wrap: wrap; gap: 30px; align-items: flex-start; }
+
+  .variant { width: 400px; }
+  .v-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .v-tag {
+    font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px;
+    background: var(--surface-dim); color: var(--text-secondary);
+  }
+  .v-tag.rec { background: var(--accent-light); color: var(--accent-dark); }
+  .v-head h2 { font-size: 15px; font-weight: 800; }
+
+  /* ===== 手机屏 ===== */
+  .phone {
+    width: 406px;              /* 含 8px 边框，内屏逻辑宽度恰为 390 */
+    background: linear-gradient(170deg, #F7F5FF 0%, #FFF4EC 100%);
+    border-radius: 28px;
+    border: 8px solid #2E2A3B;
+    overflow: hidden;
+    position: relative;
+    height: 660px;
+    box-shadow: 0 24px 60px rgba(90,60,180,.18);
+  }
+  .phone.narrow { width: 376px; }   /* 内屏 360 */
+  .screen-bg { position: absolute; inset: 0; padding: 16px; opacity: .32; filter: grayscale(.5); }
+  .screen-bg .bcard {
+    background: var(--surface); border-radius: var(--radius-md); padding: 14px; margin-bottom: 10px;
+    box-shadow: 0 2px 8px rgba(120,90,220,.06);
+  }
+  .screen-bg .bcard h3 { font-size: 13px; margin-bottom: 6px; }
+  .screen-bg .bcard p { font-size: 11px; color: var(--text-secondary); }
+  .screen-bg .brow { display: flex; gap: 10px; }
+  .screen-bg .brow .bcard { flex: 1; }
+
+  /* ===== 快速导入栏（还原现有结构）===== */
+  .qi-bar {
+    position: absolute; top: 0; left: 0; right: 0;
+    background: var(--surface);
+    border-bottom: 2px solid var(--primary);
+    box-shadow: 0 4px 16px rgba(0,0,0,.18);
+    padding: 14px 12px 10px;
+    z-index: 10;
+  }
+  .qi-row1 { display: flex; align-items: center; gap: 8px; }
+  .thumb-wrap { position: relative; flex-shrink: 0; }
+  .thumb {
+    width: 56px; height: 56px; border-radius: 8px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 2px; font-size: 10px; color: var(--text-tertiary);
+    background: var(--surface-dim);
+  }
+  .thumb.q { border: 2px solid var(--primary); background: linear-gradient(135deg,#FFF7F2,#FFE9DC); color: var(--primary-dark); }
+  .thumb.a { border: 2px solid var(--accent); background: var(--surface-dim); }
+  .badge {
+    position: absolute; top: -6px; left: -6px; color: #fff;
+    font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 8px;
+  }
+  .badge.q { background: var(--primary); }
+  .badge.a { background: var(--accent); }
+  .swap-btn {
+    flex-shrink: 0; width: 32px; height: 32px; border-radius: 50%;
+    border: 1.5px solid var(--border); background: var(--surface); color: var(--text);
+    display: flex; align-items: center; justify-content: center; font-size: 15px;
+  }
+  .qi-tags { flex: 1; min-width: 0; display: flex; align-items: center; gap: 4px; overflow: hidden; font-size: 11px; }
+  .tag-chip { padding: 3px 9px; border-radius: 999px; background: var(--sky-light); color: #1E8FD8; font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .tag-chip.purple { background: var(--accent-light); color: var(--accent-dark); }
+  .tag-chip.mint { background: var(--mint-light); color: #1FA974; }
+
+  .qi-tag-input {
+    display: block; width: 100%; margin-top: 8px; padding: 11px 13px;
+    border: 1.5px solid var(--border); border-radius: var(--radius-md);
+    font-size: 15px; background: var(--surface); color: var(--text-tertiary);
+  }
+  .qi-fav-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+  .qi-fav { flex: 1; min-width: 0; display: flex; gap: 6px; overflow: hidden; }
+  .fav-chip { padding: 4px 10px; border-radius: 999px; background: var(--surface-dim); color: var(--text-secondary); font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .fav-plus {
+    flex-shrink: 0; width: 26px; height: 26px; border: 1.5px dashed var(--border); border-radius: 50%;
+    background: var(--surface); color: var(--text-secondary);
+    display: flex; align-items: center; justify-content: center; font-size: 14px;
+  }
+
+  .qi-row3 { display: flex; align-items: center; gap: 6px; margin-top: 8px; }
+  .btn-ghost {
+    padding: 7px 10px; border: 1.5px solid var(--border); border-radius: var(--radius-md);
+    background: var(--surface); color: var(--text); font-size: 13px; white-space: nowrap;
+  }
+  .btn-ghost.grow { flex: 0 1 auto; min-width: 46px; overflow: hidden; text-overflow: ellipsis; }
+  .btn-layout { min-width: 34px; text-align: center; font-size: 14px; font-weight: 500; }
+  .qi-spacer { flex: 1; }
+
+  .btn-note {
+    flex-shrink: 0; padding: 7px 12px; border-radius: var(--radius-md);
+    background: var(--accent-light); color: var(--accent-dark);
+    border: 1.5px dashed var(--accent);
+    font-size: 13px; font-weight: 700; white-space: nowrap;
+    display: flex; align-items: center;
+  }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 4px; }
+  .btn-confirm {
+    flex-shrink: 0; padding: 8px 16px; border: none; border-radius: var(--radius-md);
+    background: var(--primary); color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap;
+  }
+  .btn-icon {
+    flex-shrink: 0; width: 36px; height: 34px; border-radius: var(--radius-md);
+    background: var(--accent-light); color: var(--accent-dark);
+    border: 1.5px dashed var(--accent);
+    display: flex; align-items: center; justify-content: center; font-size: 15px; position: relative;
+  }
+  .btn-icon .dot { position: absolute; top: 5px; right: 5px; margin: 0; }
+
+  .qi-note-area {
+    margin-top: 8px; border: 1.5px dashed var(--accent);
+    border-radius: var(--radius-md); background: #FBFAFF; padding: 10px 12px;
+  }
+  .note-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .note-title { font-size: 12px; font-weight: 700; color: var(--accent-dark); }
+  .note-char { font-size: 10px; color: var(--text-tertiary); }
+  .note-text {
+    width: 100%; min-height: 52px; border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+    background: var(--surface); padding: 8px 10px; font-size: 13px; line-height: 1.5; color: var(--text);
+  }
+  .note-text .cursor { display: inline-block; width: 1.5px; height: 14px; background: var(--accent); vertical-align: -2px; margin-left: 1px; }
+  .note-tip { margin-top: 6px; font-size: 10px; color: var(--text-secondary); }
+
+  /* 手写笔记照片区 */
+  .hw-block { margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border); }
+  .hw-body { display: flex; gap: 10px; align-items: flex-start; margin-top: 6px; }
+  .hw-thumb-wrap { position: relative; flex-shrink: 0; }
+  .hw-thumb {
+    width: 78px; height: 78px; border-radius: var(--radius-sm);
+    border: 1.5px solid var(--border); background: #FFFDF8; overflow: hidden;
+  }
+  .hw-badge {
+    position: absolute; bottom: -7px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: #fff; font-size: 9px; font-weight: 700;
+    padding: 1px 6px; border-radius: 999px; white-space: nowrap;
+  }
+  .hw-del {
+    position: absolute; top: -7px; right: -7px; width: 19px; height: 19px; border-radius: 50%;
+    background: var(--danger, #FF5A6E); color: #fff; font-size: 12px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .hw-actions { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+  .hw-btn {
+    padding: 7px 11px; border-radius: var(--radius-md); font-size: 12px; font-weight: 600;
+    border: 1.5px solid var(--border); background: var(--surface); color: var(--text); white-space: nowrap;
+  }
+  .hw-btn.primary { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 700; }
+  .hw-btn.dashed { border-style: dashed; color: var(--accent-dark); background: var(--accent-light); border-color: var(--accent); }
+
+  /* 方案 B：单一「附加」入口内的分段 */
+  .seg-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .seg-title { font-size: 12px; font-weight: 700; color: var(--accent-dark); }
+  .seg-sub { font-size: 10px; color: var(--text-tertiary); }
+
+  .v-notes { list-style: none; margin-top: 12px; font-size: 12px; color: var(--text-secondary); }
+  .v-notes li { position: relative; padding-left: 16px; margin-bottom: 5px; line-height: 1.6; }
+  .v-notes li::before { content: ""; position: absolute; left: 4px; top: 7px; width: 5px; height: 5px; border-radius: 50%; background: var(--border); }
+  .v-notes li.good::before { background: var(--mint); }
+  .v-notes li.bad::before { background: #FF9A62; }
+  .v-notes li b { color: var(--text); }
+
+  /* ===== 底部：宽度实测 + 待确认 ===== */
+  .panel {
+    margin-top: 34px; background: var(--surface); border: 1px solid var(--border-light);
+    border-radius: var(--radius-lg); padding: 20px 22px; box-shadow: 0 2px 8px rgba(120,90,220,.06);
+    max-width: 880px;
+  }
+  .panel h3 { font-size: 14px; font-weight: 800; margin-bottom: 10px; }
+  .panel h3 + p { font-size: 12px; color: var(--text-secondary); margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border-light); }
+  th { color: var(--text-secondary); font-weight: 600; font-size: 11px; }
+  td.num { font-variant-numeric: tabular-nums; }
+  .ok { color: #1FA974; font-weight: 700; }
+  .warn { color: #B98A2F; font-weight: 700; }
+  .err { color: #E8415A; font-weight: 700; }
+  .panel ul { list-style: none; margin-top: 14px; }
+  .panel ul li { position: relative; padding-left: 18px; font-size: 12px; color: var(--text-secondary); margin-bottom: 7px; line-height: 1.65; }
+  .panel ul li::before { content: "?"; position: absolute; left: 2px; top: 0; color: var(--accent); font-weight: 800; font-size: 12px; }
+  .panel ul li b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-head">
+    <h1>快速导入栏 ·「📸 手写笔记」入口排版样稿</h1>
+    <p>
+      共同前提：手写笔记照片作为<b>本题的另一个题目图片版本</b>处理（沿用 <code>question_notes</code> 体系，label 自动排到「笔记 v2」），
+      入口与「📝 笔记」相邻。三个方案只在<b>第三行的排布方式</b>上不同；第一行缩略图、标签行、笔记输入区均按现有实现原样还原。
+      图中均为<b>展开态</b>（现行语义：笔记区默认展开）。
+    </p>
+    <p>
+      <b>我的建议：方案 A 的交互 + 方案 C 的响应式兜底</b>——≥390px 显示文字标签，&lt;390px 自动收成图标。
+      理由是实测（页底表格）显示方案 A 单靠在 390px 上就会把「组合」压成「组…」；方案 B 则是唯一不需要兜底就能跑满全屏宽的备选。
+    </p>
+  </div>
+
+  <div class="stage">
+
+    <!-- ============ 方案 A ============ -->
+    <section class="variant">
+      <div class="v-head"><span class="v-tag">方案 A · 字面实现</span><h2>并排双按钮</h2></div>
+      <div class="phone">
+        <div class="screen-bg">
+          <div class="bcard"><h3>📚 本地题库</h3><p>共 128 道题目 · 12 个标签</p></div>
+          <div class="brow">
+            <div class="bcard"><h3>题目列表</h3><p>№ 127 一元二次方程…</p><p>№ 126 函数单调性…</p></div>
+          </div>
+          <div class="bcard"><h3>复习提醒</h3><p>今日待复习 6 题</p></div>
+        </div>
+
+        <div class="qi-bar">
+          <div class="qi-row1">
+            <div class="thumb-wrap"><div class="thumb q">📷<span>题图已选</span></div><span class="badge q">题</span></div>
+            <div class="thumb-wrap"><div class="thumb a">＋<span>添加答图</span></div><span class="badge a">答</span></div>
+            <div class="swap-btn">⇄</div>
+            <div class="qi-tags">
+              <span class="tag-chip">高一</span>
+              <span class="tag-chip purple">函数</span>
+            </div>
+          </div>
+
+          <div class="qi-tag-input">🏷 搜索或新建标签，回车确认</div>
+
+          <div class="qi-fav-row">
+            <div class="qi-fav">
+              <span class="fav-chip">高一</span>
+              <span class="fav-chip">函数</span>
+              <span class="fav-chip">易错</span>
+            </div>
+            <div class="fav-plus">＋</div>
+          </div>
+
+          <div class="qi-row3">
+            <div class="btn-ghost grow">组合一 ▾</div>
+            <div class="btn-ghost btn-layout">双</div>
+            <div class="qi-spacer"></div>
+            <div class="btn-note">📝 笔记<span class="dot"></span></div>
+            <div class="btn-note">📸 手写<span class="dot"></span></div>
+            <div class="btn-confirm">✅ 确认</div>
+          </div>
+
+          <div class="qi-note-area">
+            <div class="note-head">
+              <span class="note-title">✏️ 文字笔记（随题目保存）</span>
+              <span class="note-char">18/500</span>
+            </div>
+            <div class="note-text">本题用换元法简化，注意定义域<span class="cursor"></span></div>
+
+            <div class="hw-block">
+              <div class="note-head" style="margin-bottom:0">
+                <span class="note-title">📸 手写笔记照片（本题另一图片版本）</span>
+                <span class="note-char">1 张</span>
+              </div>
+              <div class="hw-body">
+                <div class="hw-thumb-wrap">
+                  <div class="hw-thumb">
+                    <svg viewBox="0 0 78 78" width="78" height="78" aria-label="手写笔记照片">
+                      <rect width="78" height="78" fill="#FFFDF8"/>
+                      <line x1="9" y1="20" x2="69" y2="20" stroke="#EFEBFF" stroke-width="1"/>
+                      <line x1="9" y1="32" x2="69" y2="32" stroke="#EFEBFF" stroke-width="1"/>
+                      <line x1="9" y1="44" x2="69" y2="44" stroke="#EFEBFF" stroke-width="1"/>
+                      <line x1="9" y1="56" x2="69" y2="56" stroke="#EFEBFF" stroke-width="1"/>
+                      <path d="M12 24 q6 -5 12 0 t12 0 t10 -1" fill="none" stroke="#4B4560" stroke-width="1.6" stroke-linecap="round"/>
+                      <path d="M12 36 q5 -4 10 1 t11 -2 t12 1" fill="none" stroke="#4B4560" stroke-width="1.6" stroke-linecap="round"/>
+                      <path d="M12 48 q7 -3 13 1 t9 -1" fill="none" stroke="#FF7847" stroke-width="1.8" stroke-linecap="round"/>
+                      <circle cx="61" cy="16" r="3.6" fill="#9D7BFF"/>
+                    </svg>
+                  </div>
+                  <span class="hw-del">×</span>
+                  <span class="hw-badge">笔记 v2</span>
+                </div>
+                <div class="hw-actions">
+                  <span class="hw-btn primary">📷 拍一张</span>
+                  <span class="hw-btn">🖼️ 相册</span>
+                  <span class="hw-btn dashed">＋ 再拍一张</span>
+                </div>
+              </div>
+              <div class="note-tip">保存后可在题目详情「📝 题目图片」下拉中像其他版本一样切换查看，复习时同样可见，并随同步上传</div>
+            </div>
+          </div>
+
+          <div class="note-tip" style="margin-top:6px">已选择 2 个标签 · 点击确认保存本题</div>
+        </div>
+      </div>
+      <ul class="v-notes">
+        <li class="good">最贴近你的原话：「入口放在文字笔记的旁边」，一眼可见、一次点击直达</li>
+        <li class="good">文字与手写共用一个展开区，栏高只增一次；现有 <b>applyQuickBarBodyPadding</b> 动态测高逻辑无需改结构</li>
+        <li class="bad"><b>实测结论（见页底表格）：390px 屏下「组合」只剩 58px，不足它自身需要的 74px</b>，会被截断成「组…」——图中就是这个真实结果，不是画错</li>
+        <li class="bad">所以要落地必须叠加方案 C 的窄屏兜底，或把「组合」改成纯图标/收进别处</li>
+      </ul>
+    </section>
+
+    <!-- ============ 方案 B ============ -->
+    <section class="variant">
+      <div class="v-head"><span class="v-tag">方案 B</span><h2>合并为单个「附加」入口</h2></div>
+      <div class="phone">
+        <div class="screen-bg">
+          <div class="bcard"><h3>📚 本地题库</h3><p>共 128 道题目 · 12 个标签</p></div>
+          <div class="brow">
+            <div class="bcard"><h3>题目列表</h3><p>№ 127 一元二次方程…</p><p>№ 126 函数单调性…</p></div>
+          </div>
+          <div class="bcard"><h3>复习提醒</h3><p>今日待复习 6 题</p></div>
+        </div>
+
+        <div class="qi-bar">
+          <div class="qi-row1">
+            <div class="thumb-wrap"><div class="thumb q">📷<span>题图已选</span></div><span class="badge q">题</span></div>
+            <div class="thumb-wrap"><div class="thumb a">＋<span>添加答图</span></div><span class="badge a">答</span></div>
+            <div class="swap-btn">⇄</div>
+            <div class="qi-tags">
+              <span class="tag-chip">高一</span>
+              <span class="tag-chip purple">函数</span>
+            </div>
+          </div>
+
+          <div class="qi-tag-input">🏷 搜索或新建标签，回车确认</div>
+
+          <div class="qi-fav-row">
+            <div class="qi-fav">
+              <span class="fav-chip">高一</span>
+              <span class="fav-chip">函数</span>
+              <span class="fav-chip">易错</span>
+            </div>
+            <div class="fav-plus">＋</div>
+          </div>
+
+          <div class="qi-row3">
+            <div class="btn-ghost grow">组合一 ▾</div>
+            <div class="btn-ghost btn-layout">双</div>
+            <div class="qi-spacer"></div>
+            <div class="btn-note">📎 附加<span class="dot"></span></div>
+            <div class="btn-confirm">✅ 确认</div>
+          </div>
+
+          <div class="qi-note-area">
+            <div class="seg-head">
+              <span class="seg-title">✏️ 文字笔记（随题目保存）</span>
+              <span class="seg-sub">18/500</span>
+            </div>
+            <div class="note-text" style="min-height:44px">本题用换元法简化，注意定义域<span class="cursor"></span></div>
+
+            <div class="hw-block">
+              <div class="seg-head" style="margin-bottom:0">
+                <span class="seg-title">📸 手写笔记照片（本题另一图片版本）</span>
+                <span class="seg-sub">1 张</span>
+              </div>
+              <div class="hw-body">
+                <div class="hw-thumb-wrap">
+                  <div class="hw-thumb">
+                    <svg viewBox="0 0 78 78" width="78" height="78" aria-label="手写笔记照片">
+                      <rect width="78" height="78" fill="#FFFDF8"/>
+                      <line x1="9" y1="20" x2="69" y2="20" stroke="#EFEBFF" stroke-width="1"/>
+                      <line x1="9" y1="32" x2="69" y2="32" stroke="#EFEBFF" stroke-width="1"/>
+                      <line x1="9" y1="44" x2="69" y2="44" stroke="#EFEBFF" stroke-width="1"/>
+                      <line x1="9" y1="56" x2="69" y2="56" stroke="#EFEBFF" stroke-width="1"/>
+                      <path d="M12 24 q6 -5 12 0 t12 0 t10 -1" fill="none" stroke="#4B4560" stroke-width="1.6" stroke-linecap="round"/>
+                      <path d="M12 36 q5 -4 10 1 t11 -2 t12 1" fill="none" stroke="#4B4560" stroke-width="1.6" stroke-linecap="round"/>
+                      <path d="M12 48 q7 -3 13 1 t9 -1" fill="none" stroke="#FF7847" stroke-width="1.8" stroke-linecap="round"/>
+                      <circle cx="61" cy="16" r="3.6" fill="#9D7BFF"/>
+                    </svg>
+                  </div>
+                  <span class="hw-del">×</span>
+                  <span class="hw-badge">笔记 v2</span>
+                </div>
+                <div class="hw-actions">
+                  <span class="hw-btn primary">📷 拍一张</span>
+                  <span class="hw-btn">🖼️ 相册</span>
+                  <span class="hw-btn dashed">＋ 再拍一张</span>
+                </div>
+              </div>
+              <div class="note-tip">保存后可在题目详情「📝 题目图片」下拉中像其他版本一样切换查看，复习时同样可见，并随同步上传</div>
+            </div>
+          </div>
+
+          <div class="note-tip" style="margin-top:6px">已选择 2 个标签 · 点击确认保存本题</div>
+        </div>
+      </div>
+      <ul class="v-notes">
+        <li class="good">第三行只多 0 个按钮：固定控件 220px，「组合」在 430/390/360/320 四种屏宽下分别剩 186/146/116/76px，<b>全都放得下</b></li>
+        <li class="good">未来再加附件类型也不用再动按钮行</li>
+        <li class="bad">多一层语义：用户要点开「附加」才知道里面有手写拍照，发现性下降</li>
+        <li class="bad">「📝 笔记」按钮改名后，现有 E2E 用例（<b>#qi-note-btn</b> 文案断言）与用户肌肉记忆都要跟着改</li>
+      </ul>
+    </section>
+
+    <!-- ============ 方案 C ============ -->
+    <section class="variant">
+      <div class="v-head"><span class="v-tag rec">方案 C · 推荐兜底</span><h2>并排双按钮 + 窄屏图标化（360px 演示）</h2></div>
+      <div class="phone narrow">
+        <div class="screen-bg">
+          <div class="bcard"><h3>📚 本地题库</h3><p>共 128 道题目 · 12 个标签</p></div>
+          <div class="brow">
+            <div class="bcard"><h3>题目列表</h3><p>№ 127 一元二次方程…</p><p>№ 126 函数单调性…</p></div>
+          </div>
+          <div class="bcard"><h3>复习提醒</h3><p>今日待复习 6 题</p></div>
+        </div>
+
+        <div class="qi-bar">
+          <div class="qi-row1">
+            <div class="thumb-wrap"><div class="thumb q">📷<span>题图已选</span></div><span class="badge q">题</span></div>
+            <div class="thumb-wrap"><div class="thumb a">＋<span>添加答图</span></div><span class="badge a">答</span></div>
+            <div class="swap-btn">⇄</div>
+            <div class="qi-tags">
+              <span class="tag-chip">高一</span>
+              <span class="tag-chip purple">函数</span>
+            </div>
+          </div>
+
+          <div class="qi-tag-input">🏷 搜索或新建标签，回车确认</div>
+
+          <div class="qi-fav-row">
+            <div class="qi-fav">
+              <span class="fav-chip">高一</span>
+              <span class="fav-chip">函数</span>
+            </div>
+            <div class="fav-plus">＋</div>
+          </div>
+
+          <div class="qi-row3">
+            <div class="btn-ghost grow">组合一 ▾</div>
+            <div class="btn-ghost btn-layout">双</div>
+            <div class="qi-spacer"></div>
+            <div class="btn-icon">📝<span class="dot"></span></div>
+            <div class="btn-icon">📸<span class="dot"></span></div>
+            <div class="btn-confirm">✅ 确认</div>
+          </div>
+
+          <div class="qi-note-area">
+            <div class="note-head">
+              <span class="note-title">✏️ 文字笔记（随题目保存）</span>
+              <span class="note-char">18/500</span>
+            </div>
+            <div class="note-text" style="min-height:44px">本题用换元法简化，注意定义域<span class="cursor"></span></div>
+
+            <div class="hw-block">
+              <div class="note-head" style="margin-bottom:0">
+                <span class="note-title">📸 手写笔记照片（本题另一图片版本）</span>
+                <span class="note-char">1 张</span>
+              </div>
+              <div class="hw-body">
+                <div class="hw-thumb-wrap">
+                  <div class="hw-thumb" style="width:66px;height:66px">
+                    <svg viewBox="0 0 78 78" width="66" height="66" aria-label="手写笔记照片">
+                      <rect width="78" height="78" fill="#FFFDF8"/>
+                      <line x1="9" y1="20" x2="69" y2="20" stroke="#EFEBFF" stroke-width="1"/>
+                      <line x1="9" y1="32" x2="69" y2="32" stroke="#EFEBFF" stroke-width="1"/>
+                      <line x1="9" y1="44" x2="69" y2="44" stroke="#EFEBFF" stroke-width="1"/>
+                      <line x1="9" y1="56" x2="69" y2="56" stroke="#EFEBFF" stroke-width="1"/>
+                      <path d="M12 24 q6 -5 12 0 t12 0 t10 -1" fill="none" stroke="#4B4560" stroke-width="1.6" stroke-linecap="round"/>
+                      <path d="M12 36 q5 -4 10 1 t11 -2 t12 1" fill="none" stroke="#4B4560" stroke-width="1.6" stroke-linecap="round"/>
+                      <path d="M12 48 q7 -3 13 1 t9 -1" fill="none" stroke="#FF7847" stroke-width="1.8" stroke-linecap="round"/>
+                      <circle cx="61" cy="16" r="3.6" fill="#9D7BFF"/>
+                    </svg>
+                  </div>
+                  <span class="hw-del">×</span>
+                  <span class="hw-badge">笔记 v2</span>
+                </div>
+                <div class="hw-actions">
+                  <span class="hw-btn primary">📷 拍一张</span>
+                  <span class="hw-btn">🖼️ 相册</span>
+                </div>
+              </div>
+              <div class="note-tip">窄屏收起文字标签，图标 + 圆点表示「已有内容」；文字标签在展开区标题里保留</div>
+            </div>
+          </div>
+
+          <div class="note-tip" style="margin-top:6px">已选择 2 个标签 · 点击确认保存本题</div>
+        </div>
+      </div>
+      <ul class="v-notes">
+        <li class="good">图标态固定控件 186px：320px 老机型上「组合」仍剩 80px（&gt; 它需要的 74px），<b>全线不溢出</b></li>
+        <li class="good">≥390px 仍保留文字标签，信息密度不牺牲</li>
+        <li class="bad">同一功能的入口在不同屏宽下长相不同，需要真机逐档核对</li>
+        <li class="bad">图标态靠「📝 / 📸」辨析语义，建议首次进入给一次气泡提示（栏内已有 <b>#qi-hint</b> 位可复用）</li>
+      </ul>
+    </section>
+
+  </div>
+
+  <div class="panel">
+    <h3>第三行宽度预算（Chromium 实测，非目测）</h3>
+    <p>
+      控件自然宽度：<b>组合一 ▾ 74</b>、<b>双 36</b>、<b>📝 笔记 82</b>、<b>📸 手写 82</b>、<b>✅ 确认 78</b>、间距 6px/个。
+      方案 A 的固定控件合计 302px（不含「组合」），方案 C 的图标态固定控件仅 186px。
+    </p>
+    <table>
+      <thead>
+        <tr><th>屏宽</th><th>可用宽<br>（减 24px 内边距）</th><th>方案 A<br>「组合」剩余</th><th>方案 C（图标态）<br>「组合」剩余</th><th>结论</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>430（Pro Max）</td><td class="num">406</td><td class="num">98</td><td class="num">214</td><td class="ok">A / C 均可</td></tr>
+        <tr><td>390（iPhone 14/15）</td><td class="num">366</td><td class="num">58</td><td class="num">174</td><td class="err">A 仍截断成「组…」</td></tr>
+        <tr><td>360（主流安卓下限）</td><td class="num">336</td><td class="num">28</td><td class="num">144</td><td class="err">A 明显挤压，C 从容</td></tr>
+        <tr><td>320（老机型）</td><td class="num">296</td><td class="num">-12</td><td class="num">104</td><td class="err">A 溢出，C 仍安全</td></tr>
+      </tbody>
+    </table>
+    <p style="margin-top:10px;font-size:12px;color:var(--text-secondary);line-height:1.7">
+      「组合」按钮要完整显示「组合一 ▾」需 <b>74px</b>。方案 A 从 390px 起就已跌破这条线——上面的样稿截图里那个「组…」就是实测渲染结果。
+      方案 B（单一「📎 附加」入口）固定控件 220px，四种屏宽下「组合」分别剩 186 / 146 / 116 / 76px，是唯一不需要响应式兜底就能跑满全屏宽的方案。
+    </p>
+
+    <h3 style="margin-top:22px">这版样稿里我特意留白的三个点（需要你定）</h3>
+    <ul>
+      <li><b>归属</b>：手写笔记照片是挂到「本次快速导入新建的这道题」，还是挂到「某道已有题目」？（后者目前已有路径：题目详情 →「+ 添加版本」→ 拍照）</li>
+      <li><b>张数</b>：一道题只允许 1 张手写笔记，还是可以连拍多张、各占一个版本（v2、v3…）？图中按「1 张 + 可再拍」画的。</li>
+      <li><b>命名</b>：版本名固定「手写笔记」，还是沿用现有「笔记 v2」自动编号？这决定详情页下拉里能不能一眼区分"题图版本"和"手写版本"。</li>
+    </ul>
+  </div>
+
+</div>
+</body>
+</html>

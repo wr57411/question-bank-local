@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal } from './common';
 const w = window as any;
 
 export async function checkPendingReviews(): Promise<void> {
@@ -12,7 +13,7 @@ export function showReviewReminder(questions: Record<string, any>[]): void {
   if (existing) existing.remove();
   const modal = document.createElement('div');
   modal.id = 'review-reminder-modal';
-  modal.className = 'modal active';
+  modal.className = 'modal';
   modal.style.cssText = 'z-index:9998';
   modal.innerHTML = `<div class="modal-content" style="max-width:500px;max-height:80vh;overflow-y:auto">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
@@ -26,6 +27,7 @@ export function showReviewReminder(questions: Record<string, any>[]): void {
       </div>
   </div>`;
   document.body.appendChild(modal);
+  openModal('review-reminder-modal');
   const list = document.getElementById('review-reminder-list')!;
   questions.forEach(q => {
     const item = document.createElement('div');

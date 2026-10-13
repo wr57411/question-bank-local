@@ -7,9 +7,6 @@ export function applyPlatformUI(): void {
   const cap = (window as any).Capacitor;
   const platform = (cap && cap.getPlatform) ? cap.getPlatform() : 'web';
   if (platform === 'android') return;
-  hideEl('floating-toggle-btn');
-  hideEl('pending-blank-tab');
-  hideEl('pending-photos-tab');
   const aiLabel = document.getElementById('ai-status-label');
   const aiDesc = document.getElementById('ai-status-desc');
   hideEl('ai-load-btn');

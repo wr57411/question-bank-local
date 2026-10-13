@@ -1,71 +1,58 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { dbQuestions } from '../data/stores';
+import { dbCreateTag, dbUpdateTag, dbGetAllGroups, dbGetGroup, getGroupManualMemberCount } from '../data';
+import { populateCategorySelect } from './tag-manage';
+import { openModal, closeModal } from './common';
+import { encodeQuery, encodeImage, searchSemantic } from '../services/semantic-search';
+import { compressNoteImage } from '../services/image';
 
 const w = window as any;
 
-let currentAddMode = 'photo';
-let batchRowCount = 0;
+type QuestionGridLayout = 'single' | 'double';
+const GRID_LAYOUT_STORAGE_KEY = 'question-grid-layout';
+
+export function getQuestionGridLayout(): QuestionGridLayout {
+  try {
+    return localStorage.getItem(GRID_LAYOUT_STORAGE_KEY) === 'double' ? 'double' : 'single';
+  } catch { return 'single'; }
+}
+
+export function applyQuestionGridLayout(layout: QuestionGridLayout = getQuestionGridLayout()): void {
+  const list = document.getElementById('questions-list');
+  if (!list) return;
+  list.classList.toggle('grid-single', layout === 'single');
+  list.classList.toggle('grid-double', layout === 'double');
+  const btn = document.getElementById('grid-layout-toggle');
+  if (btn) btn.textContent = layout === 'single' ? '▤ 双栏' : '▦ 单栏';
+}
+
+export function toggleQuestionGridLayout(): void {
+  const next: QuestionGridLayout = getQuestionGridLayout() === 'single' ? 'double' : 'single';
+  try { localStorage.setItem(GRID_LAYOUT_STORAGE_KEY, next); } catch {}
+  applyQuestionGridLayout(next);
+}
+
 let openInlineTagAddId: string | null = null;
 let openInlineTagSearchValue = '';
 let currentBookFilter = '';
-let allBookNames: string[] = [];
 let _inlinePollTimers: Record<string, ReturnType<typeof setInterval>> = {};
 
-export function switchAddMode(mode: string): void {
-  currentAddMode = mode;
-  const photoSection = document.getElementById('photo-section')!;
-  const batchSection = document.getElementById('batch-section')!;
-  const bookSection = document.getElementById('book-info-section')!;
-  const photoBtn = document.getElementById('mode-photo-btn')!;
-  const textBtn = document.getElementById('mode-text-btn')!;
-  const batchBtn = document.getElementById('mode-batch-btn')!;
-  const questionLabel = document.getElementById('question-image-label')!;
-  [photoBtn, textBtn, batchBtn].forEach(btn => { btn.style.background = 'var(--surface-dim)'; btn.style.color = 'var(--text-secondary)'; (btn as HTMLElement).style.boxShadow = '0 3px 0 var(--border)'; });
-  if (mode === 'photo') {
-    photoSection.style.display = ''; batchSection.style.display = 'none'; bookSection.style.display = '';
-    photoBtn.style.background = 'var(--primary)'; photoBtn.style.color = '#fff'; photoBtn.style.boxShadow = '0 6px 16px rgba(255,120,71,.3)';
-    questionLabel.textContent = '题目图片（笔记）*';
-    const cap = (window as any).Capacitor;
-    const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
-    const MediaPlugin = isNative ? (cap?.Plugins?.MediaGallery ?? cap?.Plugins?.Media ?? null) : null;
-    if (isNative && MediaPlugin) { w.loadGalleryThumbnails('question'); w.loadGalleryThumbnails('answer'); }
-  } else if (mode === 'text') {
-    photoSection.style.display = 'none'; batchSection.style.display = 'none'; bookSection.style.display = '';
-    textBtn.style.background = 'var(--primary)'; textBtn.style.color = '#fff'; textBtn.style.boxShadow = '0 6px 16px rgba(255,120,71,.3)';
-  } else if (mode === 'batch') {
-    photoSection.style.display = 'none'; batchSection.style.display = ''; bookSection.style.display = 'none';
-    batchBtn.style.background = 'var(--primary)'; batchBtn.style.color = '#fff'; batchBtn.style.boxShadow = '0 6px 16px rgba(255,120,71,.3)';
-    if ((document.getElementById('batch-rows') as HTMLElement).children.length === 0) addBatchRow();
-    const lastBookName = localStorage.getItem('lastBookName');
-    if (lastBookName) (document.getElementById('batch-book-name') as HTMLInputElement).value = lastBookName;
-  }
+// 2.9 筛选层：章节/专题为单选；列表只消费「成员集合」，绝不解析表达式（§0 E6）
+let _systemMemberTagIds: Set<string> = new Set();
+
+export function isSystemMemberTag(tagId: string): boolean {
+  return _systemMemberTagIds.has(tagId);
 }
 
-export function addBatchRow(): void {
-  batchRowCount++;
-  const rowId = 'batch-row-' + batchRowCount;
-  const container = document.getElementById('batch-rows')!;
-  const row = document.createElement('div');
-  row.id = rowId;
-  row.style.cssText = 'display:flex;gap:8px;margin-bottom:8px;align-items:center';
-  row.innerHTML = `<input type="number" placeholder="页码" class="batch-page" style="flex:1;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" /><input type="text" placeholder="题号" class="batch-number" style="flex:1;padding:8px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm)" /><button type="button" onclick="removeBatchRow('${rowId}')" style="padding:6px 10px;background:var(--danger);box-shadow:none;font-size:12px;border:none;border-radius:var(--radius-sm);cursor:pointer;color:#fff">✕</button>`;
-  container.appendChild(row);
+export async function refreshSystemMemberTagIds(): Promise<void> {
+  try {
+    const groups = await dbGetAllGroups();
+    _systemMemberTagIds = new Set(groups.map((g: any) => g.member_tag_id).filter(Boolean));
+  } catch { _systemMemberTagIds = new Set(); }
 }
 
-export function removeBatchRow(rowId: string): void {
-  const container = document.getElementById('batch-rows')!;
-  const row = document.getElementById(rowId);
-  if (row && container.children.length > 1) row.remove();
-}
-
-export function getBatchEntries(): { page: string; number: string }[] {
-  const entries: { page: string; number: string }[] = [];
-  document.querySelectorAll('#batch-rows > div').forEach(row => {
-    const page = (row.querySelector('.batch-page') as HTMLInputElement).value.trim();
-    const number = (row.querySelector('.batch-number') as HTMLInputElement).value.trim();
-    if (page || number) entries.push({ page, number });
-  });
-  return entries;
+export function hasActiveListFilter(): boolean {
+  return !!(w.activeFilterTags.length || w.activeFilterChapterId || w.activeFilterTopicId || currentBookFilter);
 }
 
 export function initQuestionForm(): void {
@@ -74,47 +61,15 @@ export function initQuestionForm(): void {
     const qi = w.croppedImages.question, ai = w.croppedImages.answer, bi = w.croppedImages.blank;
     const tags = [...w.formSelectedTagIds];
     const versions = w.getSelectedVersions();
-    const bookName = (document.getElementById('book-name') as HTMLInputElement).value.trim();
-    const pageNumber = (document.getElementById('page-number') as HTMLInputElement).value.trim();
-    const questionNumber = (document.getElementById('question-number') as HTMLInputElement).value.trim();
-
-    if (currentAddMode === 'batch') {
-      const batchBookName = (document.getElementById('batch-book-name') as HTMLInputElement).value.trim();
-      const entries = getBatchEntries();
-      if (!batchBookName) { w.showStatus('请输入书名', 'error'); return; }
-      if (entries.length === 0) { w.showStatus('请添加至少一道题目', 'error'); return; }
-      try {
-        const btn = (e.target as HTMLElement).querySelector('button[type="submit"]') as HTMLButtonElement;
-        btn.disabled = true; btn.textContent = '处理中...';
-        let count = 0;
-        for (const entry of entries) {
-          const bookInfo = { book_name: batchBookName, page_number: entry.page, question_number: entry.number };
-          await w.dbCreateQuestion(null, null, tags, 0, null, versions, bookInfo);
-          count++;
-        }
-        localStorage.setItem('lastBookName', batchBookName);
-        document.getElementById('batch-rows')!.innerHTML = '';
-        addBatchRow();
-        w.formSelectedTagIds = []; w.renderFormSelectedTags();
-        w.resetVersionCheckboxes();
-        await loadQuestions(); await loadBookFilter();
-        w.showStatus(`成功添加 ${count} 道题目`, 'success');
-        btn.disabled = false; btn.textContent = '添加题目';
-      } catch (err: any) { w.showStatus('批量添加失败: ' + err.message, 'error'); const btn = (e.target as HTMLElement).querySelector('button[type="submit"]') as HTMLButtonElement; btn.disabled = false; btn.textContent = '添加题目'; }
-      return;
-    }
-
-    if (currentAddMode === 'text' && !bookName && !pageNumber && !questionNumber) { w.showStatus('纯文字模式下请至少填写一项书本信息', 'error'); return; }
-    if (currentAddMode === 'photo' && !qi) { w.showStatus('请先选择题目图片', 'error'); return; }
+    if (!qi) { w.showStatus('请先选择题目图片', 'error'); return; }
 
     const lr = document.querySelector('input[name="layout_type"]:checked') as HTMLInputElement | null;
     const lt = lr ? parseInt(lr.value) : 0;
-    const bookInfo = (pageNumber || questionNumber) ? { book_name: bookName, page_number: pageNumber, question_number: questionNumber } : null;
 
     try {
       const btn = (e.target as HTMLElement).querySelector('button[type="submit"]') as HTMLButtonElement;
       btn.disabled = true; btn.textContent = '处理中...';
-      const newQuestion = await w.dbCreateQuestion(qi, ai, tags, lt, bi, versions, bookInfo);
+      const newQuestion = await w.dbCreateQuestion(qi, ai, tags, lt, bi, versions, null);
       const textNote = ((document.getElementById('form-text-note') as HTMLInputElement)?.value || '').trim();
       if (qi) await w.dbAddQuestionNote(newQuestion.id, qi, '笔记 v1', textNote);
       const comment = (document.getElementById('form-comment') as HTMLInputElement).value.trim();
@@ -124,7 +79,8 @@ export function initQuestionForm(): void {
         if (ev.image) {
           const labelInput = document.getElementById('extra_' + ev.idx + '-label') as HTMLInputElement | null;
           const label = (labelInput ? labelInput.value.trim() : '') || '笔记 v' + noteIdx;
-          await w.dbAddQuestionNote(newQuestion.id, ev.image, label, '');
+          const image = await compressNoteImage(ev.image);
+          await w.dbAddQuestionNote(newQuestion.id, image, label, '');
           noteIdx++;
         }
       }
@@ -134,31 +90,21 @@ export function initQuestionForm(): void {
       w.formSelectedTagIds = []; w.renderFormSelectedTags();
       document.querySelectorAll('.layout-option').forEach(l => { (l as HTMLElement).style.borderColor = 'var(--border-light)'; (l as HTMLElement).style.background = 'var(--surface)'; });
       w.resetVersionCheckboxes();
-      if (bookName) localStorage.setItem('lastBookName', bookName);
-      (document.getElementById('page-number') as HTMLInputElement).value = '';
-      (document.getElementById('question-number') as HTMLInputElement).value = '';
       (document.getElementById('form-comment') as HTMLInputElement).value = '';
       (document.getElementById('form-text-note') as HTMLInputElement).value = '';
       w.clearFormGeneratedTags();
-      await loadQuestions(); await loadBookFilter();
+      await loadQuestions();
       w.showStatus('题目添加成功', 'success');
       btn.disabled = false; btn.textContent = '添加题目';
     } catch (err: any) { w.showStatus('添加失败: ' + err.message, 'error'); const btn = (e.target as HTMLElement).querySelector('button[type="submit"]') as HTMLButtonElement; btn.disabled = false; btn.textContent = '添加题目'; }
   });
 }
 
-export async function loadQuestions(): Promise<void> { w.allQuestions = await w.dbGetAllQuestions(); renderQuestions(); }
-
-export async function loadBookFilter(): Promise<void> {
-  allBookNames = await w.dbGetAllBookNames();
-  const select = document.getElementById('book-filter') as HTMLSelectElement;
-  select.innerHTML = '<option value="">📚 全部书本</option>';
-  allBookNames.forEach(name => { const opt = document.createElement('option'); opt.value = name; opt.textContent = '📖 ' + name; select.appendChild(opt); });
-  const datalist = document.getElementById('book-name-list');
-  if (datalist) { datalist.innerHTML = ''; allBookNames.forEach(name => { const opt = document.createElement('option'); opt.value = name; datalist.appendChild(opt); }); }
+export async function loadQuestions(): Promise<void> {
+  w.allQuestions = await w.dbGetAllQuestions();
+  await refreshSystemMemberTagIds();
+  renderQuestions();
 }
-
-export function filterByBook(bookName: string): void { currentBookFilter = bookName; renderQuestions(); }
 
 export function fuzzyMatchTags(searchText: string): any[] {
   if (!searchText || !w.allTags.length) return [];
@@ -200,27 +146,138 @@ export function showTagSuggestions(): void {
   dropdown.classList.add('show');
 }
 
-export function filterQuestions(): void { showTagSuggestions(); renderQuestions(); }
+export function filterQuestions(): void { showTagSuggestions(); renderQuestions(); scheduleSemanticEnhance(); }
 
 export function getFilteredQuestions(): any[] {
   const currentVersionId = w.getCurrentVersionId();
   const searchText = (document.getElementById('search-input') as HTMLInputElement)?.value?.toLowerCase()?.trim() || '';
   let filtered = w.allQuestions.filter((q: any) => { const versions = q.versions || []; return versions.length === 0 || versions.includes(currentVersionId); });
-  if (w.activeFilterTags.length) { filtered = filtered.filter((q: any) => { const qt = q.question_tags.map((t: any) => t.tags.id); return w.activeFilterTags.some((f: string) => qt.includes(f)); }); }
+  // 层间 AND：章节 ∩ 专题 ∩ 标签 ∩ 书籍 ∩ 搜索。章节/专题用预计算的成员集合，列表不解析表达式。
+  if (w.activeFilterChapterId && w.activeFilterChapterIds) { filtered = filtered.filter((q: any) => w.activeFilterChapterIds.has(q.id)); }
+  if (w.activeFilterTopicId && w.activeFilterTopicIds) { filtered = filtered.filter((q: any) => w.activeFilterTopicIds.has(q.id)); }
+  if (w.activeFilterTags.length) { filtered = filtered.filter((q: any) => { const qt = q.question_tags.map((t: any) => t.id); return w.activeFilterTags.some((f: string) => qt.includes(f)); }); }
   if (currentBookFilter) { filtered = filtered.filter((q: any) => q.book_name === currentBookFilter); }
-  if (searchText) { filtered = filtered.filter((q: any) => { const bookMatch = (q.book_name || '').toLowerCase().includes(searchText); const pageMatch = (q.page_number || '').toLowerCase().includes(searchText); const numMatch = (q.question_number || '').toLowerCase().includes(searchText); const tagMatch = q.question_tags.some((t: any) => t.tags.name.toLowerCase().includes(searchText)); const summaryMatch = (q.semantic_summary || '').toLowerCase().includes(searchText); return bookMatch || pageMatch || numMatch || tagMatch || summaryMatch; }); }
+  if (searchText) { filtered = filtered.filter((q: any) => { const bookMatch = (q.book_name || '').toLowerCase().includes(searchText); const pageMatch = (q.page_number || '').toLowerCase().includes(searchText); const numMatch = (q.question_number || '').toLowerCase().includes(searchText); const tagMatch = q.question_tags.some((t: any) => t.name.toLowerCase().includes(searchText)); const summaryMatch = (q.semantic_summary || '').toLowerCase().includes(searchText); return bookMatch || pageMatch || numMatch || tagMatch || summaryMatch; }); }
   return filtered;
 }
 
+let _semanticToken = 0;
+let _imageSearchToken = 0;
+let _semanticDebounce: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleSemanticEnhance(): void {
+  if (_semanticDebounce) clearTimeout(_semanticDebounce);
+  _semanticDebounce = setTimeout(() => { void enhanceWithSemantic(); }, 400);
+}
+
+const minScoreFor = (engineId: string): number => {
+  try {
+    const raw = localStorage.getItem('semanticMinScoreByEngine');
+    const map = raw ? (JSON.parse(raw) as Record<string, number>) : {};
+    return map[engineId] ?? 0.25;
+  } catch {
+    return 0.25;
+  }
+};
+
+async function enhanceWithSemantic(): Promise<void> {
+  const input = document.getElementById('search-input') as HTMLInputElement | null;
+  const text = input?.value?.trim() || '';
+  const token = ++_semanticToken;
+  const container = document.getElementById('semantic-results');
+  if (!container) return;
+  if (!text || text.length < 2) { container.replaceChildren(); return; }
+  container.replaceChildren();
+  const loading = document.createElement('div');
+  loading.className = 'semantic-title';
+  loading.textContent = '语义分析中…';
+  container.appendChild(loading);
+  if (!w.SemanticService) { container.replaceChildren(); return; }
+  const res = await w.SemanticService.search({ query: { kind: 'text', text }, minScore: minScoreFor(w.semanticEngineId) });
+  if (token !== _semanticToken) return;
+  if (res.degraded) { container.replaceChildren(); return; }
+  const literalIds = new Set(getFilteredQuestions().map((q: any) => q.id));
+  const filtered = res.hits.filter((h: { id: string }) => !literalIds.has(h.id));
+  renderSemanticResults(container, filtered, '语义相关');
+  if (filtered.length) container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+export async function handleImageSearch(): Promise<void> {
+  const token = ++_imageSearchToken;
+  if (_semanticDebounce) { clearTimeout(_semanticDebounce); _semanticDebounce = null; }
+  _semanticToken++;
+  if (typeof w.Camera === 'undefined' || !w.Camera) {
+    w.showStatus('以图搜题仅支持原生 App（Web 端请使用文字搜索）', 'error');
+    return;
+  }
+  let dataUrl: string;
+  try {
+    const photo = await w.Camera.getPhoto({
+      quality: 70, allowEditing: false, resultType: 'dataUrl', source: 'prompt', width: 1200,
+    });
+    dataUrl = photo.dataUrl;
+  } catch {
+    return;
+  }
+  const container = document.getElementById('semantic-results');
+  if (!container) return;
+  container.replaceChildren();
+  const loading = document.createElement('div');
+  loading.className = 'semantic-title';
+  loading.textContent = '图片匹配中…';
+  container.appendChild(loading);
+  container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (!w.SemanticService) {
+    container.replaceChildren();
+    w.showStatus('图片匹配服务不可用', 'error');
+    return;
+  }
+  const res = await w.SemanticService.search({ query: { kind: 'image', dataUrl }, topK: 12 });
+  if (token !== _imageSearchToken) return;
+  if (res.degraded) {
+    container.replaceChildren();
+    w.showStatus('图片匹配服务不可用', 'error');
+    return;
+  }
+  renderSemanticResults(container, res.hits, '图片匹配');
+  if (res.hits.length) container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  if (!res.hits.length) {
+    const empty = document.createElement('div');
+    empty.className = 'semantic-title';
+    empty.textContent = '图片匹配：没有找到相似题目';
+    container.replaceChildren(empty);
+  }
+}
+
+function renderSemanticResults(container: HTMLElement, hits: { id: string; score: number }[], title: string): void {
+  container.replaceChildren();
+  if (!hits.length) return;
+  const titleEl = document.createElement('div');
+  titleEl.className = 'semantic-title';
+  titleEl.textContent = `${title} (${hits.length})`;
+  container.appendChild(titleEl);
+  const byId = new Map((w.allQuestions as any[]).map((q: any) => [q.id, q]));
+  hits.forEach((h) => {
+    const q = byId.get(h.id);
+    if (!q || q.deleted_at) return;
+    const card = document.createElement('div');
+    card.className = 'semantic-card';
+    card.innerHTML = `<img src="${q.question_image_url}" alt=""><span class="score">${Math.round(h.score * 100)}%</span>`;
+    card.onclick = () => w.showQuestionDetail(q.id);
+    container.appendChild(card);
+  });
+}
+
 export function renderQuestions(): void {
+  applyQuestionGridLayout();
   const container = document.getElementById('questions-list')!;
   const filtered = getFilteredQuestions();
-  document.getElementById('question-count')!.textContent = w.activeFilterTags.length ? `(筛选: ${filtered.length}/${w.allQuestions.length})` : `(${filtered.length}/${w.allQuestions.length})`;
+  document.getElementById('question-count')!.textContent = hasActiveListFilter() ? `(筛选: ${filtered.length}/${w.allQuestions.length})` : `(${filtered.length}/${w.allQuestions.length})`;
   updateSelectedCount();
   if (!filtered.length) { container.innerHTML = '<div class="empty-state"><div class="icon">📝</div>暂无题目</div>'; return; }
   container.replaceChildren();
   filtered.forEach((q: any) => {
-    const tags = q.question_tags.map((qt: any) => qt.tags);
+    const tags = q.question_tags;
     const isChecked = w.selectedQuestions.has(q.id), inBasket = w.questionBasket.has(q.id);
     const card = document.createElement('div'); card.className = 'question-card' + (isChecked ? ' selected' : ''); card.dataset.id = q.id;
     const cb = document.createElement('button'); cb.className = 'q-checkbox' + (isChecked ? ' checked' : '');
@@ -245,12 +302,20 @@ export function renderQuestions(): void {
       info.appendChild(summaryWrap);
     }
     const tagsWrap = document.createElement('div'); tagsWrap.className = 'tags';
-    tags.forEach((t: any) => { const te = document.createElement('span'); te.className = 'tag'; te.style.background = t.color + '20'; te.textContent = t.name; tagsWrap.appendChild(te); });
+    // 2.12 系统成员标签（专题·X）以 chip 显示并加区分标记；数据沿用扁平契约 t.id/t.name/t.color
+    tags.forEach((t: any) => {
+      const te = document.createElement('span');
+      const sys = isSystemMemberTag(t.id);
+      te.className = 'tag' + (sys ? ' tag-system' : '');
+      te.style.background = t.color + '20';
+      te.textContent = (sys ? '📁 ' : '') + t.name;
+      tagsWrap.appendChild(te);
+    });
     const addBtn = document.createElement('span'); addBtn.className = 'tag-add-btn'; addBtn.textContent = '+';
     addBtn.onclick = (ev) => { ev.stopPropagation(); toggleInlineTagAdd(q.id); }; tagsWrap.appendChild(addBtn);
     const inlineAdd = document.createElement('div'); inlineAdd.id = 'inline-add-' + q.id; inlineAdd.className = 'inline-tag-add hidden';
     inlineAdd.onclick = (ev) => ev.stopPropagation();
-    inlineAdd.innerHTML = `<input type="text" id="inline-tag-search-${q.id}" placeholder="🔍 搜索或输入标签名..." oninput="onInlineTagSearch('${q.id}')" onfocus="startInlinePoll('${q.id}')" onblur="stopInlinePoll('${q.id}')" onkeydown="onInlineTagKeydown(event,'${q.id}')" /><div id="inline-tag-results-${q.id}" class="inline-tag-results"></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button onclick="showNewTagModal('form')" style="padding:4px 10px;font-size:11px;background:var(--accent);box-shadow:none">＋ 新建标签</button><button onclick="toggleInlineTagAdd('${q.id}')" class="secondary" style="padding:4px 10px;font-size:11px">关闭</button></div><div id="inline-tag-added-${q.id}" class="inline-tag-added" style="display:none"></div>`;
+    inlineAdd.innerHTML = `<input type="text" id="inline-tag-search-${q.id}" placeholder="🔍 搜索或输入标签名..." oninput="onInlineTagSearch('${q.id}')" onfocus="startInlinePoll('${q.id}')" onblur="stopInlinePoll('${q.id}')" onkeydown="onInlineTagKeydown(event,'${q.id}')" /><div id="inline-tag-results-${q.id}" class="inline-tag-results"></div><select id="inline-tag-category-${q.id}" style="display:block;width:100%;box-sizing:border-box;margin:4px 0;padding:4px 8px;font-size:11px;border:1px solid var(--border-light);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)"></select><div style="display:flex;gap:6px;flex-wrap:wrap"><button onclick="showNewTagModal('form')" style="padding:4px 10px;font-size:11px;background:var(--accent);box-shadow:none">＋ 新建标签</button><button onclick="toggleInlineTagAdd('${q.id}')" class="secondary" style="padding:4px 10px;font-size:11px">关闭</button></div><div id="inline-tag-added-${q.id}" class="inline-tag-added" style="display:none"></div>`;
     info.appendChild(tagsWrap); info.appendChild(inlineAdd); card.appendChild(info);
     container.appendChild(card);
   });
@@ -268,7 +333,7 @@ function restoreInlineTagAdd(): void {
 export function toggleInlineTagAdd(id: string): void {
   const el = document.getElementById('inline-add-' + id)!;
   el.classList.toggle('hidden');
-  if (!el.classList.contains('hidden')) { openInlineTagAddId = id; openInlineTagSearchValue = ''; const input = document.getElementById('inline-tag-search-' + id) as HTMLInputElement; if (input) { input.value = ''; input.focus(); } onInlineTagSearch(id); }
+  if (!el.classList.contains('hidden')) { openInlineTagAddId = id; openInlineTagSearchValue = ''; const input = document.getElementById('inline-tag-search-' + id) as HTMLInputElement; if (input) { input.value = ''; input.focus(); } void populateCategorySelect(document.getElementById('inline-tag-category-' + id) as HTMLSelectElement | null, false); onInlineTagSearch(id); }
   else { openInlineTagAddId = null; openInlineTagSearchValue = ''; }
 }
 
@@ -282,7 +347,7 @@ export function onInlineTagSearch(qId: string): void {
   const query = input.value.trim().toLowerCase();
   if (openInlineTagAddId === qId) openInlineTagSearchValue = query;
   const question = w.allQuestions.find((q: any) => q.id === qId);
-  const existingTagIds = question ? question.question_tags.map((qt: any) => qt.tags.id) : [];
+  const existingTagIds = question ? question.question_tags.map((qt: any) => qt.id) : [];
   let matches = w.allTags.filter((t: any) => !existingTagIds.includes(t.id));
   if (query) matches = matches.filter((t: any) => t.name.toLowerCase().includes(query));
   matches = matches.slice(0, 12);
@@ -291,7 +356,7 @@ export function onInlineTagSearch(qId: string): void {
     const createBtn = document.createElement('span'); createBtn.className = 'inline-tag-result';
     createBtn.style.cssText = 'background:var(--accent-light);border-color:var(--accent);color:var(--accent)';
     createBtn.textContent = '＋ 创建: "' + input.value.trim() + '"';
-    createBtn.onclick = async (ev) => { ev.stopPropagation(); const name = input.value.trim(); if (!name) return; const tag = await w.dbCreateTag(name, '#4CC3FF'); await w.dbAddTagToQuestion(qId, tag.id); input.value = ''; w.allTags.push(tag); showAddedTag(qId, tag); onInlineTagSearch(qId); };
+    createBtn.onclick = async (ev) => { ev.stopPropagation(); const name = input.value.trim(); if (!name) return; const catSel = document.getElementById('inline-tag-category-' + qId) as HTMLSelectElement | null; const catId = catSel?.value || null; if (!catId) { w.showStatus('请先选择类别', 'error'); return; } const tag = await dbCreateTag(name, '#4CC3FF'); await dbUpdateTag(tag.id, { category_id: catId }); await w.dbAddTagToQuestion(qId, tag.id); input.value = ''; w.allTags.push(tag); showAddedTag(qId, tag); onInlineTagSearch(qId); };
     resultsDiv.appendChild(createBtn);
   } else {
     matches.forEach((t: any) => {
@@ -315,7 +380,7 @@ export function showAddedTag(qId: string, tag: any): void {
   span.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:' + tag.color + '"></span> ' + tag.name + ' ✓';
   addedDiv.appendChild(span);
   const question = w.allQuestions.find((q: any) => q.id === qId);
-  if (question) question.question_tags.push({ tags: tag });
+  if (question) question.question_tags.push(tag);
   const card = document.querySelector('[data-id="' + qId + '"]');
   if (card) { const tagsWrap = card.querySelector('.tags'); if (tagsWrap) { const addBtnEl = tagsWrap.querySelector('.tag-add-btn'); const te = document.createElement('span'); te.className = 'tag'; te.style.background = tag.color + '20'; te.textContent = tag.name; if (addBtnEl) tagsWrap.insertBefore(te, addBtnEl); else tagsWrap.appendChild(te); } }
 }
@@ -331,6 +396,92 @@ export function updateSelectedCount(): void {
   const el = document.getElementById('selected-count')!;
   if (w.selectedQuestions.size > 0) { el.style.display = 'inline'; document.getElementById('selected-num')!.textContent = String(w.selectedQuestions.size); }
   else el.style.display = 'none';
+}
+
+// ========== 2.10 加入/移出专题：写入/移除该专题的系统成员标签 ==========
+let _assignQids: string[] = [];
+let _assignScope = '';
+
+export async function openGroupAssignModal(): Promise<void> {
+  const ids = Array.from(w.selectedQuestions as Set<string>);
+  if (!ids.length) { w.showStatus('请先勾选题目', 'error'); return; }
+  _assignQids = ids;
+  _assignScope = `批量：已勾选 ${ids.length} 题`;
+  await renderGroupAssignModal();
+  openModal('group-assign-modal');
+}
+
+export async function openDetailGroupAssign(): Promise<void> {
+  if (!w.currentQuestionId) return;
+  _assignQids = [w.currentQuestionId];
+  _assignScope = '当前题';
+  await renderGroupAssignModal();
+  openModal('group-assign-modal');
+}
+
+export function closeGroupAssignModal(): void {
+  _assignQids = [];
+  closeModal('group-assign-modal');
+}
+
+async function renderGroupAssignModal(): Promise<void> {
+  const scopeEl = document.getElementById('group-assign-scope');
+  if (scopeEl) scopeEl.textContent = _assignScope;
+  const list = document.getElementById('group-assign-list');
+  if (!list) return;
+  list.replaceChildren();
+  const topics = await dbGetAllGroups('topic');
+  if (!topics.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.textContent = '暂无专题，请到「标签管理」新建';
+    list.appendChild(empty);
+    return;
+  }
+  for (const g of topics) {
+    const row = document.createElement('div');
+    row.className = 'gassign-row';
+    row.dataset.topicId = g.id;
+    const name = document.createElement('span');
+    name.className = 'gassign-name';
+    name.textContent = g.name;
+    const meta = document.createElement('span');
+    meta.className = 'gassign-meta';
+    meta.textContent = (await getGroupManualMemberCount(g.id)) + ' 题';
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'btn-mini';
+    add.dataset.action = 'add';
+    add.textContent = '加入';
+    add.onclick = () => { void applyGroupAssign(g.id, 'add'); };
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'btn-mini';
+    rm.dataset.action = 'remove';
+    rm.textContent = '移出';
+    rm.onclick = () => { void applyGroupAssign(g.id, 'remove'); };
+    row.append(name, meta, add, rm);
+    list.appendChild(row);
+  }
+}
+
+export async function applyGroupAssign(topicId: string, mode: 'add' | 'remove'): Promise<void> {
+  if (!_assignQids.length) return;
+  const g = await dbGetGroup(topicId);
+  if (!g || !g.member_tag_id) { w.showStatus('该专题缺少系统成员标签', 'error'); return; }
+  for (const qid of _assignQids) {
+    if (mode === 'add') await w.dbAddTagToQuestion(qid, g.member_tag_id);
+    else await w.dbRemoveTagFromQuestion(qid, g.member_tag_id);
+  }
+  const n = _assignQids.length;
+  w.showStatus(mode === 'add' ? `已加入「${g.name}」：${n} 题` : `已移出「${g.name}」：${n} 题`, 'success');
+  await w.loadQuestions?.();
+  await renderGroupAssignModal();
+  const cur = w.currentQuestionId;
+  if (cur && document.getElementById('question-modal')?.classList.contains('active')) {
+    const q = (w.allQuestions as any[]).find((x) => x.id === cur);
+    if (q) w.renderDetailContent(q);
+  }
 }
 
 // 删除/垃圾篓

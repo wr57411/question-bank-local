@@ -424,11 +424,11 @@ async function dbCreateQuestion(questionFile, answerFile, selectedTagIds, layout
   const id = generateId();
   
   let qImg = null;
-  if (questionFile) qImg = await compressImage(questionFile);
+  if (questionFile) qImg = await compressImage(questionFile, 1600, 0.85);
   let aImg = null;
-  if (answerFile) aImg = await compressImage(answerFile);
+  if (answerFile) aImg = await compressImage(answerFile, 1600, 0.85);
   let bImg = null;
-  if (blankFile) bImg = await compressImage(blankFile);
+  if (blankFile) bImg = await compressImage(blankFile, 1600, 0.85);
   
   // 远程同步：上传图片到服务器
   let qImgUrl = qImg, aImgUrl = aImg, bImgUrl = bImg;
@@ -892,7 +892,7 @@ async function dbGetQuestionNotes(questionId) {
   const notes = [];
   await dbQuestionNotes.iterate((v, key) => {
     const note = _normalizeQuestionNoteRecord(v, key);
-    if (note && note.question_id === questionId) notes.push(note);
+    if (note && !note.deleted_at && note.question_id === questionId) notes.push(note);
   });
   return notes.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 }
@@ -921,7 +921,10 @@ async function dbUpdateQuestionNote(noteId, updates) {
 }
 
 async function dbDeleteQuestionNote(noteId) {
-  await dbQuestionNotes.removeItem(noteId);
+  const note = await dbQuestionNotes.getItem(noteId);
+  if (!note) return;
+  const now = _nowIso();
+  await dbQuestionNotes.setItem(noteId, Object.assign({}, note, { note_image_url: null, deleted_at: now, updated_at: now }));
 }
 
 async function dbGetLastViewedNote(questionId) {
@@ -1027,6 +1030,7 @@ async function dbGetPendingPhotoCount() {
 async function _collectQuestionTagIds(questionId) {
   const rawTagIds = [];
   await dbQuestionTags.iterate((qt) => {
+    if (!qt || qt.deleted_at) return;
     if (qt.question_id === questionId) rawTagIds.push(qt.tag_id);
   });
   const tagIds = [];
@@ -1088,11 +1092,12 @@ function setOnSyncDataWarning(fn) { _onSyncDataWarning = fn; }
 
 async function collectDataFingerprint() {
   let questions = 0, tags = 0, questionTags = 0, papers = 0, teachingNodes = 0;
-  await dbQuestions.iterate(() => questions++);
-  await dbTags.iterate(() => tags++);
-  await dbQuestionTags.iterate(() => questionTags++);
-  await dbPapers.iterate(() => papers++);
-  await dbTeachingNodes.iterate(() => teachingNodes++);
+  // FF-1: localforage.iterate 在回调返回非 undefined 时立即终止迭代，必须用块体
+  await dbQuestions.iterate(() => { questions++; });
+  await dbTags.iterate(() => { tags++; });
+  await dbQuestionTags.iterate(() => { questionTags++; });
+  await dbPapers.iterate(() => { papers++; });
+  await dbTeachingNodes.iterate(() => { teachingNodes++; });
   return { questions, tags, questionTags, papers, teachingNodes };
 }
 
@@ -1272,8 +1277,40 @@ async function dbBuildSyncPayload() {
     appVersions: JSON.parse(localStorage.getItem('appVersions') || '[]')
   };
 
-  return { tags, questions: questionPayload, papers: paperPayload, similar_links: similarLinks, pending_link_list, topics: topicPayload, question_notes: questionNotes, teaching_nodes: teachingNodes, teaching_versions: teachingVersions, node_questions: nodeQuestions, settings };
+  const questionTagPayload = [];
+  const questionCreatedAt = new Map();
+  for (const question of questions) {
+    questionCreatedAt.set(question.id, question.created_at || question.updated_at || null);
+  }
+  await dbQuestionTags.iterate((rawQt, key) => {
+    if (!rawQt || typeof rawQt !== 'object') return;
+    let questionId = rawQt.question_id;
+    let tagId = rawQt.tag_id;
+    if ((!questionId || !tagId) && typeof key === 'string') {
+      const sep = key.indexOf('_');
+      if (sep > 0) {
+        if (!questionId) questionId = key.slice(0, sep);
+        if (!tagId) tagId = key.slice(sep + 1);
+      }
+    }
+    if (!questionId || !tagId) return;
+    // 关联必须自带时间戳：服务端 normalizeTimestamp 会把空值填成「现在」，
+    // 从而把服务端已存在的墓碑复活。缺失时保守回落到该题的创建时间，最后兜底 1970，
+    // 宁可「很旧」（LWW 里只会输）也不要「很新」（会覆盖别人正确的更新）。
+    const createdAt = rawQt.created_at || rawQt.createdAt || questionCreatedAt.get(questionId) || TAG_RELATION_EPOCH;
+    questionTagPayload.push({
+      question_id: questionId,
+      tag_id: tagId,
+      created_at: createdAt,
+      updated_at: rawQt.updated_at || rawQt.updatedAt || createdAt,
+      deleted_at: rawQt.deleted_at || rawQt.deletedAt || null
+    });
+  });
+
+  return { tags, questions: questionPayload, papers: paperPayload, similar_links: similarLinks, pending_link_list, topics: topicPayload, question_notes: questionNotes, teaching_nodes: teachingNodes, teaching_versions: teachingVersions, node_questions: nodeQuestions, question_tags: questionTagPayload, settings };
 }
+
+const TAG_RELATION_EPOCH = '1970-01-01T00:00:00.000Z';
 
 async function _replaceQuestionTags(questionId, tagIds) {
   const keys = [];
@@ -1327,6 +1364,7 @@ async function dbApplyRemoteSnapshot(snapshot) {
   _invalidateTagIndex();
   const fpBefore = await collectDataFingerprint();
   const syncWarnings = [];
+  const purgedQuestionIds = new Set();
   try {
   for (const tag of snapshot.tags || []) {
     const localTag = await dbTags.getItem(tag.id);
@@ -1387,10 +1425,46 @@ async function dbApplyRemoteSnapshot(snapshot) {
           if (value.question_id === question.id) pqKeys.push(key);
         });
         for (const key of pqKeys) await dbPaperQuestions.removeItem(key);
+        purgedQuestionIds.add(question.id);
         continue;
       }
       await dbQuestions.setItem(question.id, nextQuestion);
-      if (question.tag_ids !== undefined) await _replaceQuestionTags(question.id, question.tag_ids);
+    }
+  }
+
+  // 关联是独立实体：按「关联自身的时间戳」逐条合并，不受题目 updated_at 守卫约束。
+  // 旧行为（用服务端 tag_ids 整题替换）会把本地独有的关联静默抹掉，是本 bug 的擦除点。
+  const remoteQuestionTags = Array.isArray(snapshot.question_tags) ? snapshot.question_tags : [];
+  if (remoteQuestionTags.length) {
+    for (const qt of remoteQuestionTags) {
+      if (!qt || !qt.question_id || !qt.tag_id) continue;
+      if (purgedQuestionIds.has(qt.question_id)) continue;
+      const key = qt.question_id + '_' + qt.tag_id;
+      const localQt = await dbQuestionTags.getItem(key);
+      const localTs = localQt ? _toMillis(localQt.updated_at || localQt.deleted_at || localQt.created_at) : 0;
+      if (qt.deleted_at && localQt && !localQt.deleted_at && !localTs) {
+        console.warn('[sync] 本地关联缺时间戳，保守跳过远端墓碑:', key);
+        continue;
+      }
+      if (_isRemoteNewer(qt, localQt)) await dbQuestionTags.setItem(key, qt);
+    }
+  } else {
+    // 旧服务端不返回 question_tags：退化为只增不删，绝不删除本地任何关联
+    for (const question of snapshot.questions || []) {
+      if (question.tag_ids === undefined || purgedQuestionIds.has(question.id)) continue;
+      if (!(await dbQuestions.getItem(question.id))) continue;
+      const createdAt = question.created_at || question.updated_at || _nowIso();
+      for (const tagId of question.tag_ids) {
+        const key = question.id + '_' + tagId;
+        if (await dbQuestionTags.getItem(key)) continue;
+        await dbQuestionTags.setItem(key, {
+          question_id: question.id,
+          tag_id: tagId,
+          created_at: createdAt,
+          updated_at: question.updated_at || createdAt,
+          deleted_at: null
+        });
+      }
     }
   }
 
@@ -1455,7 +1529,8 @@ async function dbApplyRemoteSnapshot(snapshot) {
       label: note.label || '',
       text_note: note.text_note || '',
       created_at: note.created_at || note.updated_at || _nowIso(),
-      updated_at: note.updated_at || note.created_at || _nowIso()
+      updated_at: note.updated_at || note.created_at || _nowIso(),
+      deleted_at: note.deleted_at || null
     };
     if (_isRemoteNewer(nextNote, localNote)) {
       await dbQuestionNotes.setItem(note.id, nextNote);
@@ -1804,39 +1879,6 @@ async function generatePaperPDF(paperId) {
 
 // ========== 数据导入/导出 ==========
 
-async function exportAllData() {
-  const data = { questions: [], tags: [], question_tags: [], papers: [], paper_questions: [], similar_question_links: [], pending_link_list: [], topics: [], topic_questions: [], question_notes: [], pending_photos: [], teaching_nodes: [], teaching_versions: [], node_questions: [] };
-  await dbQuestions.iterate((v) => data.questions.push(v));
-  await dbTags.iterate((v) => data.tags.push(v));
-  await dbQuestionTags.iterate((v) => data.question_tags.push(v));
-  await dbPapers.iterate((v) => data.papers.push(v));
-  await dbPaperQuestions.iterate((v) => data.paper_questions.push(v));
-  await dbSimilarQuestionLinks.iterate((v) => data.similar_question_links.push(v));
-  await dbTopics.iterate((v) => data.topics.push(v));
-  await dbTopicQuestions.iterate((v) => data.topic_questions.push(v));
-  await dbQuestionNotes.iterate((v) => data.question_notes.push(v));
-  await dbPendingPhotos.iterate((v) => data.pending_photos.push(v));
-  await dbTeachingNodes.iterate((v) => data.teaching_nodes.push(v));
-  await dbTeachingVersions.iterate((v) => data.teaching_versions.push(v));
-  await dbNodeQuestions.iterate((v) => data.node_questions.push(v));
-  data.pending_link_list = JSON.parse(localStorage.getItem('pendingLinkList') || '[]');
-  const jsonStr = JSON.stringify(data);
-  const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
-  if (isNative && window.Capacitor?.Plugins?.Filesystem) {
-    const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
-    const fileName = `question-bank-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    try {
-      await window.Capacitor.Plugins.Filesystem.writeFile({ path: fileName, data: base64, directory: 'DOCUMENTS' });
-      alert('备份已保存: DOCUMENTS/' + fileName);
-    } catch (e) { alert('保存失败: ' + e.message); }
-  } else {
-    const blob = new Blob([jsonStr], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = `question-bank-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click(); URL.revokeObjectURL(url);
-  }
-}
 
 async function importAllData(file) {
   const data = JSON.parse(await file.text());
@@ -2236,7 +2278,8 @@ async function dbWikiPutLink(link) {
 
 async function dbWikiGetLog(limit = 50) {
   const entries = [];
-  await dbWikiLog.iterate((v) => entries.push(v));
+  // FF-1: localforage.iterate 在回调返回非 undefined 时立即终止迭代，必须用块体
+  await dbWikiLog.iterate((v) => { entries.push(v); });
   return entries.sort((a, b) => (b.timestamp || '').localeCompare(a.timestamp || '')).slice(0, limit);
 }
 

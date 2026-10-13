@@ -1,4 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal, closeModal } from './common';
+import { assertBackupHasData } from './backup';
+
 const w = window as any;
 
 // ---------- Module-level state ----------
@@ -44,11 +47,11 @@ export function updateBaiduUI(): void {
 }
 
 export function showBaiduAuthModal(): void {
-  document.getElementById('baidu-auth-modal')!.classList.add('active');
+  openModal('baidu-auth-modal');
 }
 
 export function closeBaiduAuthModal(): void {
-  document.getElementById('baidu-auth-modal')!.classList.remove('active');
+  closeModal('baidu-auth-modal');
 }
 
 export function openBaiduAuth(): void {
@@ -162,7 +165,10 @@ export async function downloadFromBaidu(): Promise<void> {
     if (!resp.ok) { w.showStatus('下载失败（文件可能不存在）', 'error'); return; }
     const jsonStr = await resp.text();
     const data = JSON.parse(jsonStr);
-    if (!confirm('备份包含 ' + (data.questions?.length || 0) + ' 道题目，确定导入？')) return;
+    // 防呆：文件里既无 questions 数组也无 tags 数组、或两者都为空，明确报错并中止，
+    // 避免弹出"从百度网盘恢复成功: 0 题"这类假成功
+    const backupCount = assertBackupHasData(data);
+    if (!confirm('备份包含 ' + backupCount + ' 道题目，确定导入？')) return;
     await w.importBackupData(data);
     await w.refreshAll();
     w.showStatus('从百度网盘恢复成功: ' + (data.questions?.length || 0) + ' 题', 'success');

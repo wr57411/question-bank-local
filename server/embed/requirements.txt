@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+sentence-transformers
+torch
+transformers==5.2.0
+qwen-vl-utils
+pillow
+numpy
+pytest
+httpx

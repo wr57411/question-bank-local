@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { openModal, closeModal } from './common';
 const w = window as any;
 
 export function toggleBasket(qId: string): void {
@@ -39,11 +40,11 @@ export function openBasketModal(): void {
     d.append(img, label, rm);
     c.appendChild(d);
   });
-  document.getElementById('basket-modal')!.classList.add('active');
+  openModal('basket-modal');
 }
 
 export function closeBasketModal(): void {
-  document.getElementById('basket-modal')!.classList.remove('active');
+  closeModal('basket-modal');
 }
 
 export function exportFromBasket(): void {

@@ -62,6 +62,12 @@ function resolveChromeConfig() {
 module.exports = defineConfig({
   testDir: path.join(__dirname, "tests"),
   testMatch: /(?<!unit\/).*\.spec\.js$/,
+  // 2026-08-31 王先生裁决：端侧 AI 相关功能暂不维护，这两个用例不再运行。
+  // 文件保留在 tests/ 以便日后恢复，仅从收集范围中排除。
+  testIgnore: [
+    /ai-simulation\.spec\.js$/,
+    /ai-pipeline-e2e\.spec\.js$/,
+  ],
   timeout: 60_000,
   expect: {
     timeout: 10_000,

@@ -1,11 +1,13 @@
 export * from './question';
 export * from './tag';
+export * from './group';
 export * from './paper';
-export * from './topic';
-export * from './teaching';
 export * from './sync';
 export * from './backup';
-export * from './pdf-doc';
-export * from './wiki';
-export * from './wiki-mvp';
-export * from './local-ocr';
+export * from './pdf';
+
+export interface QuestionEmbedding {
+  question_id: string;
+  dim: number;
+  vector: string;
+}

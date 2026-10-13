@@ -3,7 +3,10 @@ import './styles/main.css';
 import * as data from './data';
 import * as services from './services';
 import * as ui from './ui';
+import * as semanticRuntime from './services/semantic/runtime';
+import * as semanticEngineHttp from './services/semantic/engine-http';
 import { initApp } from './init-app';
+import { initAnchoredModals } from './ui/modal-anchor';
 
 const w = window as unknown as Record<string, unknown>;
 
@@ -59,6 +62,11 @@ const sharedDefaults: Record<string, unknown> = {
   allQuestions: [],
   trashedQuestions: [],
   activeFilterTags: [],
+  // 2.9 列表筛选层：章节/专题单选 + 预计算的成员集合（列表不解析表达式）
+  activeFilterChapterId: null,
+  activeFilterTopicId: null,
+  activeFilterChapterIds: null,
+  activeFilterTopicIds: null,
   selectedQuestions: new Set(),
   questionBasket: new Set(),
   detailIndex: -1,
@@ -87,50 +95,16 @@ const isNative = !!(cap && cap.isNativePlatform && cap.isNativePlatform());
 const isIOS = isNative && cap.getPlatform && cap.getPlatform() === 'ios';
 const Camera = isNative ? (cap?.Plugins?.Camera ?? null) : null;
 const MediaPlugin = isNative ? (cap?.Plugins?.MediaGallery ?? cap?.Plugins?.Media ?? null) : null;
-const FloatingWindow = isNative ? (cap?.Plugins?.FloatingWindow ?? null) : null;
 
 assignIfMissing({
   isNative,
   isIOS,
   Camera,
   MediaPlugin,
-  FloatingWindow,
 });
 
 assignIfMissing({
-  // data layer
-  dbGetAllQuestions: data.dbGetAllQuestions,
-  dbGetTrashedQuestions: data.dbGetTrashedQuestions,
-  dbSoftDeleteQuestion: data.dbSoftDeleteQuestion,
-  dbRestoreQuestion: data.dbRestoreQuestion,
-  dbPermanentDeleteQuestion: data.dbPermanentDeleteQuestion,
-  dbAddTagToQuestion: data.dbAddTagToQuestion,
-  dbRemoveTagFromQuestion: data.dbRemoveTagFromQuestion,
-  dbUpdateQuestionVersions: data.dbUpdateQuestionVersions,
-  dbUpdateQuestionBookInfo: data.dbUpdateQuestionBookInfo,
-  dbGetAllTags: data.dbGetAllTags,
-  dbCreateTag: data.dbCreateTag,
-  dbDeleteTag: data.dbDeleteTag,
-  dbGetAllPapers: data.dbGetAllPapers,
-  dbCreatePaper: data.dbCreatePaper,
-  dbDeletePaper: data.dbDeletePaper,
-  dbGetAllTopics: data.dbGetAllTopics,
-  dbCreateTopic: data.dbCreateTopic,
-  dbDeleteTopic: data.dbDeleteTopic,
-  dbGetAllTeachingNodes: data.dbGetAllTeachingNodes,
-  dbCreateTeachingNode: data.dbCreateTeachingNode,
-  dbUpdateTeachingNode: data.dbUpdateTeachingNode,
-  dbDeleteTeachingNode: data.dbDeleteTeachingNode,
-  dbGetQuestionNotes: data.dbGetQuestionNotes,
-  dbAddQuestionNote: data.dbAddQuestionNote,
-  dbGetPendingPhotos: data.dbGetPendingPhotos,
-  dbGetAllSimilarLinks: data.dbGetAllSimilarLinks,
-  dbAddSimilarQuestionLinks: data.dbAddSimilarQuestionLinks,
-  generateId: data.generateId,
-  smartBackup: data.smartBackup,
-  exportFullBackup: data.exportFullBackup,
-  importBackupData: data.importBackupData,
-  getChangelogCount: data.getChangelogCount,
+  // data layer (已移至 assignToWindow 强制覆盖遗留 public/db.js 的过期全局)
   // services
   callCloudAI: services.callCloudAI,
   callCloudAIStream: services.callCloudAIStream,
@@ -139,7 +113,6 @@ assignIfMissing({
   setProviderGetter: services.setProviderGetter,
   KNOWLEDGE_ATOMIZER_PROMPT: services.KNOWLEDGE_ATOMIZER_PROMPT,
   KNOWLEDGE_ATOMIZER_PROMPT_MULTIMODAL: services.KNOWLEDGE_ATOMIZER_PROMPT_MULTIMODAL,
-  TEACHING_GENERATOR_PROMPT: services.TEACHING_GENERATOR_PROMPT,
   compressImage: services.compressImage,
   mergeImagesVertically: services.mergeImagesVertically,
   dataURLtoBlob: services.dataURLtoBlob,
@@ -154,6 +127,7 @@ assignIfMissing({
   APP_VERSION_NAME: services.APP_VERSION_NAME,
   // ui
   showStatus: ui.showStatus,
+  closeErrorModal: ui.closeErrorModal,
   escapeHtml: ui.escapeHtml,
   showTab: ui.showTab,
   renderMarkdown: ui.renderMarkdown,
@@ -161,104 +135,8 @@ assignIfMissing({
   doFullBackup: ui.doFullBackup,
   restoreFromBackup: ui.restoreFromBackup,
   updateBackupStatusUI: ui.updateBackupStatusUI,
-  // pdf library
-  renderPdfLibrary: ui.renderPdfLibrary,
-  switchPdfView: ui.switchPdfView,
-  togglePdfNode: ui.togglePdfNode,
-  handlePdfUpload: ui.handlePdfUpload,
-  doConfirmUpload: ui.doConfirmUpload,
-  closePdfUploadConfirm: ui.closePdfUploadConfirm,
-  showPdfActions: ui.showPdfActions,
-  closePdfActionModal: ui.closePdfActionModal,
-  showMovePdfModal: ui.showMovePdfModal,
-  confirmMovePdf: ui.confirmMovePdf,
-  startPdfPreview: ui.startPdfPreview,
-  closePdfPreview: ui.closePdfPreview,
-  doDownloadPdf: ui.doDownloadPdf,
-  doDeletePdf: ui.doDeletePdf,
-  showPdfCategoryMenu: ui.showPdfCategoryMenu,
-  addPdfSubCategory: ui.addPdfSubCategory,
-  renamePdfCategory: ui.renamePdfCategory,
-  deletePdfCategory: ui.deletePdfCategory,
-  closePdfManageModal: ui.closePdfManageModal,
-  showAddTopicModal: ui.showAddTopicModal,
-  confirmAddTopic: ui.confirmAddTopic,
-  showPdfTopicMenu: ui.showPdfTopicMenu,
-  renamePdfTopic: ui.renamePdfTopic,
-  deletePdfTopic: ui.deletePdfTopic,
-  // wiki
-  showWikiTab: ui.showWikiTab,
-  renderWikiPanel: ui.renderWikiPanel,
-  renderWikiForQuestion: ui.renderWikiForQuestion,
-  compileWikiKnowledge: services.compileWikiKnowledge,
-  createWikiPageFromDraft: services.createWikiPageFromDraft,
-  buildWikiSystemPrompt: services.buildWikiSystemPrompt,
-  validatePage: services.validatePage,
-  wikiSmartUpsertPage: data.wikiSmartUpsertPage,
-  wikiGetIndex: data.wikiGetIndex,
-  wikiGetLog: data.wikiGetLog,
-  runDiagnostic: services.runDiagnostic,
-  DIAGNOSTIC_QUESTIONS: services.DIAGNOSTIC_QUESTIONS,
-  wikiFlushPendingJobs: ui.wikiFlushPendingJobs,
-  wikiPutLink: data.wikiPutLink,
-  wikiCreatePendingJob: data.wikiCreatePendingJob,
-  wikiMarkJobCompleted: data.wikiMarkJobCompleted,
-  wikiMarkJobFailed: data.wikiMarkJobFailed,
-  wikiGetPendingJobs: data.wikiGetPendingJobs,
-  wikiGetLinks: data.wikiGetLinks,
-  wikiGetAllPages: data.wikiGetAllPages,
-  wikiGetPage: data.wikiGetPage,
-  wikiLint: data.wikiLint,
-  wikiLogAppend: data.wikiLogAppend,
-  dbWikiGetAllPages: data.wikiGetAllPages,
-  dbWikiGetPage: data.wikiGetPage,
-  dbWikiLint: data.wikiLint,
-  dbWikiSmartUpsertPage: data.wikiSmartUpsertPage,
-  dbWikiLogAppend: data.wikiLogAppend,
-  dbWikiGetIndex: data.wikiGetIndex,
-  dbWikiGetLog: data.wikiGetLog,
-  // wiki mvp
-  showWikiTabMvp: ui.showWikiTabMvp,
-  renderWikiMvpPanel: ui.renderWikiMvpPanel,
-  wikiMvpSyncModelInput: ui.wikiMvpSyncModelInput,
-  wikiMvpRenderQuestions: ui.wikiMvpRenderQuestions,
-  wikiMvpImgError: ui.wikiMvpImgError,
-  wikiMvpToggleQuestion: ui.wikiMvpToggleQuestion,
-  wikiMvpSelectAll: ui.wikiMvpSelectAll,
-  wikiMvpClearAll: ui.wikiMvpClearAll,
-  wikiMvpRunExtract: ui.wikiMvpRunExtract,
-  wikiMvpToggleConcept: ui.wikiMvpToggleConcept,
-  wikiMvpJumpToConcept: ui.wikiMvpJumpToConcept,
-  wikiMvpLoadSession: ui.wikiMvpLoadSession,
-  wikiMvpDeleteSession: ui.wikiMvpDeleteSession,
-  wikiMvpChangeMode: ui.wikiMvpChangeMode,
-  wikiMvpSyncOcrInput: ui.wikiMvpSyncOcrInput,
-  wikiMvpTestOcrConnection: ui.wikiMvpTestOcrConnection,
-  wikiMvpSyncBaseUrl: ui.wikiMvpSyncBaseUrl,
-  wikiMvpSavePrompt: ui.wikiMvpSavePrompt,
-  wikiMvpResetPrompt: ui.wikiMvpResetPrompt,
-  // pdf cloud services
-  uploadPdfToServer: services.uploadPdfToServer,
-  fetchPdfPages: services.fetchPdfPages,
-  downloadPdfToLocal: services.downloadPdfToLocal,
-  deleteRemotePdf: services.deleteRemotePdf,
-  updateRemotePdfMeta: services.updateRemotePdfMeta,
-  setPdfTagsRemote: services.setPdfTagsRemote,
-  // pdf data
-  dbGetAllPdfDocs: data.dbGetAllPdfDocs,
-  dbAddPdfDoc: data.dbAddPdfDoc,
-  dbDeletePdfDoc: data.dbDeletePdfDoc,
-  dbUpdatePdfDoc: data.dbUpdatePdfDoc,
-  dbSetPdfDocTags: data.dbSetPdfDocTags,
-  dbGetAllPdfCategories: data.dbGetAllPdfCategories,
-  dbCreatePdfCategory: data.dbCreatePdfCategory,
-  dbUpdatePdfCategory: data.dbUpdatePdfCategory,
-  dbDeletePdfCategory: data.dbDeletePdfCategory,
-  ensureTextbookStructure: data.ensureTextbookStructure,
-  dbReplaceWithRemoteSnapshot: data.dbReplaceWithRemoteSnapshot,
   // Batch 3: core state functions (assignIfMissing to keep app.js lexical bindings in sync)
   loadQuestions: ui.loadQuestions,
-  loadBookFilter: ui.loadBookFilter,
   filterQuestions: ui.filterQuestions,
   getFilteredQuestions: ui.getFilteredQuestions,
   renderQuestions: ui.renderQuestions,
@@ -268,10 +146,45 @@ assignIfMissing({
   renderFilterTags: ui.renderFilterTags,
   // Batch 4: core state functions (called by app.js refreshAll internally)
   loadPapers: ui.loadPapers,
-  loadTopics: ui.loadTopics,
 });
 
 assignToWindow({
+  // 强制覆盖遗留 public/db.js 的过期 db* 全局（旧版有独立缓存且部分会抛错；
+  // HTML 内联 onclick 与 E2E 统一通过 window.db* 调用模块数据层）
+  dbGetAllQuestions: data.dbGetAllQuestions,
+  dbGetTrashedQuestions: data.dbGetTrashedQuestions,
+  dbSoftDeleteQuestion: data.dbSoftDeleteQuestion,
+  dbRestoreQuestion: data.dbRestoreQuestion,
+  dbPermanentDeleteQuestion: data.dbPermanentDeleteQuestion,
+  dbAddTagToQuestion: data.dbAddTagToQuestion,
+  dbRemoveTagFromQuestion: data.dbRemoveTagFromQuestion,
+  dbUpdateTag: data.dbUpdateTag,
+  // dbCreateQuestion 强制覆盖（E 批预搬）：TS 版已补齐 legacy 的压缩真闸门 1600/0.85
+  // （src/data/questions.ts compressGate，对齐 public/db.js:427-431）；
+  // 混用 legacy 写 + TS 读会因两套缓存互不失效而读不到新题。
+  // 未搬部分：同步图片上传（legacy _uploadImage，仅登录+原生场景）仍待 legacy-js-retirement 地雷 2 解法。
+  dbCreateQuestion: data.dbCreateQuestion,
+  dbCreateTag: data.dbCreateTag,
+  dbGetAllTags: data.dbGetAllTags,
+  dbDeleteTag: data.dbDeleteTag,
+  listUntaggedQuestions: data.listUntaggedQuestions,
+  getUntaggedQuestionCount: data.getUntaggedQuestionCount,
+  dbUpdateQuestionVersions: data.dbUpdateQuestionVersions,
+  dbUpdateQuestionBookInfo: data.dbUpdateQuestionBookInfo,
+  dbGetAllPapers: data.dbGetAllPapers,
+  dbDeletePaper: data.dbDeletePaper,
+  dbGetPaperQuestions: data.dbGetPaperQuestions,
+  dbCreatePaperFromExport: data.dbCreatePaperFromExport,
+  dbEnsurePaperPdfLocal: data.dbEnsurePaperPdfLocal,
+  dbGetQuestionNotes: data.dbGetQuestionNotes,
+  dbAddQuestionNote: data.dbAddQuestionNote,
+  generateId: data.generateId,
+  smartBackup: data.smartBackup,
+  exportFullBackup: data.exportFullBackup,
+  importBackupData: data.importBackupData,
+  getChangelogCount: data.getChangelogCount,
+  dbReplaceWithRemoteSnapshot: data.dbReplaceWithRemoteSnapshot,
+  generatePDF: data.generatePDF,
   renderVersionSwitcher: ui.renderVersionSwitcher,
   renameCurrentVersion: ui.renameCurrentVersion,
   setAppVersion: ui.setAppVersion,
@@ -313,23 +226,6 @@ assignToWindow({
   openBasketModal: ui.openBasketModal,
   closeBasketModal: ui.closeBasketModal,
   exportFromBasket: ui.exportFromBasket,
-  // Batch 2: pending-link
-  getPendingLinkList: ui.getPendingLinkList,
-  savePendingLinkList: ui.savePendingLinkList,
-  togglePendingLink: ui.togglePendingLink,
-  isPendingLink: ui.isPendingLink,
-  updatePendingLinkBadge: ui.updatePendingLinkBadge,
-  updatePendingPhotosBadge: ui.updatePendingPhotosBadge,
-  importPendingPhotosFromNative: ui.importPendingPhotosFromNative,
-  togglePendingLinkInDetail: ui.togglePendingLinkInDetail,
-  updatePendingLinkBtnStyle: ui.updatePendingLinkBtnStyle,
-  renderPendingLinkList: ui.renderPendingLinkList,
-  removeFromPendingLink: ui.removeFromPendingLink,
-  // Batch 2: blank-question
-  showPendingBlankList: ui.showPendingBlankList,
-  closePendingBlankModal: ui.closePendingBlankModal,
-  removeFromPendingBlank: ui.removeFromPendingBlank,
-  updatePendingBlankCount: ui.updatePendingBlankCount,
   // Batch 2: test-god-mode
   runFullAIAutomation: ui.runFullAIAutomation,
   handleImport: ui.handleImport,
@@ -343,6 +239,15 @@ assignToWindow({
   analyzeSingleQuestion: ui.analyzeSingleQuestion,
   handleBatchAnalyze: ui.handleBatchAnalyze,
   // Batch 3: tag-manage (leaf functions only)
+  dbGetAllTagCategories: data.dbGetAllTagCategories,
+  dbCreateTagCategory: data.dbCreateTagCategory,
+  dbRenameTagCategory: data.dbRenameTagCategory,
+  dbDeleteTagCategory: data.dbDeleteTagCategory,
+  dbMoveTagCategory: data.dbMoveTagCategory,
+  getVisibilityConfig: data.getVisibilityConfig,
+  setVisibilityConfig: data.setVisibilityConfig,
+  getAppSetting: data.getAppSetting,
+  setAppSetting: data.setAppSetting,
   onFormTagSearch: ui.onFormTagSearch,
   onFormTagKeydown: ui.onFormTagKeydown,
   addFormTag: ui.addFormTag,
@@ -358,13 +263,57 @@ assignToWindow({
   clearFormGeneratedTags: ui.clearFormGeneratedTags,
   _startFormTagPoll: ui._startFormTagPoll,
   _stopFormTagPoll: ui._stopFormTagPoll,
+  // Phase 1: 类别分区 + 选择器可见性
+  renderCategories: ui.renderCategories,
+  addCategory: ui.addCategory,
+  renameCategory: ui.renameCategory,
+  deleteCategory: ui.deleteCategory,
+  moveCategory: ui.moveCategory,
+  renderVisibilityConfig: ui.renderVisibilityConfig,
+  toggleVisibility: ui.toggleVisibility,
+  toggleUnclassified: ui.toggleUnclassified,
+  // Phase 2: 1.4 批量分类 + 1.5 强制选类别 + N1 未打标签入口
+  openBatchCategorize: ui.openBatchCategorize,
+  confirmBatchCategorize: ui.confirmBatchCategorize,
+  closeBatchCategorize: ui.closeBatchCategorize,
+  batchAgreeAll: ui.batchAgreeAll,
+  batchSelectAllPage: ui.batchSelectAllPage,
+  batchDeselectAllPage: ui.batchDeselectAllPage,
+  batchPrevPage: ui.batchPrevPage,
+  batchNextPage: ui.batchNextPage,
+  guessCategoryForTag: data.guessCategoryForTag,
+  populateCategorySelect: ui.populateCategorySelect,
+  refreshTagManageCounts: ui.refreshTagManageCounts,
+  openUntaggedModal: ui.openUntaggedModal,
+  closeUntaggedModal: ui.closeUntaggedModal,
+  untaggedBatchAdd: ui.untaggedBatchAdd,
+  // Phase 2: 2.4~2.8 章节/专题编辑器 + 级联清理
+  renderGroupManage: ui.renderGroupManage,
+  openGroupEditor: ui.openGroupEditor,
+  closeGroupEditor: ui.closeGroupEditor,
+  saveGroupEditor: ui.saveGroupEditor,
+  requestDeleteGroup: ui.requestDeleteGroup,
+  confirmDeleteGroup: ui.confirmDeleteGroup,
+  closeGroupDeleteModal: ui.closeGroupDeleteModal,
+  confirmTagCascade: ui.confirmTagCascade,
+  closeTagCascadeModal: ui.closeTagCascadeModal,
+  // Phase 2: 数据层（表达式求值 + 组 CRUD），供 E2E 与内联调用
+  dbCreateGroup: data.dbCreateGroup,
+  dbUpdateGroup: data.dbUpdateGroup,
+  dbDeleteGroup: data.dbDeleteGroup,
+  dbGetAllGroups: data.dbGetAllGroups,
+  dbGetGroup: data.dbGetGroup,
+  getGroupMemberQuestionIds: data.getGroupMemberQuestionIds,
+  getGroupManualMemberCount: data.getGroupManualMemberCount,
+  buildGroupQuestionTagMap: data.buildGroupQuestionTagMap,
+  evalExpr: data.evalExpr,
+  removeTagFromExpr: data.removeTagFromExpr,
+  formatExpr: data.formatExpr,
+  exprContainsTag: data.exprContainsTag,
+  collectExprTagIds: data.collectExprTagIds,
+  collectDeadTagRefs: data.collectDeadTagRefs,
   // Batch 3: question-core (leaf functions only - core state fns stay in assignIfMissing)
-  switchAddMode: ui.switchAddMode,
-  addBatchRow: ui.addBatchRow,
-  removeBatchRow: ui.removeBatchRow,
-  getBatchEntries: ui.getBatchEntries,
   initQuestionForm: ui.initQuestionForm,
-  filterByBook: ui.filterByBook,
   fuzzyMatchTags: ui.fuzzyMatchTags,
   showTagSuggestions: ui.showTagSuggestions,
   toggleInlineTagAdd: ui.toggleInlineTagAdd,
@@ -375,13 +324,30 @@ assignToWindow({
   showAddedTag: ui.showAddedTag,
   toggleQuestionSelect: ui.toggleQuestionSelect,
   updateSelectedCount: ui.updateSelectedCount,
+  // Phase 2: 2.10 加入/移出专题 + 2.12 系统成员标签判定 + 2.9 筛选层辅助
+  openGroupAssignModal: ui.openGroupAssignModal,
+  openDetailGroupAssign: ui.openDetailGroupAssign,
+  closeGroupAssignModal: ui.closeGroupAssignModal,
+  applyGroupAssign: ui.applyGroupAssign,
+  refreshSystemMemberTagIds: ui.refreshSystemMemberTagIds,
+  isSystemMemberTag: ui.isSystemMemberTag,
+  hasActiveListFilter: ui.hasActiveListFilter,
+  getQuestionGridLayout: ui.getQuestionGridLayout,
+  applyQuestionGridLayout: ui.applyQuestionGridLayout,
+  toggleQuestionGridLayout: ui.toggleQuestionGridLayout,
   deleteQuestion: ui.deleteQuestion,
   loadTrashed: ui.loadTrashed,
+  // Batch 3: semantic-search
+  handleImageSearch: ui.handleImageSearch,
+  showSimilarQuestions: ui.showSimilarQuestions,
+  closeSimilarModal: ui.closeSimilarModal,
+  refreshEmbeddings: data.refreshEmbeddings,
   // Batch 3: note-version
   loadNoteVersionsForDetail: ui.loadNoteVersionsForDetail,
   displayCurrentNoteVersion: ui.displayCurrentNoteVersion,
   saveTextNote: ui.saveTextNote,
   switchNoteVersion: ui.switchNoteVersion,
+  deleteCurrentNoteVersion: ui.deleteCurrentNoteVersion,
   showAddNoteVersionModal: ui.showAddNoteVersionModal,
   closeAddNoteVersionModal: ui.closeAddNoteVersionModal,
   takePhotoForNoteVersion: ui.takePhotoForNoteVersion,
@@ -397,27 +363,14 @@ assignToWindow({
   showQuestionDetail: ui.showQuestionDetail,
   renderDetailContent: ui.renderDetailContent,
   toggleQuestionVersion: ui.toggleQuestionVersion,
-  saveBookInfo: ui.saveBookInfo,
   updateDetailBasketBtn: ui.updateDetailBasketBtn,
   toggleBasketInDetail: ui.toggleBasketInDetail,
   navigateDetail: ui.navigateDetail,
   closeModal: ui.closeQuestionModal,
-  renderSimilarQuestions: ui.renderSimilarQuestions,
-  getQuestionFeatureText: ui.getQuestionFeatureText,
-  getTextSignalSet: ui.getTextSignalSet,
-  scoreTextSimilarity: ui.scoreTextSimilarity,
-  buildSimilarCandidates: ui.buildSimilarCandidates,
-  openSimilarModal: ui.openSimilarModal,
-  closeSimilarModal: ui.closeSimilarModal,
-  renderSimilarCandidates: ui.renderSimilarCandidates,
-  loadPendingLinkCandidates: ui.loadPendingLinkCandidates,
-  parseSimilarAIResult: ui.parseSimilarAIResult,
-  recommendSimilarWithAI: ui.recommendSimilarWithAI,
-  confirmSimilarLinks: ui.confirmSimilarLinks,
   // Batch 4: paper-manage (leaf functions)
-  initPaperForm: ui.initPaperForm,
   showPaperDetail: ui.showPaperDetail,
   closePaperModal: ui.closePaperModal,
+  openPaperPdf: ui.openPaperPdf,
   exportPaperAsPDF: ui.exportPaperAsPDF,
   exportPaperAsImages: ui.exportPaperAsImages,
   getExportImgMode: ui.getExportImgMode,
@@ -430,19 +383,6 @@ assignToWindow({
   doExportImagesFromBasket: ui.doExportImagesFromBasket,
   _runExportImagesFromBasket: ui._runExportImagesFromBasket,
   doExportImages: ui.doExportImages,
-  startAIPaperGeneration: ui.startAIPaperGeneration,
-  renderAIRecommendations: ui.renderAIRecommendations,
-  closeAIRecommendModal: ui.closeAIRecommendModal,
-  createPaperFromAI: ui.createPaperFromAI,
-  // Batch 4: topic-manage (leaf functions)
-  renderTopicQuestionPicker: ui.renderTopicQuestionPicker,
-  getSelectedTopicQuestions: ui.getSelectedTopicQuestions,
-  initTopicForm: ui.initTopicForm,
-  showTopicDetail: ui.showTopicDetail,
-  closeTopicDetailModal: ui.closeTopicDetailModal,
-  exportTopicPDF: ui.exportTopicPDF,
-  exportTopicPDFForId: ui.exportTopicPDFForId,
-  deleteTopic: ui.deleteTopic,
   // Batch 4: export-pdf-ui
   exportSelectedOrAll: ui.exportSelectedOrAll,
   showExportModal: ui.showExportModal,
@@ -451,10 +391,18 @@ assignToWindow({
   getExportFolder: ui.getExportFolder,
   getExportFileName: ui.getExportFileName,
   previewExportPDF: ui.previewExportPDF,
+  closePdfPreview: ui.closePdfPreview,
   closeExportModal: ui.closeExportModal,
   selectExportMode: ui.selectExportMode,
   selectSpacing: ui.selectSpacing,
   doExportPDF: ui.doExportPDF,
+  renderPrintSizeOptions: ui.renderPrintSizeOptions,
+  selectPrintSize: ui.selectPrintSize,
+  getPrintStemMM: ui.getPrintStemMM,
+  refreshPrintSizeHint: ui.refreshPrintSizeHint,
+  renderPageSetupInputs: ui.renderPageSetupInputs,
+  onPageSetupInputChanged: ui.onPageSetupInputChanged,
+  loadPageSetupForExport: ui.loadPageSetupForExport,
   // Batch 5: camera
   _handleImageReady: ui._handleImageReady,
   takePhoto: ui.takePhoto,
@@ -468,17 +416,6 @@ assignToWindow({
   crossPageShoot: ui.crossPageShoot,
   captureAndCropOne: ui.captureAndCropOne,
   captureOneImage: ui.captureOneImage,
-  // Batch 5: floating-window
-  toggleFloatingWindow: ui.toggleFloatingWindow,
-  pickFromFloating: ui.pickFromFloating,
-  showFloatingImageList: ui.showFloatingImageList,
-  importFloatingImage: ui.importFloatingImage,
-  deleteFloatingImage: ui.deleteFloatingImage,
-  clearFloatingImages: ui.clearFloatingImages,
-  closeFloatingModal: ui.closeFloatingModal,
-  pollFloatingEvents: ui.pollFloatingEvents,
-  confirmFloatingSave: ui.confirmFloatingSave,
-  cancelFloatingSave: ui.cancelFloatingSave,
   // Batch 5: crop
   clampValue: ui.clampValue,
   smoothSeries: ui.smoothSeries,
@@ -501,16 +438,6 @@ assignToWindow({
   confirmCrop: ui.confirmCrop,
   cancelCrop: ui.cancelCrop,
   rotateCrop: ui.rotateCrop,
-  // Batch 5: pending-photos-ui
-  showPendingPhotosTab: ui.showPendingPhotosTab,
-  loadPendingPhotos: ui.loadPendingPhotos,
-  openProcessPhotoModal: ui.openProcessPhotoModal,
-  openBatchProcessModal: ui.openBatchProcessModal,
-  confirmProcessPhoto: ui.confirmProcessPhoto,
-  closeProcessPhotoModal: ui.closeProcessPhotoModal,
-  deletePendingPhoto: ui.deletePendingPhoto,
-  deletePendingPhotoById: ui.deletePendingPhotoById,
-  closePendingPhotosModal: ui.closePendingPhotosModal,
   // Batch 6: sync-ui
   apiHeaders: ui.apiHeaders,
   setSyncStatus: ui.setSyncStatus,
@@ -545,8 +472,8 @@ assignToWindow({
   stopSyncPolling: ui.stopSyncPolling,
   restartSyncPolling: ui.restartSyncPolling,
   // Task: compose existing polling globals (removed app.js no longer provides these)
-  stopAllPolling: () => { ui.stopSyncPolling(); ui.stopFloatingPolling(); },
-  restartAllPolling: () => { ui.restartSyncPolling(); ui.restartFloatingPolling(); },
+  stopAllPolling: () => { ui.stopSyncPolling(); },
+  restartAllPolling: () => { ui.restartSyncPolling(); },
   queueAutoSync: ui.queueAutoSync,
   runSync: ui.runSync,
   doSync: ui.doSync,
@@ -580,35 +507,11 @@ assignToWindow({
   getCurrentProvider: ui.getCurrentProvider, initProviderList: ui.initProviderList,
   generateTagsFromComment: ui.generateTagsFromComment,
   addGeneratedTag: ui.addGeneratedTag, clearGeneratedTags: ui.clearGeneratedTags,
-  // Batch 7: teaching-ui
-  loadTeachingView: ui.loadTeachingView, getCurrentVersion: ui.getCurrentVersion,
-  getNodeVersions: ui.getNodeVersions, renderTeachingStats: ui.renderTeachingStats,
-  renderTeachingNodeList: ui.renderTeachingNodeList,
-  showNodeDiagram: ui.showNodeDiagram, atomizeChapter: ui.atomizeChapter,
-  // Batch 7: teaching-queue
-  updateTeachingSelectedCount: ui.updateTeachingSelectedCount,
-  selectAllPending: ui.selectAllPending, startSelectedGeneration: ui.startSelectedGeneration,
-  startAllGeneration: ui.startAllGeneration, pauseBatchGeneration: ui.pauseBatchGeneration,
-  regenerateNode: ui.regenerateNode, addNewVersion: ui.addNewVersion,
-  showVersionSwitcher: ui.showVersionSwitcher, retryAllErrors: ui.retryAllErrors,
-  deleteTeachingNode: ui.deleteTeachingNode,
-  // Batch 7: teaching-verify
-  getVerifyNodeList: ui.getVerifyNodeList, openVerifyModal: ui.openVerifyModal,
-  verifyPrev: ui.verifyPrev, verifyNext: ui.verifyNext,
-  toggleVerifyEdit: ui.toggleVerifyEdit, handleKatexEdit: ui.handleKatexEdit,
-  finishKatexEdit: ui.finishKatexEdit, htmlToMarkdown: ui.htmlToMarkdown,
-  saveWysiwygEdit: ui.saveWysiwygEdit, cancelWysiwygEdit: ui.cancelWysiwygEdit,
-  closeVerifyModal: ui.closeVerifyModal, verifyApprove: ui.verifyApprove,
-  verifyRegenerate: ui.verifyRegenerate, loadLinkedQuestions: ui.loadLinkedQuestions,
-  unlinkQuestionFromNode: ui.unlinkQuestionFromNode,
-  openNodeQuestionPicker: ui.openNodeQuestionPicker,
-  closeNodeQuestionPicker: ui.closeNodeQuestionPicker,
-  confirmNodeQuestionLinks: ui.confirmNodeQuestionLinks,
   // Batch 7: projection
   enterProjectionMode: ui.enterProjectionMode, exitProjectionMode: ui.exitProjectionMode,
   renderProjection: ui.renderProjection, projectionPrev: ui.projectionPrev,
   projectionNext: ui.projectionNext,
-  // Batch 7: drawing canvas + backup helpers + floating polling
+  // Batch 7: drawing canvas + backup helpers
   _buildDrawHTML: ui._buildDrawHTML, initDrawCanvas: ui.initDrawCanvas,
   saveDrawing: ui.saveDrawing, cancelDraw: ui.cancelDraw,
   getBackupPath: ui.getBackupPath, getBackupDir: ui.getBackupDir,
@@ -616,11 +519,11 @@ assignToWindow({
   showBackupModal: ui.showBackupModal,
   closeBackupModal: ui.closeBackupModal,
   saveBackupToDevice: ui.saveBackupToDevice,
+  exportAllData: ui.exportAllData,
   loadBackupFromDevice: ui.loadBackupFromDevice,
   toggleAutoBackup: ui.toggleAutoBackup,
   doAutoBackup: ui.doAutoBackup,
   buildBackupData: ui.buildBackupData,
-  stopFloatingPolling: ui.stopFloatingPolling, restartFloatingPolling: ui.restartFloatingPolling,
   // Batch 8: issue-feedback
   initIssueFeedbackListener: ui.initIssueFeedbackListener,
   showFeedbackPromptBar: ui.showFeedbackPromptBar,
@@ -632,19 +535,41 @@ assignToWindow({
   removeFeedbackScreenshot: ui.removeFeedbackScreenshot,
   submitIssueFeedback: ui.submitIssueFeedback,
   retryPendingFeedback: ui.retryPendingFeedback,
+  // Batch 9: quick import
+  toggleQuickImportMode: ui.toggleQuickImportMode,
+  confirmQuickImport: ui.confirmQuickImport,
+  swapQuickPair: ui.swapQuickPair,
+  openComboPanel: ui.openComboPanel,
+  closeComboPanel: ui.closeComboPanel,
+  createComboFromPanel: ui.createComboFromPanel,
+  toggleQuickLayout: ui.toggleQuickLayout,
+  // 快速导入文字笔记（设计：docs/plans/2026-08-30-quick-import-text-note.md）
+  toggleQuickNote: ui.toggleQuickNote,
+  onQuickNoteInput: ui.onQuickNoteInput,
+  takeQuickHandNote: ui.takeQuickHandNote,
+  pickQuickHandNoteFromGallery: ui.pickQuickHandNoteFromGallery,
+  removeQuickHandNote: ui.removeQuickHandNote,
+  // 快速导入常见标签（设计：docs/plans/2026-09-03-quick-import-favorite-tags.md）
+  toggleQiTopicPanel: ui.toggleQiTopicPanel,
+  renderQiTopicList: ui.renderQiTopicList,
+  toggleQuickFavPanel: ui.toggleQuickFavPanel,
+  renderQuickFavCandidates: ui.renderQuickFavCandidates,
+  renderQuickFavTags: ui.renderQuickFavTags,
+  renderQuickFavSortList: ui.renderQuickFavSortList,
+  renderQuickFavSyncState: ui.renderQuickFavSyncState,
+  setQuickFavOn: services.setQuickFavOn,
+  // 语义运行时接线（门面实例由 initSemanticRuntime 挂载）
+  HttpEngine: semanticEngineHttp.HttpEngine,
+  createSemanticService: semanticRuntime.createSemanticService,
+  initSemanticRuntime: semanticRuntime.initSemanticRuntime,
+  switchSemanticEngine: semanticRuntime.switchSemanticEngine,
 });
-
-// Batch 2: expose native import alias
-w['importPendingPhotos'] = ui.importPendingPhotosFromNative;
 
 // Batch 2: init review check on startup
 ui.initReviewCheck();
 
 // Batch 3: init detail swipe gesture
 ui.initDetailSwipe();
-
-// Batch 5: init floating window poll
-ui.initFloatingPoll();
 
 // Batch 6: init sync/login UI
 ui.initSyncUI();
@@ -656,15 +581,20 @@ ui.initProviderList();
 // Batch 8: init issue feedback listener
 ui.initIssueFeedbackListener();
 
+function startApp(): void {
+  initAnchoredModals();
+  void initApp();
+  void semanticRuntime.initSemanticRuntime().catch(() => {});
+}
+
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initApp);
+  document.addEventListener('DOMContentLoaded', startApp);
 } else {
-  initApp();
+  startApp();
 }
 
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
-    Promise.resolve(ui.wikiFlushPendingJobs?.()).catch(() => {});
     Promise.resolve(ui.retryPendingFeedback()).catch(() => {});
   });
 }

@@ -1,5 +1,6 @@
 import { dbQuestions, dbQuestionTags, generateId, nowIso, toMillis } from './stores';
 import { buildTagIndex, invalidateTagIndex } from './tags';
+import { compressImage } from '../services/image';
 import type { Question, BookInfo } from '../types';
 
 let _questionsCache: Question[] | null = null;
@@ -38,6 +39,25 @@ function normalizeQuestionRecord(question: Record<string, unknown>, key: string)
   return next as unknown as Question;
 }
 
+export function recordNeedsNormalization(original: Record<string, unknown>): boolean {
+  if (!original || typeof original !== 'object') return false;
+  if (!original.id) return true;
+  const required: Array<keyof Record<string, unknown>> = [
+    'question_image_url', 'answer_image_url', 'question_image_blank_url',
+    'semantic_summary', 'ai_metadata', 'user_comment',
+    'versions', 'book_name', 'page_number', 'question_number'
+  ];
+  for (const k of required) {
+    if (!(k in original)) return true;
+  }
+  if (original.layoutType != null && original.layout_type == null) return true;
+  if (original.createdAt != null && original.created_at == null) return true;
+  if (original.updatedAt != null && original.updated_at == null) return true;
+  if (original.deletedAt != null && original.deleted_at == null) return true;
+  if (original.purgedAt != null && original.purged_at == null) return true;
+  return false;
+}
+
 export async function dbGetAllQuestions(): Promise<Question[]> {
   if (_questionsCache && !_questionsDirty) {
     const qtMap = await buildTagIndex();
@@ -48,7 +68,7 @@ export async function dbGetAllQuestions(): Promise<Question[]> {
   await dbQuestions.iterate((v: unknown, key: string) => {
     const question = normalizeQuestionRecord(v as Record<string, unknown>, key);
     if (!question) return;
-    if (JSON.stringify(v) !== JSON.stringify(question)) updates.push(question);
+    if (recordNeedsNormalization(v as Record<string, unknown>)) updates.push(question);
     if (!question.deleted_at) questions.push({ ...question });
   });
   for (const question of updates) await dbQuestions.setItem(question.id, question);
@@ -71,6 +91,18 @@ export async function dbGetTrashedQuestions(): Promise<Question[]> {
   return questions.sort((a, b) => toMillis(b.deleted_at) - toMillis(a.deleted_at));
 }
 
+// 压缩真闸门（1600/0.85）：与 legacy public/db.js:427-431 对齐。
+// f640/main2 的图片压缩闸门在 legacy dbCreateQuestion 里；TS 版接管 window.dbCreateQuestion
+// 后必须自带压缩，否则大图直落（tests/quick-import-visibility.spec.js:307 真尺寸断言守护）。
+async function compressGate(image: string | null): Promise<string | null> {
+  if (!image) return image;
+  try {
+    return await compressImage(image, 1600, 0.85);
+  } catch {
+    return image; // 压缩失败回退原图（绝不丢图）
+  }
+}
+
 export async function dbCreateQuestion(
   questionImageUrl: string | null,
   answerImageUrl: string | null,
@@ -80,6 +112,9 @@ export async function dbCreateQuestion(
   versions: string[],
   bookInfo: BookInfo | null
 ): Promise<Question> {
+  questionImageUrl = await compressGate(questionImageUrl);
+  answerImageUrl = await compressGate(answerImageUrl);
+  blankImageUrl = await compressGate(blankImageUrl);
   const id = generateId();
   const now = nowIso();
   const question: Question = {
@@ -101,7 +136,7 @@ export async function dbCreateQuestion(
   await dbQuestions.setItem(id, question);
   invalidateQuestionsCache();
   for (const tagId of selectedTagIds) {
-    await dbQuestionTags.setItem(`${id}_${tagId}`, { question_id: id, tag_id: tagId });
+    await dbQuestionTags.setItem(`${id}_${tagId}`, { question_id: id, tag_id: tagId, created_at: now, updated_at: now, deleted_at: null });
   }
   invalidateTagIndex();
   return question;
@@ -133,12 +168,21 @@ export async function dbPermanentDeleteQuestion(questionId: string): Promise<voi
 }
 
 export async function dbAddTagToQuestion(questionId: string, tagId: string): Promise<void> {
-  await dbQuestionTags.setItem(`${questionId}_${tagId}`, { question_id: questionId, tag_id: tagId });
+  const now = nowIso();
+  await dbQuestionTags.setItem(`${questionId}_${tagId}`, { question_id: questionId, tag_id: tagId, created_at: now, updated_at: now, deleted_at: null });
   invalidateTagIndex();
 }
 
 export async function dbRemoveTagFromQuestion(questionId: string, tagId: string): Promise<void> {
-  await dbQuestionTags.removeItem(`${questionId}_${tagId}`);
+  const key = `${questionId}_${tagId}`;
+  const now = nowIso();
+  const existing = await dbQuestionTags.getItem(key);
+  if (existing) {
+    await dbQuestionTags.setItem(key, { ...(existing as Record<string, unknown>), updated_at: now, deleted_at: now });
+  } else {
+    // 本地无记录也要写墓碑，确保「取消关联」能跨设备传播（不被另一条设备的陈旧全量 push 复活）
+    await dbQuestionTags.setItem(key, { question_id: questionId, tag_id: tagId, created_at: now, updated_at: now, deleted_at: now });
+  }
   invalidateTagIndex();
 }
 
@@ -188,4 +232,26 @@ export async function dbRemoveVersionFromAllQuestions(versionId: string): Promis
   });
   for (const q of updates) await dbQuestions.setItem(q.id, q);
   invalidateQuestionsCache();
+}
+
+// N1 数据层：零标签题查询。有效题 = 无 deleted_at（字段缺失或 null 视为有效）；
+// 未打标签 = 没有任何「有效关联」（question_tags 中 deleted_at 为空的关联）指向该题。
+export async function listUntaggedQuestions(): Promise<Question[]> {
+  const taggedQuestionIds = new Set<string>();
+  await dbQuestionTags.iterate((qt: unknown) => {
+    const r = qt as { question_id: string; deleted_at?: string | null };
+    if (!r.deleted_at) taggedQuestionIds.add(r.question_id);
+  });
+  const result: Question[] = [];
+  await dbQuestions.iterate((v: unknown, key: string) => {
+    const q = normalizeQuestionRecord(v as Record<string, unknown>, key);
+    if (!q) return;
+    if (q.deleted_at) return;
+    if (!taggedQuestionIds.has(q.id)) result.push(q);
+  });
+  return result;
+}
+
+export async function getUntaggedQuestionCount(): Promise<number> {
+  return (await listUntaggedQuestions()).length;
 }

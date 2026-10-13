@@ -4,24 +4,24 @@ export interface SyncConfig {
   enabled: boolean;
 }
 
+// 关联独立同步键：与题目/标签解耦，逐条时间戳合并。删除表达为软删（deleted_at 非空）。
+export interface QuestionTagSync {
+  question_id: string;
+  tag_id: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  deleted_at?: string | null;
+}
+
 export interface SyncPayload {
   questions: unknown[];
   tags: unknown[];
-  question_tags: unknown[];
+  question_tags: QuestionTagSync[];
   papers: unknown[];
   paper_questions: unknown[];
-  similar_question_links: unknown[];
-  topics: unknown[];
-  topic_questions: unknown[];
   question_notes: unknown[];
-  teaching_nodes: unknown[];
-  teaching_versions: unknown[];
-  node_questions: unknown[];
-  pdf_books: unknown[];
-  pdf_chapters: unknown[];
-  pdf_topics: unknown[];
-  pdf_docs: unknown[];
-  pdf_categories: unknown[];
+  // 2.13 配置通道：groups / tag_categories / app_settings 序列化进 user_settings
+  settings?: Record<string, unknown>;
 }
 
 export interface DataFingerprint {

@@ -1,9 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+declare const localforage: typeof import('localforage');
+
 import * as data from './data';
 import * as services from './services';
 import * as ui from './ui';
 
 const w = window as any;
+
+async function _dropLegacyEmbeddingStore(): Promise<void> {
+  if (localStorage.getItem('embeddingsMigratedV3') === '1') return;
+  const legacy = localforage.createInstance({ name: 'questionBank', storeName: 'embeddings' });
+  await legacy.clear();
+  localStorage.setItem('embeddingsMigratedV3', '1');
+}
 
 async function _migrateQuestionNotes(): Promise<void> {
   try {
@@ -22,13 +31,17 @@ async function _migrateQuestionNotes(): Promise<void> {
 }
 
 export async function refreshAll(): Promise<void> {
-  await _migrateQuestionNotes();
+  if (!localStorage.getItem('questionNotesMigratedV1')) {
+    void _migrateQuestionNotes()
+      .then(() => { localStorage.setItem('questionNotesMigratedV1', '1'); })
+      .catch((e) => console.error('笔记迁移失败:', e));
+  }
+  await data.ensureDefaultTagCategories().catch((e) => console.error('默认标签类别种入失败:', e));
+  await data.migrateTagTaxonomy().catch((e) => console.error('分类体系迁移失败:', e));
   await Promise.all([
     ui.loadTags(),
     w.isFormDirty ? Promise.resolve() : ui.loadQuestions(),
     ui.loadPapers(),
-    ui.loadTopics(),
-    ui.loadBookFilter(),
   ]);
   if (!w.isFormDirty) {
     const lastBookName = localStorage.getItem('lastBookName');
@@ -37,7 +50,7 @@ export async function refreshAll(): Promise<void> {
   }
 }
 
-export function initApp(): void {
+export async function initApp(): Promise<void> {
   // Register refreshAll on window for cross-module access
   w.refreshAll = refreshAll;
 
@@ -45,14 +58,20 @@ export function initApp(): void {
   ui.renderVersionCheckboxes();
   ui.renderVersionSwitcher();
   ui.updateExportImgModeBtn();
-  ui.initRemoteSync(w.serverUrl, w.apiToken, w.syncEnabled);
+  const lsServerUrl = (localStorage.getItem('serverUrl') || '').replace(/\/+$/, '');
+  const lsApiToken = localStorage.getItem('apiToken') || '';
+  const lsSyncEnabled = localStorage.getItem('syncEnabled') !== '0';
+  ui.initRemoteSync(lsServerUrl, lsApiToken, lsSyncEnabled);
+  data.initRemoteSync(lsServerUrl, lsApiToken, lsSyncEnabled);
+  try {
+    await _dropLegacyEmbeddingStore();
+  } catch (e) { console.error('旧向量库清理失败:', e); }
+  void data.refreshEmbeddings().catch(() => {});
   data.setOnSyncDataWarning(ui.showSyncWarning);
   const syncToggle = document.getElementById('sync-toggle') as HTMLInputElement | null;
   if (syncToggle) syncToggle.checked = w.syncEnabled;
 
   refreshAll().then(() => {
-    ui.updatePendingLinkBadge();
-    ui.updatePendingPhotosBadge();
   });
 
   ui.restartSyncPolling();
@@ -73,6 +92,5 @@ export function initApp(): void {
   // Form initializers
   ui.initTagForm();
   ui.initQuestionForm();
-  ui.initPaperForm();
-  ui.initTopicForm();
+  ui.initQuickImportMode();
 }
