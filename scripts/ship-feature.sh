@@ -47,7 +47,7 @@ npx cap sync android
 echo ">>> 修复 proguard 兼容性..."
 SED_BIN="/usr/bin/sed"
 [ -x "$SED_BIN" ] || SED_BIN="$(command -v sed)"
-find node_modules -name "build.gradle" -exec grep -l "proguard-android\.txt" {} \; 2>/dev/null | while read f; do
+find -L node_modules -name "build.gradle" -exec grep -l "proguard-android\.txt" {} \; 2>/dev/null | while read f; do
   [ -n "$f" ] && [ -f "$f" ] && "$SED_BIN" -i '' -e 's/proguard-android\.txt/proguard-android-optimize.txt/g' "$f" || true
 done
 

@@ -288,6 +288,7 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 | 架构可视化模型（Architecture Visualization 插件） | C4 系统上下文/容器 DSL + 客户端四层依赖 DOT + 同步流程 Mermaid + 证据索引 | docs/architecture/artifact-summary.md | 2026-08-05 | 架构模型, C4, Graphviz, 证据索引 |
 | 语义检索（WeMM-2B 混合搜索与相似题） | 文字语义搜/以图搜题/详情页找相似题；Python 编码微服务(懒加载+空闲卸载) + question_embeddings 向量表 + 客户端本地余弦检索 + 静默降级；91 题盲测 L3 Recall@5 0.93 vs 现有 0.00；实施计划 docs/plans/2026-09-15-semantic-search.md，评测 tmp/wemm-eval/report.md | docs/semantic-search-wemm2b.md | 2026-09-15 | 语义检索, WeMM-Embedding, FastAPI, Express, E2E |
 | 一键问题反馈与 GitHub Issues 自动提交 | 截图监听（Android 插件+iOS 通知桥接）+ 反馈表单 + 服务端中转 + 图片存 feedback-assets 分支 + 离线重试队列 | docs/auto-issue-feedback.md | 2026-08-27 | 问题反馈, GitHub Issues, 服务端, 原生插件 |
+| 语义离线可用 + 护栏修复 | 找相似题脱离引擎可达性 + 引擎目录可扩展 + 幂等刷新修升级检测 | docs/superpowers/specs/2026-10-06-semantic-offline-guardrail-design.md | 2026-10-06 | 语义搜索, 离线可用, 多引擎 |
 | E2E 隔离测试账号与数据快照 | 专用测试账号 + 主账号标签/题目快照复制脚本 + 测试数据与真实账号隔离 | docs/e2e-test-account.md | 2026-08-28 | 测试基建, 数据隔离, 服务端 |
 | PDF 排版引擎 v5 集成 | planLayout 纯函数引擎替换 pdf.ts + 单双栏自动分组 + 长图切割 + 修复试卷导出空白 | docs/pdf-layout-engine-v5.md | 2026-08-28 | PDF 生成, 排版引擎, generatePDF, 试卷导出 |
 | 快速导入题目模式 | 顶部悬浮确认条 + 相册最新两张自动配对（第1张=答案/第2张=题目）+ 版本组合 + 栏数切换 + 切回前台自动刷新 | docs/quick-import-mode.md | 2026-08-28 | 快速导入, 相册, 版本组合, UI |
