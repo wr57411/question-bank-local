@@ -35,11 +35,8 @@
         <div id="qi-fav-tags" style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:none;padding:2px 0"></div>
         <button type="button" id="qi-fav-manage-btn" onclick="toggleQuickFavPanel()" style="flex-shrink:0;width:26px;height:26px;border:1.5px dashed var(--border);border-radius:50%;background:var(--surface);color:var(--text-secondary);font-size:14px;line-height:1;cursor:pointer" title="管理常见标签">＋</button>
         <button type="button" id="qi-topic-btn" onclick="toggleQiTopicPanel()" style="flex-shrink:0;box-sizing:border-box;width:24px;height:24px;padding:0;min-width:0;border:1.5px solid var(--border);border-radius:50%;background:var(--surface);color:var(--text-secondary);font-size:12px;line-height:1;cursor:pointer" title="匹配专题：导入的题将归入所选专题">专</button>
+        <select id="qi-tag-category" aria-label="标签类别" style="flex-shrink:0;width:112px;padding:4px 6px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:12px;background:var(--surface);color:var(--text)"></select>
     </div>
-        <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
-            <span style="font-size:12px;color:var(--text-secondary);white-space:nowrap">类别</span>
-            <select id="qi-tag-category" style="flex:1;min-width:0;padding:7px 9px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:13px;background:var(--surface);color:var(--text)"></select>
-        </div>
     <div id="qi-fav-panel" style="display:none;margin-top:6px;padding:8px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface-dim)">
         <div id="qi-fav-sync-state" style="display:none;margin-bottom:6px;padding:6px 8px;border-radius:var(--radius-sm);background:var(--warning-light);color:var(--warning-dark);font-size:12px"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">

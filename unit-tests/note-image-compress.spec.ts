@@ -91,9 +91,22 @@ describe('接线：表单「额外版本」落库走 compressNoteImage', () => {
     vi.doMock('../src/services/image', () => ({
       compressNoteImage: async (img: string) => (img ? 'COMPRESSED::' + img : img),
     }));
-    vi.doMock('../src/data/stores', () => ({
-      dbQuestions: { setItem: async () => {} },
-    }));
+    // question-core 经 ../data → backup.ts 引用全部 store 实例；
+    // 不能只部分 mock stores（缺 dbTags 等会让 backup 顶层炸），改为 stub 全局 localforage。
+    // 语义对齐其他单测（如 question-tag-sync.spec.ts）的内存 fake。
+    vi.stubGlobal('localforage', {
+      createInstance: () => ({
+        setItem: async () => {},
+        getItem: async () => null,
+        iterate: async (_cb: any) => {},
+        removeItem: async () => {},
+        key: async () => null,
+        keys: async () => [],
+        length: async () => 0,
+        dropInstance: async () => {},
+        config: {},
+      }),
+    });
   });
   afterEach(() => { vi.unstubAllGlobals(); });
 

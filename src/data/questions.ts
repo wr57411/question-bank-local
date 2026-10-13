@@ -1,5 +1,6 @@
 import { dbQuestions, dbQuestionTags, generateId, nowIso, toMillis } from './stores';
 import { buildTagIndex, invalidateTagIndex } from './tags';
+import { compressImage } from '../services/image';
 import type { Question, BookInfo } from '../types';
 
 let _questionsCache: Question[] | null = null;
@@ -90,6 +91,18 @@ export async function dbGetTrashedQuestions(): Promise<Question[]> {
   return questions.sort((a, b) => toMillis(b.deleted_at) - toMillis(a.deleted_at));
 }
 
+// 压缩真闸门（1600/0.85）：与 legacy public/db.js:427-431 对齐。
+// f640/main2 的图片压缩闸门在 legacy dbCreateQuestion 里；TS 版接管 window.dbCreateQuestion
+// 后必须自带压缩，否则大图直落（tests/quick-import-visibility.spec.js:307 真尺寸断言守护）。
+async function compressGate(image: string | null): Promise<string | null> {
+  if (!image) return image;
+  try {
+    return await compressImage(image, 1600, 0.85);
+  } catch {
+    return image; // 压缩失败回退原图（绝不丢图）
+  }
+}
+
 export async function dbCreateQuestion(
   questionImageUrl: string | null,
   answerImageUrl: string | null,
@@ -99,6 +112,9 @@ export async function dbCreateQuestion(
   versions: string[],
   bookInfo: BookInfo | null
 ): Promise<Question> {
+  questionImageUrl = await compressGate(questionImageUrl);
+  answerImageUrl = await compressGate(answerImageUrl);
+  blankImageUrl = await compressGate(blankImageUrl);
   const id = generateId();
   const now = nowIso();
   const question: Question = {

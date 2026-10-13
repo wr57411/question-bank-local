@@ -159,6 +159,10 @@ assignToWindow({
   dbAddTagToQuestion: data.dbAddTagToQuestion,
   dbRemoveTagFromQuestion: data.dbRemoveTagFromQuestion,
   dbUpdateTag: data.dbUpdateTag,
+  // dbCreateQuestion 强制覆盖（E 批预搬）：TS 版已补齐 legacy 的压缩真闸门 1600/0.85
+  // （src/data/questions.ts compressGate，对齐 public/db.js:427-431）；
+  // 混用 legacy 写 + TS 读会因两套缓存互不失效而读不到新题。
+  // 未搬部分：同步图片上传（legacy _uploadImage，仅登录+原生场景）仍待 legacy-js-retirement 地雷 2 解法。
   dbCreateQuestion: data.dbCreateQuestion,
   dbCreateTag: data.dbCreateTag,
   dbGetAllTags: data.dbGetAllTags,
