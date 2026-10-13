@@ -52,6 +52,7 @@ let pair: QuickPair | null = null;
 let questionThumb = '';
 let answerThumb = '';
 let quickTagIds: string[] = [];
+let quickTopicId: string | null = null;
 let loading = false;
 let lastFetchAt = 0;
 let tagPollTimer: number | null = null;
@@ -192,6 +193,25 @@ function renderHint(text: string): void {
   if (el) el.textContent = text;
 }
 
+// 复用 window 上已挂载的 dbGetAllTagCategories，避免静态引入 data 层（会拖入需要 localforage 全局的 stores）。
+async function fillQiCategorySelect(): Promise<void> {
+  const sel = document.getElementById('qi-tag-category') as HTMLSelectElement | null;
+  if (!sel) return;
+  const cats: any[] = (await (w.dbGetAllTagCategories as (() => Promise<any[]>) | undefined)?.()) || [];
+  const list = cats.filter((c: any) => !c.is_system);
+  sel.innerHTML = '';
+  const none = document.createElement('option');
+  none.value = '';
+  none.textContent = '— 请选择类别 —';
+  sel.appendChild(none);
+  for (const c of list) {
+    const o = document.createElement('option');
+    o.value = c.id;
+    o.textContent = c.name;
+    sel.appendChild(o);
+  }
+}
+
 export function swapQuickPair(): void {
   if (!pair) return;
   pair = { question: pair.answer, answer: pair.question };
@@ -217,6 +237,8 @@ function render(): void {
 
   renderQuickFavTags();
 
+  syncQiTopicBtn();
+
   syncComboButton();
 
   const layoutBtn = document.getElementById('qi-layout-btn');
@@ -241,6 +263,7 @@ function render(): void {
     });
     tagInput.addEventListener('keydown', onQuickTagKeydown);
   }
+  void fillQiCategorySelect();
 
   // 设计 Task 2：笔记输入绑定字数统计与圆点标记
   const noteArea = document.getElementById('qi-note-area');
@@ -285,8 +308,16 @@ export async function confirmQuickImport(): Promise<void> {
       // 设计决策：文字写入既有 question_notes 的 text_note 字段（笔记体系已纳入同步，无需改同步链路）
       await w.dbAddQuestionNote(created.id, created.question_image_url, '笔记 v1', noteText);
     }
+    // 2.11 专题匹配：导入后归入所选专题（写入其系统成员标签）
+    if (created?.id && quickTopicId) {
+      const g = await (w.dbGetGroup as ((id: string) => Promise<any>) | undefined)?.(quickTopicId);
+      if (g?.member_tag_id) await w.dbAddTagToQuestion(created.id, g.member_tag_id);
+    }
     markImportedIds(ids);
     quickTagIds = [];
+    quickTopicId = null;
+    syncQiTopicBtn();
+    collapseQiTopicPanel();
     pair = null;
     questionThumb = '';
     answerThumb = '';
@@ -375,9 +406,12 @@ export async function createQuickTag(name: string): Promise<void> {
     showStatus('请输入标签名', 'error');
     return;
   }
+  const catId = (document.getElementById('qi-tag-category') as HTMLSelectElement | null)?.value || null;
+  if (!catId) { showStatus('请先选择类别', 'error'); return; }
   let tag = (w.allTags || []).find((t: any) => t.name === trimmed);
   if (!tag) {
     tag = await w.dbCreateTag(trimmed, '#4CC3FF');
+    await w.dbUpdateTag(tag.id, { category_id: catId });
     await Promise.resolve(w.loadTags?.());
   }
   if (tag?.id) addQuickTag(tag.id);
@@ -707,6 +741,7 @@ export function toggleQuickFavPanel(): void {
     applyQuickBarBodyPadding();
     return;
   }
+  collapseQiTopicPanel();
   renderQuickFavSortList();
   renderQuickFavCandidates();
   renderQuickFavSyncState();
@@ -719,6 +754,64 @@ function collapseQuickFavPanel(): void {
   if (!panel || panel.style.display === 'none') return;
   panel.style.display = 'none';
   applyQuickBarBodyPadding();
+}
+
+// ========== 2.11 快速导入栏 · 专题匹配框（行 3 尾部圆钮「专」，常态 0 高度） ==========
+function qiTopicPanel(): HTMLElement | null {
+  return document.getElementById('qi-topic-panel');
+}
+
+export function toggleQiTopicPanel(): void {
+  const panel = qiTopicPanel();
+  if (!panel) return;
+  const opening = panel.style.display === 'none';
+  panel.style.display = opening ? 'block' : 'none';
+  if (opening) { collapseQuickFavPanel(); void renderQiTopicList(); }
+  applyQuickBarBodyPadding();
+}
+
+function collapseQiTopicPanel(): void {
+  const panel = qiTopicPanel();
+  if (!panel || panel.style.display === 'none') return;
+  panel.style.display = 'none';
+  applyQuickBarBodyPadding();
+}
+
+function syncQiTopicBtn(): void {
+  const b = document.getElementById('qi-topic-btn');
+  if (!b) return;
+  b.style.background = quickTopicId ? 'var(--primary)' : 'var(--surface)';
+  b.style.color = quickTopicId ? '#fff' : 'var(--text-secondary)';
+}
+
+export async function renderQiTopicList(): Promise<void> {
+  const box = document.getElementById('qi-topic-list');
+  if (!box) return;
+  box.replaceChildren();
+  const groups: any[] = (await (w.dbGetAllGroups as ((kind: string) => Promise<any[]>) | undefined)?.('topic')) || [];
+  if (!groups.length) {
+    const empty = document.createElement('span');
+    empty.style.cssText = 'font-size:11px;color:var(--text-tertiary)';
+    empty.textContent = '暂无专题，请到「标签管理」新建';
+    box.appendChild(empty);
+    return;
+  }
+  for (const g of groups) {
+    const selected = quickTopicId === g.id;
+    const chip = document.createElement('span');
+    chip.dataset.topicId = g.id;
+    chip.style.cssText = 'display:inline-flex;align-items:center;padding:4px 10px;border:1.5px solid '
+      + (selected ? 'var(--primary)' : 'var(--border)') + ';background:'
+      + (selected ? 'var(--primary)' : 'var(--surface)') + ';color:'
+      + (selected ? '#fff' : 'var(--text)') + ';border-radius:var(--radius-xl);font-size:12px;cursor:pointer;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+    chip.textContent = g.name;
+    chip.onclick = () => {
+      quickTopicId = selected ? null : g.id;
+      syncQiTopicBtn();
+      void renderQiTopicList();
+    };
+    box.appendChild(chip);
+  }
 }
 
 async function fetchQuickFavRemote(): Promise<void> {

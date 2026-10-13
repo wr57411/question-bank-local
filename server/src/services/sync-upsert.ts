@@ -99,7 +99,7 @@ function upsertRecord(userId: string, record: Record, config: UpsertConfig): boo
 
 // ─── 简单表的 upsert（配置驱动）─────────────────────────────────────
 
-const TAG_COLUMNS = ['id', 'user_id', 'name', 'color', 'created_at', 'updated_at', 'deleted_at'];
+const TAG_COLUMNS = ['id', 'user_id', 'name', 'color', 'category_id', 'created_at', 'updated_at', 'deleted_at'];
 const NOTE_COLUMNS = ['id', 'user_id', 'question_id', 'note_image_url', 'label', 'text_note', 'created_at', 'updated_at'];
 
 export function upsertTag(userId: string, tag: Record): boolean {

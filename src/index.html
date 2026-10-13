@@ -34,7 +34,12 @@
     <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
         <div id="qi-fav-tags" style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;scrollbar-width:none;padding:2px 0"></div>
         <button type="button" id="qi-fav-manage-btn" onclick="toggleQuickFavPanel()" style="flex-shrink:0;width:26px;height:26px;border:1.5px dashed var(--border);border-radius:50%;background:var(--surface);color:var(--text-secondary);font-size:14px;line-height:1;cursor:pointer" title="管理常见标签">＋</button>
+        <button type="button" id="qi-topic-btn" onclick="toggleQiTopicPanel()" style="flex-shrink:0;box-sizing:border-box;width:24px;height:24px;padding:0;min-width:0;border:1.5px solid var(--border);border-radius:50%;background:var(--surface);color:var(--text-secondary);font-size:12px;line-height:1;cursor:pointer" title="匹配专题：导入的题将归入所选专题">专</button>
     </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:6px">
+            <span style="font-size:12px;color:var(--text-secondary);white-space:nowrap">类别</span>
+            <select id="qi-tag-category" style="flex:1;min-width:0;padding:7px 9px;border:1.5px solid var(--border);border-radius:var(--radius-md);font-size:13px;background:var(--surface);color:var(--text)"></select>
+        </div>
     <div id="qi-fav-panel" style="display:none;margin-top:6px;padding:8px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface-dim)">
         <div id="qi-fav-sync-state" style="display:none;margin-bottom:6px;padding:6px 8px;border-radius:var(--radius-sm);background:var(--warning-light);color:var(--warning-dark);font-size:12px"></div>
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
@@ -45,6 +50,13 @@
         <div style="height:1px;background:var(--border-light);margin:8px 0"></div>
         <input id="qi-fav-search" type="text" placeholder="搜索标签以添加" autocomplete="off" oninput="renderQuickFavCandidates()" style="display:block;width:100%;box-sizing:border-box;padding:7px 9px;border:1.5px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:var(--surface);color:var(--text)">
         <div id="qi-fav-candidates" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;max-height:96px;overflow-y:auto"></div>
+    </div>
+    <div id="qi-topic-panel" style="display:none;margin-top:6px;padding:8px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface-dim)">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span style="font-size:12px;font-weight:500;color:var(--text)">匹配专题（导入后自动归入）</span>
+            <button type="button" onclick="toggleQiTopicPanel()" style="border:none;background:transparent;color:var(--text-tertiary);font-size:13px;cursor:pointer">收起</button>
+        </div>
+        <div id="qi-topic-list" style="display:flex;flex-wrap:wrap;gap:6px;max-height:110px;overflow-y:auto"></div>
     </div>
     <div style="display:flex;align-items:center;gap:6px;margin-top:8px">
         <button type="button" id="qi-combo-btn" onclick="openComboPanel()" style="flex:0 1 auto;min-width:46px;max-width:calc(100% - 132px);padding:7px 10px;border:1.5px solid var(--border);border-radius:var(--radius-md);background:var(--surface);color:var(--text);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" title="点击切换版本组合">组合 ▾</button>
@@ -283,6 +295,7 @@
                             <input id="form-tag-search" type="text" placeholder="🔍 搜索标签..." oninput="onFormTagSearch()" onkeydown="onFormTagKeydown(event)" onfocus="_startFormTagPoll()" onblur="_stopFormTagPoll()" style="flex:1;padding:6px 8px;font-size:13px;border:1px solid var(--border-light);border-radius:var(--radius-sm)" />
                             <button type="button" id="form-tag-create-btn" onclick="createTagFromSearch()" class="btn-grape-soft">＋ 创建</button>
                         </div>
+                        <div style="margin-bottom:6px"><select id="form-tag-category" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border-light);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)"></select></div>
                         <div id="form-tag-results" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;max-height:100px;overflow-y:auto"></div>
                         <div id="form-tag-selected" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px"></div>
                     </div>
@@ -313,6 +326,7 @@
                 <h2 style="margin:0">📋 题目列表 <span id="question-count" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h2>
                 <div style="display:flex;gap:8px;align-items:center">
                     <span id="selected-count" style="font-size:13px;color:var(--primary);display:none;font-weight:600">已选 <b id="selected-num">0</b> 题</span>
+                    <button id="batch-group-btn" onclick="openGroupAssignModal()" style="padding:10px 14px;font-size:13px;border-radius:var(--radius-md)">📁 专题</button>
                     <button id="grid-layout-toggle" onclick="toggleQuestionGridLayout()" style="padding:10px 14px;font-size:13px;border-radius:var(--radius-md)">▤ 双栏</button>
                     <button onclick="exportSelectedOrAll()" style="padding:10px 18px;font-size:13px;border-radius:var(--radius-md)">📄 导出 PDF</button>
                 </div>
@@ -320,7 +334,7 @@
             <div class="filter-tags-wrap">
                 <div class="filter-toggle" id="filter-toggle" onclick="toggleFilterTags()">
                     <span class="arrow">▶</span>
-                    <span>标签筛选</span>
+                    <span>筛选</span>
                     <span class="badge" id="filter-badge" style="display:none">0</span>
                 </div>
                 <div class="filter-tags collapsed" id="filter-tags"></div>
@@ -348,6 +362,35 @@
                 <div class="form-group"><label>标签颜色</label><input type="color" id="tag-color" value="#FF7847" /></div>
                 <button type="submit" style="width:100%;padding:14px;border-radius:var(--radius-lg)">➕ 添加标签</button>
             </form>
+        </div>
+        <div class="card">
+            <h2>类别</h2>
+            <div id="categories-list"></div>
+            <div style="display:flex;gap:8px;margin-top:12px">
+                <button type="button" class="secondary" onclick="addCategory()" style="flex:1;padding:12px;border-radius:var(--radius-lg)">＋ 新增类别</button>
+                <button type="button" id="batch-categorize-btn" onclick="openBatchCategorize()" style="flex:1;padding:12px;border-radius:var(--radius-lg);background:var(--accent-light);color:var(--accent-dark);border:1px solid var(--accent)">批量分类（0）</button>
+            </div>
+        </div>
+        <div class="card">
+            <h2>未打标签的题</h2>
+            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 8px;line-height:1.5">这些题还没有任何标签，可在此批量补标签（选中若干题 + 选一个标签）。</p>
+            <button type="button" id="untagged-btn" onclick="openUntaggedModal()" style="width:100%;padding:12px;border-radius:var(--radius-lg);background:var(--warning-light);color:var(--warning-dark);border:1px solid var(--warning)">未打标签的题（0）</button>
+        </div>
+        <div class="card">
+            <h2>选择器类别可见性</h2>
+            <h3 style="font-size:14px;margin:0 0 8px;color:var(--text-secondary);font-weight:700">章节选择器</h3>
+            <div id="chapter-visibility" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+            <h3 style="font-size:14px;margin:16px 0 8px;color:var(--text-secondary);font-weight:700">专题选择器</h3>
+            <div id="topic-visibility" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+        </div>
+        <div class="card">
+            <h2>章节 · 专题</h2>
+            <p style="font-size:13px;color:var(--text-secondary);margin:0 0 8px;line-height:1.5">章节按标签范围收题（只支持「或」）；专题支持且/或与一层子分组，并可手动归入题目。</p>
+            <div style="display:flex;gap:8px;margin-bottom:12px">
+                <button type="button" class="secondary" onclick="openGroupEditor(null,'chapter')" style="flex:1;padding:12px;border-radius:var(--radius-lg)">＋ 新建章节</button>
+                <button type="button" onclick="openGroupEditor(null,'topic')" style="flex:1;padding:12px;border-radius:var(--radius-lg)">＋ 新建专题</button>
+            </div>
+            <div id="groups-list"></div>
         </div>
         <div class="card"><h2>标签列表</h2><div class="tag-container" id="tags-list"></div></div>
     </div>
@@ -442,6 +485,7 @@
         </div>
         <div id="modal-answer-image"></div>
         <div id="modal-tags"></div>
+        <div id="modal-group-assign"></div>
         <!-- 用户评价生成标签 -->
         <div style="margin-top:12px;padding:12px;background:var(--warning-light);border-radius:var(--radius-md);border-left:3px solid var(--warning)">
             <div style="font-size:12px;color:var(--warning-dark);font-weight:600;margin-bottom:8px">📝 基于评价生成标签</div>
@@ -572,12 +616,114 @@
     </div>
 </div>
 
+<!-- 批量分类未分类标签弹窗（Agent 预分类 + 列表分页 + 默认全勾 + 一键同意） -->
+<div id="batch-categorize-modal" class="modal" onclick="if(event.target===this)closeBatchCategorize()">
+    <div class="modal-content" style="max-width:560px">
+        <h3>批量分类未分类标签</h3>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <span id="batch-progress" style="flex:1;font-size:13px;color:var(--text-secondary)">共 0 个未分类标签 · 已勾选 0</span>
+            <button type="button" id="batch-agree-all-btn" onclick="batchAgreeAll()" style="padding:8px 14px;border-radius:var(--radius-md);background:var(--primary);color:#fff;border:none;font-size:13px;font-weight:600;cursor:pointer">一键全部同意</button>
+        </div>
+        <div style="font-size:11px;color:var(--text-tertiary);margin-bottom:8px;line-height:1.5">已由 AI/Agent 预分类，默认全部勾选。取消勾选表示不同意，该标签保持未分类，之后可在标签管理里自行修改。</div>
+        <div id="batch-list" style="max-height:44vh;overflow-y:auto;border:1px solid var(--border-light);border-radius:var(--radius-md)"></div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px">
+            <span id="batch-page-info" style="flex:1;font-size:13px;color:var(--text-secondary)">第 1/1 页</span>
+            <button type="button" id="batch-prev-btn" class="secondary" onclick="batchPrevPage()">上一页</button>
+            <button type="button" id="batch-next-btn" class="secondary" onclick="batchNextPage()">下一页</button>
+        </div>
+        <div class="btn-group" style="margin-top:12px">
+            <button type="button" class="secondary" onclick="batchSelectAllPage()">本页全选</button>
+            <button type="button" class="secondary" onclick="batchDeselectAllPage()">本页全不选</button>
+            <button type="button" onclick="confirmBatchCategorize()" style="padding:12px 20px">确认本页并下一页</button>
+        </div>
+    </div>
+</div>
+
+<!-- 未打标签的题弹窗 -->
+<div id="untagged-modal" class="modal" onclick="if(event.target===this)closeUntaggedModal()">
+    <div class="modal-content" style="max-width:560px">
+        <h3>未打标签的题 <span id="untagged-modal-count" style="font-size:13px;color:var(--text-tertiary);font-weight:500"></span></h3>
+        <div id="untagged-list" style="max-height:46vh;overflow-y:auto;margin:12px 0"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--border-light);padding-top:12px">
+            <select id="untagged-tag" style="flex:1;min-width:140px;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)"></select>
+            <button onclick="untaggedBatchAdd()" style="padding:10px 16px;background:var(--primary);color:#fff;border:none;border-radius:var(--radius-md);font-size:13px;font-weight:600">批量加标签</button>
+            <button class="secondary" onclick="closeUntaggedModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
+<!-- 章节/专题表达式编辑器（2.4 / 2.6） -->
+<div id="group-editor-modal" class="modal" onclick="if(event.target===this)closeGroupEditor()">
+    <div class="modal-content" style="max-width:620px">
+        <h3 id="group-editor-title">新建专题</h3>
+        <div class="form-group">
+            <label>名称 *</label>
+            <input type="text" id="group-editor-name" placeholder="例如：期末冲刺" autocomplete="off" />
+        </div>
+        <div class="form-group" id="group-editor-kind-group">
+            <label>类型</label>
+            <select id="group-editor-kind">
+                <option value="chapter">章节</option>
+                <option value="topic">专题</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>条件</label>
+            <div id="group-editor-tree"></div>
+        </div>
+        <div id="group-editor-summary" class="gexpr-summary"></div>
+        <div id="group-editor-echo" class="gexpr-echo"></div>
+        <div id="group-editor-warn" class="gexpr-warn"></div>
+        <div class="btn-group" style="margin-top:var(--space-md)">
+            <button class="secondary" type="button" onclick="closeGroupEditor()">取消</button>
+            <button type="button" onclick="saveGroupEditor()" style="padding:12px 20px">保存</button>
+        </div>
+    </div>
+</div>
+
+<!-- 删标签级联清理（2.7） -->
+<div id="tag-cascade-modal" class="modal" onclick="if(event.target===this)closeTagCascadeModal()">
+    <div class="modal-content" style="max-width:520px">
+        <h3 id="tag-cascade-title">删除标签</h3>
+        <div id="tag-cascade-list" style="max-height:46vh;overflow-y:auto;margin:12px 0"></div>
+        <div class="btn-group">
+            <button class="secondary" type="button" onclick="closeTagCascadeModal()">取消</button>
+            <button type="button" class="danger" onclick="confirmTagCascade()" style="padding:12px 20px">确认清理并删除</button>
+        </div>
+    </div>
+</div>
+
+<!-- 删章节/专题确认（2.8） -->
+<div id="group-delete-modal" class="modal" onclick="if(event.target===this)closeGroupDeleteModal()">
+    <div class="modal-content" style="max-width:460px">
+        <h3 id="group-delete-title">删除</h3>
+        <div id="group-delete-message" style="font-size:13px;color:var(--text-secondary);line-height:1.6;margin-bottom:12px"></div>
+        <div class="btn-group">
+            <button class="secondary" type="button" onclick="closeGroupDeleteModal()">取消</button>
+            <button type="button" class="danger" onclick="confirmDeleteGroup()" style="padding:12px 20px">确认删除</button>
+        </div>
+    </div>
+</div>
+
+<!-- 加入/移出专题（2.10）：批量或单题，写入系统成员标签 -->
+<div id="group-assign-modal" class="modal" onclick="if(event.target===this)closeGroupAssignModal()">
+    <div class="modal-content" style="max-width:520px">
+        <h3 id="group-assign-title">加入专题</h3>
+        <div id="group-assign-scope" style="font-size:12px;color:var(--text-secondary);margin-bottom:8px"></div>
+        <div id="group-assign-list" style="max-height:46vh;overflow-y:auto"></div>
+        <div class="btn-group" style="margin-top:var(--space-md)">
+            <button class="secondary" type="button" onclick="closeGroupAssignModal()">关闭</button>
+        </div>
+    </div>
+</div>
+
 <!-- 新建标签弹窗 -->
 <div id="new-tag-modal" class="modal" onclick="if(event.target===this)closeNewTagModal()">
     <div class="modal-content" style="max-width:400px">
         <h3>✨ 新建标签</h3>
         <div class="form-group"><label>标签名称</label><input type="text" id="new-tag-name" placeholder="输入标签名称" onkeydown="if(event.key==='Enter'){event.preventDefault();submitNewTag()}" /></div>
         <div class="form-group"><label>标签颜色</label><input type="color" id="new-tag-color" value="#FF7847" /></div>
+        <div class="form-group"><label>类别 *</label><select id="new-tag-category" style="width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--border);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)"></select></div>
         <div class="btn-group"><button class="secondary" onclick="closeNewTagModal()">取消</button><button onclick="submitNewTag()" style="padding:12px 20px">创建</button></div>
     </div>
 </div>

@@ -29,5 +29,8 @@ export interface FullBackupData {
   teaching_nodes?: unknown[];
   teaching_versions?: unknown[];
   node_questions?: unknown[];
+  tag_categories?: unknown[];
+  app_settings?: unknown[];
+  groups?: unknown[];
   pending_link_list?: unknown[];
 }

@@ -11,6 +11,7 @@ export * from './basket';
 export * from './test-god-mode';
 export * from './tag-suggest';
 export * from './tag-manage';
+export * from './group-manage';
 export * from './question-core';
 export * from './note-version';
 export * from './question-detail';

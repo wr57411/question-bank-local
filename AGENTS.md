@@ -192,6 +192,7 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 | 重写 app.spec.js E2E | 图片 file input 移除+标签选择改搜索式+状态提示走 toast+导出按钮改名；改用数据层造带图题目并拆分 4 条独立用例 | docs/fix-app-spec-rewrite.md | 2026-09-01 | E2E, Playwright, 备份导出, PDF |
 | modal-anchor-overlap 固有竞态 | 长尾用例在 applyModalPosition 的 rAF 写入 top 前断言重叠，失败率约 40% 且失败集合漂移；泛化 waitModalSynced 并补齐 8 处插入点后连续 3 次 27/27 全绿 | docs/fix-modal-anchor-flaky.md | 2026-09-01 | E2E, 弹窗锚定, 测试稳定性 |
 | settings 整行替换抹字段风险修复 | `{ ...settings }` 改 `{ ...prev, ...settings }`（routes/sync.ts + server-sync.ts），删除 cloud_providers/appVersions 硬编码保护；副带修好「清空 cloud_providers 永远清不掉」 | docs/quick-import-favorite-tags.md 第五节 | 2026-09-04 | 服务端, user_settings, 同步 |
+| 修复题目标签形状契约回归 | main.ts 数据层全局由 assignIfMissing 改强制覆盖后，app 从 legacy public/db.js 的 buildTagIndex（`{tags:{...}}`）切到模块版扁平 `{id,name,color}`，而 UI 仍按 `qt.tags.*` 读取 → `undefined.color` 崩溃；形状不一致自 2026-07-25 潜伏、因渲染路径从未走到而未暴露；修复：UI 7 处对齐扁平契约 + dbGetAllPapers 题数 + 级联后刷新 + ui-health 用例 | docs/fix-qtag-shape-regression.md | 2026-10-09 | main.ts, buildTagIndex, question-core, question-detail, papers, E2E |
 
 ### 功能设计文档
 
@@ -218,4 +219,5 @@ npx playwright test --reporter=list --output=tmp/test-results-<新目录名>
 | PDF 打印字号可配置 + 双栏版面修复 | targetTextMM 实测为死参数（分子分母约掉）改绝对目标 rw=clamp(w×stemMM/tH,0.35×栏宽,栏宽)+尺寸感知栏位；双栏栏宽去横向 CPAD 81→93mm；导出弹窗 pt 挡位+localStorage+实测回显 | docs/pdf-print-size-and-column-width.md | 2026-09-07 | PDF 生成, 排版引擎, 导出弹窗, 打印字号 |
 | PDF 导出页面设置（边距 + 标题） | 导出弹窗加「页面设置」折叠区（上/下/左右 0–30mm + 标题/副标题显隐）；`deriveTopReserveMM` 紧凑公式省 21mm ≈ 7.6% 页高；localStorage `pdfPageSetup` 持久化；空串守卫防 `Number('')===0` 污染；右侧栏 x `AW−SIDE−uwd` 与旧 `AW/2+CGAP/2` 代数恒等（仅形式化重写） | docs/pdf-page-setup.md | 2026-09-09 | PDF 生成, 排版引擎, 导出弹窗, 页面设置 |
 | 题目列表单栏/双栏切换布局 | 列数改由 .grid-single/.grid-double 模式 class 接管（删除各断点列数强制）；localStorage 持久化（key question-grid-layout，默认单栏）；列表标题行切换按钮（文案=目标模式）；单栏竖图 height:auto+max-height:420px 全宽可读，双栏保持旧行为；TDD 红灯复现 85×110px bug。附：勾选框缩至 24×24+padding:0（全局 button padding 在 border-box 下撑到 48 的陷阱）+::after 热区 44×44，夹逼断言钉住尺寸；平板适配用容器查询（.question-card container-type:inline-size + @container 220px 阈值 + 外层 max-width:1023.98px 排除桌面），阈值判定依据卡片宽度而非视口断点 | docs/question-list-layout-toggle.md | 2026-09-06 | 题目列表, UI 布局, localStorage, 容器查询, E2E |
+| 关联章节 + 专题 + 标签分类体系 | 三者同源同构：标签分类（category_id）→ 标签 → 表达式树（ExprNode 求值+每节点命中题数+死引用）→ 章节/专题（groups kind 区分，成员=表达式命中 ∪ 系统成员标签破格通道）；question_tags 升级为带版本实体（created_at/updated_at/deleted_at + 独立同步键 + 逐条 upsert + 软删墓碑）修 D1/D2/D3/D6；关键裁决 A1/A2/A3/A5/D-b/E6 与 Phase 3 延后 | docs/chapters-topics-tag-categories.md | 2026-10-09 | 标签分类, 章节专题, 表达式求值, 同步链路, 服务端 schema, 备份, 题目列表, 标签管理 UI |
 >>>>>>> f640/main2

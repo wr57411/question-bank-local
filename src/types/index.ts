@@ -1,5 +1,6 @@
 export * from './question';
 export * from './tag';
+export * from './group';
 export * from './paper';
 export * from './sync';
 export * from './backup';

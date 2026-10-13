@@ -2,8 +2,9 @@ import {
   dbQuestions, dbTags, dbQuestionTags, dbPapers, dbPaperQuestions,
   dbSimilarQuestionLinks, dbTopics, dbTopicQuestions, dbQuestionNotes,
   dbPendingPhotos, dbTeachingNodes, dbTeachingVersions, dbNodeQuestions,
-  dbChangelog, generateId, nowIso
+  dbTagCategories, dbAppSettings, dbGroups, dbChangelog, generateId, nowIso
 } from './stores';
+import { clearAppSettingsCache } from './app-settings';
 import type { BackupManifest, ChangeRecord, FullBackupData } from '../types';
 
 const CHANGELOG_THRESHOLD = 500;
@@ -23,6 +24,9 @@ const ALL_STORES: { name: string; instance: typeof dbQuestions }[] = [
   { name: 'teaching_nodes', instance: dbTeachingNodes },
   { name: 'teaching_versions', instance: dbTeachingVersions },
   { name: 'node_questions', instance: dbNodeQuestions },
+  { name: 'tag_categories', instance: dbTagCategories },
+  { name: 'app_settings', instance: dbAppSettings },
+  { name: 'groups', instance: dbGroups },
 ];
 
 // ⚠️ 未启用：changelog 增量链路自 D8 起停用，保留仅为减少改动面。
@@ -125,7 +129,8 @@ export async function exportFullBackup(): Promise<FullBackupData & { _meta: Back
   const data: FullBackupData = {
     questions: [], tags: [], question_tags: [], papers: [], paper_questions: [],
     similar_question_links: [], topics: [], topic_questions: [], question_notes: [],
-    pending_photos: [], teaching_nodes: [], teaching_versions: [], node_questions: [],
+    pending_photos: [],     teaching_nodes: [], teaching_versions: [], node_questions: [],
+    tag_categories: [], app_settings: [], groups: [],
   };
   for (const store of ALL_STORES) {
     const arr = data[store.name as keyof FullBackupData] as unknown[];
@@ -197,6 +202,8 @@ export async function importStoreRecords(store: string, records: unknown[]): Pro
     default: {
       const recs = records as Array<{ id: string }>;
       await Promise.all(recs.map((r) => instance.setItem(r.id, r)));
+      // 恢复 app_settings 后清空同步镜像，避免本机旧镜像覆盖刚恢复的值
+      if (store === 'app_settings') clearAppSettingsCache();
     }
   }
   return records.length;

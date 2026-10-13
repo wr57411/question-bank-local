@@ -440,3 +440,65 @@
 .similar-card { position: relative; border-radius: 10px; overflow: hidden; cursor: pointer; background: var(--surface, #fff); border: 0.5px solid var(--hairline, #EFEBFF); aspect-ratio: 3/4; }
 .similar-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .similar-card .score { position: absolute; right: 4px; bottom: 4px; font-size: 11px; padding: 2px 6px; border-radius: 999px; background: #F0EBFF; color: #7C58E8; }
+
+/* ===== 章节 · 专题（2.4~2.8）：只用现有 token，分层折叠控制信息密度 ===== */
+.gexpr-summary{font-size:13px;font-weight:700;color:var(--text);margin-top:10px}
+.gexpr-echo{font-size:12px;color:var(--text-secondary);margin-top:4px;line-height:1.5;word-break:break-word}
+.gexpr-warn{font-size:11px;color:var(--danger-dark);margin-top:4px}
+
+.gexpr-node{border:1px solid var(--border-light);border-radius:var(--radius-md);padding:8px 10px;background:var(--surface)}
+.gexpr-group{margin-top:6px;background:var(--surface-hover)}
+.gexpr-node-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.gexpr-children{display:flex;flex-direction:column;gap:6px;margin:6px 0 6px 4px}
+.gexpr-leaf{display:flex;align-items:center;gap:8px;background:var(--surface);padding:6px 10px}
+.gexpr-dot,.gexpr-tag-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.gexpr-leaf-name{flex:1;min-width:0;font-size:13px;color:var(--text);overflow-wrap:anywhere}
+.gexpr-remove{cursor:pointer;color:var(--text-tertiary);font-size:15px;line-height:1;padding:0 4px}
+.gexpr-remove:hover{color:var(--danger)}
+
+.gexpr-op-group{display:inline-flex;border:1px solid var(--border-light);border-radius:999px;overflow:hidden}
+.gexpr-op{padding:4px 12px;font-size:12px;font-weight:700;border:none;border-radius:0;background:var(--surface);color:var(--text-secondary);box-shadow:none;min-width:auto}
+.gexpr-op.active{background:var(--accent);color:#fff}
+.gexpr-count{font-size:11px;font-weight:700;color:var(--text-secondary);background:var(--surface-dim);border-radius:999px;padding:2px 8px;white-space:nowrap}
+
+.gexpr-add-member,.gexpr-add-subgroup{padding:6px 12px;font-size:12px;border-radius:var(--radius-sm);background:var(--surface-dim);color:var(--text-secondary);border:1px dashed var(--border);box-shadow:none;min-width:auto}
+.gexpr-node-actions{display:flex;gap:6px;flex-wrap:wrap}
+
+.gexpr-picker{margin-top:8px;padding:10px;border-radius:var(--radius-sm);background:var(--surface);border:1px solid var(--border)}
+.gexpr-hide-unused-label{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text-secondary);margin-top:8px;font-weight:600}
+.gexpr-tag-results{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;max-height:180px;overflow-y:auto}
+.gexpr-tag-item{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;background:var(--surface-dim);border:1px solid var(--border-light);border-radius:999px;font-size:12px;cursor:pointer;color:var(--text)}
+.gexpr-tag-item:hover{background:var(--primary-light);border-color:var(--primary)}
+.gexpr-tag-name{font-weight:600}
+.gexpr-tag-count{font-size:11px;color:var(--text-secondary)}
+.gexpr-tag-ref{font-size:10px;padding:1px 7px;border-radius:999px;background:var(--accent-light);color:var(--accent-dark);font-weight:700}
+.gexpr-picker-empty{font-size:12px;color:var(--text-secondary);padding:6px 2px}
+.gexpr-unclassified-hint{font-size:11px;color:var(--warning-dark);margin-top:8px}
+.gexpr-goto-category{color:var(--accent-dark);font-weight:700;text-decoration:underline}
+
+.group-section{margin-bottom:14px}
+.group-section-head{font-size:14px;font-weight:800;color:var(--text);margin:0 0 8px}
+.group-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-light)}
+.group-row-main{flex:1;min-width:0}
+.group-row-name{font-size:14px;font-weight:700;color:var(--text)}
+.group-row-echo{font-size:12px;color:var(--text-secondary);word-break:break-word;line-height:1.5}
+.group-row-meta{font-size:12px;font-weight:700;color:var(--text-secondary);white-space:nowrap}
+.group-row-actions{display:flex;gap:4px;flex-shrink:0}
+
+.cascade-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-light)}
+.cascade-name{font-size:13px;font-weight:700;color:var(--text)}
+.cascade-delta{font-size:12px;color:var(--text-secondary)}
+
+/* ===== 2.9 筛选区：章节行 / 专题行 + 表达式回显（只用现有 token） ===== */
+.ffilter-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
+.ffilter-label{font-size:12px;font-weight:700;color:var(--text-secondary);flex-shrink:0;min-width:32px}
+.ffilter-echo{width:100%;font-size:11px;color:var(--text-secondary);line-height:1.5;word-break:break-word}
+.ffilter-divider{width:100%;height:1px;background:var(--border-light);margin-top:10px}
+
+/* ===== 2.10 加入/移出专题弹窗 ===== */
+.gassign-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border-light)}
+.gassign-name{flex:1;min-width:0;font-size:13px;font-weight:600;color:var(--text);overflow-wrap:anywhere}
+.gassign-meta{font-size:11px;color:var(--text-secondary);white-space:nowrap}
+
+/* ===== 2.12 系统成员标签 chip 区分标记 ===== */
+.tag.tag-system{border-style:dashed !important;font-weight:700}

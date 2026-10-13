@@ -14,6 +14,7 @@ db.exec(`
         user_id TEXT NOT NULL,
         name TEXT NOT NULL,
         color TEXT DEFAULT '#3B82F6',
+        category_id TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         updated_at TEXT DEFAULT (datetime('now')),
         deleted_at TEXT,
@@ -181,6 +182,10 @@ ensureColumn('questions', 'purged_at', 'TEXT');
 ensureColumn('questions', 'book_name', "TEXT DEFAULT ''");
 ensureColumn('questions', 'page_number', "TEXT DEFAULT ''");
 ensureColumn('questions', 'question_number', "TEXT DEFAULT ''");
+
+// Phase 1（标签分类）：tags 加 category_id。CREATE TABLE 与 ensureColumn 必须同时检查——
+// 前者覆盖全新库、后者给既有库补列（ALTER TABLE ADD COLUMN 不幂等，重复执行报 duplicate column name）。
+ensureColumn('tags', 'category_id', 'TEXT');
 
 db.exec(`
     CREATE TABLE IF NOT EXISTS pdf_books (

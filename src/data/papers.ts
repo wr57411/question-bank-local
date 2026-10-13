@@ -1,4 +1,4 @@
-import { dbPapers, dbPaperQuestions, generateId, nowIso } from './stores';
+import { dbPapers, dbPaperQuestions, dbQuestions, generateId, nowIso } from './stores';
 import type { Paper, PaperQuestion } from '../types';
 
 export async function dbGetAllPapers(): Promise<Paper[]> {
@@ -17,10 +17,20 @@ export async function dbGetAllPapers(): Promise<Paper[]> {
     };
     if (!paper.deleted_at) papers.push(paper);
   });
+  // 防回归：题目数量只计「存在且未软删/未彻底删除」的题目（软删题仍保留 join 行，不可直接按关联行计数）
+  const liveQuestionIds = new Set<string>();
+  await dbQuestions.iterate((v: unknown, key: string) => {
+    const q = v as Record<string, unknown> | null;
+    if (!q) return;
+    const id = (q.id as string) || key;
+    const deletedAt = (q.deleted_at as string) || (q.deletedAt as string) || null;
+    const purgedAt = (q.purged_at as string) || (q.purgedAt as string) || null;
+    if (!deletedAt && !purgedAt) liveQuestionIds.add(id);
+  });
   const countMap = new Map<string, number>();
   await dbPaperQuestions.iterate((pq: unknown) => {
-    const pid = (pq as PaperQuestion).paper_id;
-    if (pid) countMap.set(pid, (countMap.get(pid) || 0) + 1);
+    const record = pq as PaperQuestion;
+    if (record.paper_id && liveQuestionIds.has(record.question_id)) countMap.set(record.paper_id, (countMap.get(record.paper_id) || 0) + 1);
   });
   for (const paper of papers) {
     (paper as Paper & { question_count?: number }).question_count = countMap.get(paper.id) || 0;

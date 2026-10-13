@@ -217,3 +217,25 @@ export async function dbRemoveVersionFromAllQuestions(versionId: string): Promis
   for (const q of updates) await dbQuestions.setItem(q.id, q);
   invalidateQuestionsCache();
 }
+
+// N1 数据层：零标签题查询。有效题 = 无 deleted_at（字段缺失或 null 视为有效）；
+// 未打标签 = 没有任何「有效关联」（question_tags 中 deleted_at 为空的关联）指向该题。
+export async function listUntaggedQuestions(): Promise<Question[]> {
+  const taggedQuestionIds = new Set<string>();
+  await dbQuestionTags.iterate((qt: unknown) => {
+    const r = qt as { question_id: string; deleted_at?: string | null };
+    if (!r.deleted_at) taggedQuestionIds.add(r.question_id);
+  });
+  const result: Question[] = [];
+  await dbQuestions.iterate((v: unknown, key: string) => {
+    const q = normalizeQuestionRecord(v as Record<string, unknown>, key);
+    if (!q) return;
+    if (q.deleted_at) return;
+    if (!taggedQuestionIds.has(q.id)) result.push(q);
+  });
+  return result;
+}
+
+export async function getUntaggedQuestionCount(): Promise<number> {
+  return (await listUntaggedQuestions()).length;
+}

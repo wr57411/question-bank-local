@@ -73,4 +73,9 @@ export function showTab(tabName: string, btn?: HTMLElement): void {
   if (btn) btn.classList.add('active');
   const target = document.getElementById(tabName + '-tab');
   if (target) target.classList.remove('hidden');
+  if (tabName === 'tags') {
+    const w = window as any;
+    Promise.resolve(w.renderCategories?.()).then(() => w.renderVisibilityConfig?.());
+    Promise.resolve(w.renderGroupManage?.()).catch(() => {});
+  }
 }

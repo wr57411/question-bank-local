@@ -370,6 +370,8 @@ test.describe("快速导入题目", () => {
     await expect(page.locator('#qi-tags')).toContainText('函数');
 
     await page.fill('#qi-tag-input', '全新标签XYZ');
+    // Phase 1 起新建标签必须归属类别：先在顶部条选择类别再回车创建
+    await page.selectOption('#qi-tag-category', { index: 1 });
     await page.press('#qi-tag-input', 'Enter');
     await expect(page.locator('#qi-tags')).toContainText('全新标签XYZ');
 

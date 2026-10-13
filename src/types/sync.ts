@@ -20,6 +20,8 @@ export interface SyncPayload {
   papers: unknown[];
   paper_questions: unknown[];
   question_notes: unknown[];
+  // 2.13 配置通道：groups / tag_categories / app_settings 序列化进 user_settings
+  settings?: Record<string, unknown>;
 }
 
 export interface DataFingerprint {

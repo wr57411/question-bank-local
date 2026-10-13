@@ -27,6 +27,8 @@ export async function refreshAll(): Promise<void> {
       .then(() => { localStorage.setItem('questionNotesMigratedV1', '1'); })
       .catch((e) => console.error('笔记迁移失败:', e));
   }
+  await data.ensureDefaultTagCategories().catch((e) => console.error('默认标签类别种入失败:', e));
+  await data.migrateTagTaxonomy().catch((e) => console.error('分类体系迁移失败:', e));
   await Promise.all([
     ui.loadTags(),
     w.isFormDirty ? Promise.resolve() : ui.loadQuestions(),

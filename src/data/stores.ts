@@ -24,6 +24,9 @@ export const dbWikiPages = localforage.createInstance({ name: 'questionBank', st
 export const dbWikiLinks = localforage.createInstance({ name: 'questionBank', storeName: 'wiki_links' });
 export const dbCompileJobs = localforage.createInstance({ name: 'questionBank', storeName: 'compile_jobs' });
 export const dbWikiLog = localforage.createInstance({ name: 'questionBank', storeName: 'wiki_log' });
+export const dbTagCategories = localforage.createInstance({ name: 'questionBank', storeName: 'tag_categories' });
+export const dbAppSettings = localforage.createInstance({ name: 'questionBank', storeName: 'app_settings' });
+export const dbGroups = localforage.createInstance({ name: 'questionBank', storeName: 'groups' });
 
 export function generateId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {

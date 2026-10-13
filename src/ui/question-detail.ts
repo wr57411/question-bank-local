@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { openModal, closeModal } from './common';
+import { isSystemMemberTag } from './question-core';
 import { getAllVectors } from '../data/embeddings';
 import { cosineSimilarity } from '../services/semantic';
 const w = window as any;
@@ -22,8 +23,12 @@ export function renderDetailContent(q: any): void {
   w.loadNoteVersionsForDetail(q.id);
 
   document.getElementById('modal-answer-image')!.innerHTML = q.answer_image_url ? '<h3 style="margin-top:12px">答案</h3><img src="' + q.answer_image_url + '" style="max-width:100%;border-radius:var(--radius-sm)">' : '<p style="color:var(--text-tertiary);margin-top:12px">无答案图片</p>';
-  const tags = q.question_tags.map((qt: any) => qt.tags);
-  document.getElementById('modal-tags')!.innerHTML = tags.length ? '<h3 style="margin-top:12px">标签（点击移除）</h3><div class="tag-container">' + tags.map((t: any) => '<span class="tag" style="background:' + t.color + '20;border:1px solid ' + t.color + ';cursor:pointer" onclick="removeTagFromQuestion(\'' + t.id + '\')">' + t.name + ' ✕</span>').join('') + '</div>' : '';
+  const tags = q.question_tags;
+  // 2.12 系统成员标签（专题·X）以 chip 显示并加区分标记；扁平契约 t.id/t.name/t.color
+  document.getElementById('modal-tags')!.innerHTML = tags.length ? '<h3 style="margin-top:12px">标签（点击移除）</h3><div class="tag-container">' + tags.map((t: any) => {
+    const sys = isSystemMemberTag(t.id);
+    return '<span class="tag' + (sys ? ' tag-system' : '') + '" style="background:' + t.color + '20;border:1px solid ' + t.color + ';cursor:pointer" onclick="removeTagFromQuestion(\'' + t.id + '\')">' + (sys ? '📁 ' : '') + t.name + ' ✕</span>';
+  }).join('') + '</div>' : '';
 
   // 版本归属编辑
   const versions = q.versions || [];
@@ -53,6 +58,11 @@ export function renderDetailContent(q: any): void {
   const tagsEl = document.getElementById('modal-tags');
   if (tagsEl) {
     tagsEl.innerHTML += `<div style="margin-top:16px"><button onclick="showSimilarQuestions('${q.id}')" style="width:100%;padding:12px 20px;border:none;border-radius:18px;background:linear-gradient(135deg,#9D7BFF,#7C58E8);color:#fff;font-size:14px;font-weight:700;cursor:pointer">🔍 找相似题</button></div>`;
+  }
+  // 2.10 单题加入/移出专题入口（独立容器，避免与 #modal-tags 内既有按钮产生选择器歧义）
+  const assignEl = document.getElementById('modal-group-assign');
+  if (assignEl) {
+    assignEl.innerHTML = `<div style="margin-top:8px"><button onclick="openDetailGroupAssign()" style="width:100%;padding:10px 20px;border:1.5px solid var(--border);border-radius:14px;background:var(--surface-dim);color:var(--text);font-size:13px;font-weight:600;cursor:pointer">📁 加入 / 移出专题</button></div>`;
   }
 
   // AI 摘要

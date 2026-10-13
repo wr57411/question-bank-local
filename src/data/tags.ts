@@ -19,6 +19,7 @@ function normalizeTagRecord(tag: Record<string, unknown>, key: string): Tag | nu
   if (next.updatedAt && !next.updated_at) next.updated_at = next.updatedAt;
   if (next.deletedAt && !next.deleted_at) next.deleted_at = next.deletedAt;
   if (!next.color) next.color = '#3B82F6';
+  if (next.category_id === undefined) next.category_id = null;
   if (typeof next.id !== 'string' || typeof next.name !== 'string') return null;
   return next as unknown as Tag;
 }
@@ -71,10 +72,28 @@ export async function dbGetAllTags(): Promise<Tag[]> {
 export async function dbCreateTag(name: string, color: string): Promise<Tag> {
   const id = generateId();
   const now = nowIso();
-  const tag: Tag = { id, name, color: color || '#3B82F6', created_at: now, deleted_at: null };
+  const tag: Tag = { id, name, color: color || '#3B82F6', category_id: null, created_at: now, deleted_at: null };
   await dbTags.setItem(id, tag);
   invalidateTagIndex();
   return tag;
+}
+
+export async function dbUpdateTag(
+  tagId: string,
+  patch: { name?: string; color?: string; category_id?: string | null },
+): Promise<Tag | null> {
+  const tag = await dbTags.getItem(tagId) as Tag | null;
+  if (!tag) return null;
+  const next: Tag = {
+    ...tag,
+    name: patch.name !== undefined ? patch.name : tag.name,
+    color: patch.color !== undefined ? (patch.color || '#3B82F6') : tag.color,
+    category_id: patch.category_id !== undefined ? patch.category_id : tag.category_id,
+    updated_at: nowIso(),
+  };
+  await dbTags.setItem(tagId, next);
+  invalidateTagIndex();
+  return next;
 }
 
 export async function dbDeleteTag(tagId: string): Promise<void> {

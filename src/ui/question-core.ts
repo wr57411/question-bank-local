@@ -1,5 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { dbQuestions } from '../data/stores';
+import { dbCreateTag, dbUpdateTag, dbGetAllGroups, dbGetGroup, getGroupManualMemberCount } from '../data';
+import { populateCategorySelect } from './tag-manage';
+import { openModal, closeModal } from './common';
 import { encodeQuery, encodeImage, searchSemantic } from '../services/semantic-search';
 
 const w = window as any;
@@ -32,6 +35,24 @@ let openInlineTagAddId: string | null = null;
 let openInlineTagSearchValue = '';
 let currentBookFilter = '';
 let _inlinePollTimers: Record<string, ReturnType<typeof setInterval>> = {};
+
+// 2.9 筛选层：章节/专题为单选；列表只消费「成员集合」，绝不解析表达式（§0 E6）
+let _systemMemberTagIds: Set<string> = new Set();
+
+export function isSystemMemberTag(tagId: string): boolean {
+  return _systemMemberTagIds.has(tagId);
+}
+
+export async function refreshSystemMemberTagIds(): Promise<void> {
+  try {
+    const groups = await dbGetAllGroups();
+    _systemMemberTagIds = new Set(groups.map((g: any) => g.member_tag_id).filter(Boolean));
+  } catch { _systemMemberTagIds = new Set(); }
+}
+
+export function hasActiveListFilter(): boolean {
+  return !!(w.activeFilterTags.length || w.activeFilterChapterId || w.activeFilterTopicId || currentBookFilter);
+}
 
 export function initQuestionForm(): void {
   document.getElementById('question-form')?.addEventListener('submit', async (e) => {
@@ -77,7 +98,11 @@ export function initQuestionForm(): void {
   });
 }
 
-export async function loadQuestions(): Promise<void> { w.allQuestions = await w.dbGetAllQuestions(); renderQuestions(); }
+export async function loadQuestions(): Promise<void> {
+  w.allQuestions = await w.dbGetAllQuestions();
+  await refreshSystemMemberTagIds();
+  renderQuestions();
+}
 
 export function fuzzyMatchTags(searchText: string): any[] {
   if (!searchText || !w.allTags.length) return [];
@@ -125,9 +150,12 @@ export function getFilteredQuestions(): any[] {
   const currentVersionId = w.getCurrentVersionId();
   const searchText = (document.getElementById('search-input') as HTMLInputElement)?.value?.toLowerCase()?.trim() || '';
   let filtered = w.allQuestions.filter((q: any) => { const versions = q.versions || []; return versions.length === 0 || versions.includes(currentVersionId); });
-  if (w.activeFilterTags.length) { filtered = filtered.filter((q: any) => { const qt = q.question_tags.map((t: any) => t.tags.id); return w.activeFilterTags.some((f: string) => qt.includes(f)); }); }
+  // 层间 AND：章节 ∩ 专题 ∩ 标签 ∩ 书籍 ∩ 搜索。章节/专题用预计算的成员集合，列表不解析表达式。
+  if (w.activeFilterChapterId && w.activeFilterChapterIds) { filtered = filtered.filter((q: any) => w.activeFilterChapterIds.has(q.id)); }
+  if (w.activeFilterTopicId && w.activeFilterTopicIds) { filtered = filtered.filter((q: any) => w.activeFilterTopicIds.has(q.id)); }
+  if (w.activeFilterTags.length) { filtered = filtered.filter((q: any) => { const qt = q.question_tags.map((t: any) => t.id); return w.activeFilterTags.some((f: string) => qt.includes(f)); }); }
   if (currentBookFilter) { filtered = filtered.filter((q: any) => q.book_name === currentBookFilter); }
-  if (searchText) { filtered = filtered.filter((q: any) => { const bookMatch = (q.book_name || '').toLowerCase().includes(searchText); const pageMatch = (q.page_number || '').toLowerCase().includes(searchText); const numMatch = (q.question_number || '').toLowerCase().includes(searchText); const tagMatch = q.question_tags.some((t: any) => t.tags.name.toLowerCase().includes(searchText)); const summaryMatch = (q.semantic_summary || '').toLowerCase().includes(searchText); return bookMatch || pageMatch || numMatch || tagMatch || summaryMatch; }); }
+  if (searchText) { filtered = filtered.filter((q: any) => { const bookMatch = (q.book_name || '').toLowerCase().includes(searchText); const pageMatch = (q.page_number || '').toLowerCase().includes(searchText); const numMatch = (q.question_number || '').toLowerCase().includes(searchText); const tagMatch = q.question_tags.some((t: any) => t.name.toLowerCase().includes(searchText)); const summaryMatch = (q.semantic_summary || '').toLowerCase().includes(searchText); return bookMatch || pageMatch || numMatch || tagMatch || summaryMatch; }); }
   return filtered;
 }
 
@@ -232,12 +260,12 @@ export function renderQuestions(): void {
   applyQuestionGridLayout();
   const container = document.getElementById('questions-list')!;
   const filtered = getFilteredQuestions();
-  document.getElementById('question-count')!.textContent = w.activeFilterTags.length ? `(筛选: ${filtered.length}/${w.allQuestions.length})` : `(${filtered.length}/${w.allQuestions.length})`;
+  document.getElementById('question-count')!.textContent = hasActiveListFilter() ? `(筛选: ${filtered.length}/${w.allQuestions.length})` : `(${filtered.length}/${w.allQuestions.length})`;
   updateSelectedCount();
   if (!filtered.length) { container.innerHTML = '<div class="empty-state"><div class="icon">📝</div>暂无题目</div>'; return; }
   container.replaceChildren();
   filtered.forEach((q: any) => {
-    const tags = q.question_tags.map((qt: any) => qt.tags);
+    const tags = q.question_tags;
     const isChecked = w.selectedQuestions.has(q.id), inBasket = w.questionBasket.has(q.id);
     const card = document.createElement('div'); card.className = 'question-card' + (isChecked ? ' selected' : ''); card.dataset.id = q.id;
     const cb = document.createElement('button'); cb.className = 'q-checkbox' + (isChecked ? ' checked' : '');
@@ -262,12 +290,20 @@ export function renderQuestions(): void {
       info.appendChild(summaryWrap);
     }
     const tagsWrap = document.createElement('div'); tagsWrap.className = 'tags';
-    tags.forEach((t: any) => { const te = document.createElement('span'); te.className = 'tag'; te.style.background = t.color + '20'; te.textContent = t.name; tagsWrap.appendChild(te); });
+    // 2.12 系统成员标签（专题·X）以 chip 显示并加区分标记；数据沿用扁平契约 t.id/t.name/t.color
+    tags.forEach((t: any) => {
+      const te = document.createElement('span');
+      const sys = isSystemMemberTag(t.id);
+      te.className = 'tag' + (sys ? ' tag-system' : '');
+      te.style.background = t.color + '20';
+      te.textContent = (sys ? '📁 ' : '') + t.name;
+      tagsWrap.appendChild(te);
+    });
     const addBtn = document.createElement('span'); addBtn.className = 'tag-add-btn'; addBtn.textContent = '+';
     addBtn.onclick = (ev) => { ev.stopPropagation(); toggleInlineTagAdd(q.id); }; tagsWrap.appendChild(addBtn);
     const inlineAdd = document.createElement('div'); inlineAdd.id = 'inline-add-' + q.id; inlineAdd.className = 'inline-tag-add hidden';
     inlineAdd.onclick = (ev) => ev.stopPropagation();
-    inlineAdd.innerHTML = `<input type="text" id="inline-tag-search-${q.id}" placeholder="🔍 搜索或输入标签名..." oninput="onInlineTagSearch('${q.id}')" onfocus="startInlinePoll('${q.id}')" onblur="stopInlinePoll('${q.id}')" onkeydown="onInlineTagKeydown(event,'${q.id}')" /><div id="inline-tag-results-${q.id}" class="inline-tag-results"></div><div style="display:flex;gap:6px;flex-wrap:wrap"><button onclick="showNewTagModal('form')" style="padding:4px 10px;font-size:11px;background:var(--accent);box-shadow:none">＋ 新建标签</button><button onclick="toggleInlineTagAdd('${q.id}')" class="secondary" style="padding:4px 10px;font-size:11px">关闭</button></div><div id="inline-tag-added-${q.id}" class="inline-tag-added" style="display:none"></div>`;
+    inlineAdd.innerHTML = `<input type="text" id="inline-tag-search-${q.id}" placeholder="🔍 搜索或输入标签名..." oninput="onInlineTagSearch('${q.id}')" onfocus="startInlinePoll('${q.id}')" onblur="stopInlinePoll('${q.id}')" onkeydown="onInlineTagKeydown(event,'${q.id}')" /><div id="inline-tag-results-${q.id}" class="inline-tag-results"></div><select id="inline-tag-category-${q.id}" style="display:block;width:100%;box-sizing:border-box;margin:4px 0;padding:4px 8px;font-size:11px;border:1px solid var(--border-light);border-radius:var(--radius-sm);background:var(--surface);color:var(--text)"></select><div style="display:flex;gap:6px;flex-wrap:wrap"><button onclick="showNewTagModal('form')" style="padding:4px 10px;font-size:11px;background:var(--accent);box-shadow:none">＋ 新建标签</button><button onclick="toggleInlineTagAdd('${q.id}')" class="secondary" style="padding:4px 10px;font-size:11px">关闭</button></div><div id="inline-tag-added-${q.id}" class="inline-tag-added" style="display:none"></div>`;
     info.appendChild(tagsWrap); info.appendChild(inlineAdd); card.appendChild(info);
     container.appendChild(card);
   });
@@ -285,7 +321,7 @@ function restoreInlineTagAdd(): void {
 export function toggleInlineTagAdd(id: string): void {
   const el = document.getElementById('inline-add-' + id)!;
   el.classList.toggle('hidden');
-  if (!el.classList.contains('hidden')) { openInlineTagAddId = id; openInlineTagSearchValue = ''; const input = document.getElementById('inline-tag-search-' + id) as HTMLInputElement; if (input) { input.value = ''; input.focus(); } onInlineTagSearch(id); }
+  if (!el.classList.contains('hidden')) { openInlineTagAddId = id; openInlineTagSearchValue = ''; const input = document.getElementById('inline-tag-search-' + id) as HTMLInputElement; if (input) { input.value = ''; input.focus(); } void populateCategorySelect(document.getElementById('inline-tag-category-' + id) as HTMLSelectElement | null, false); onInlineTagSearch(id); }
   else { openInlineTagAddId = null; openInlineTagSearchValue = ''; }
 }
 
@@ -299,7 +335,7 @@ export function onInlineTagSearch(qId: string): void {
   const query = input.value.trim().toLowerCase();
   if (openInlineTagAddId === qId) openInlineTagSearchValue = query;
   const question = w.allQuestions.find((q: any) => q.id === qId);
-  const existingTagIds = question ? question.question_tags.map((qt: any) => qt.tags.id) : [];
+  const existingTagIds = question ? question.question_tags.map((qt: any) => qt.id) : [];
   let matches = w.allTags.filter((t: any) => !existingTagIds.includes(t.id));
   if (query) matches = matches.filter((t: any) => t.name.toLowerCase().includes(query));
   matches = matches.slice(0, 12);
@@ -308,7 +344,7 @@ export function onInlineTagSearch(qId: string): void {
     const createBtn = document.createElement('span'); createBtn.className = 'inline-tag-result';
     createBtn.style.cssText = 'background:var(--accent-light);border-color:var(--accent);color:var(--accent)';
     createBtn.textContent = '＋ 创建: "' + input.value.trim() + '"';
-    createBtn.onclick = async (ev) => { ev.stopPropagation(); const name = input.value.trim(); if (!name) return; const tag = await w.dbCreateTag(name, '#4CC3FF'); await w.dbAddTagToQuestion(qId, tag.id); input.value = ''; w.allTags.push(tag); showAddedTag(qId, tag); onInlineTagSearch(qId); };
+    createBtn.onclick = async (ev) => { ev.stopPropagation(); const name = input.value.trim(); if (!name) return; const catSel = document.getElementById('inline-tag-category-' + qId) as HTMLSelectElement | null; const catId = catSel?.value || null; if (!catId) { w.showStatus('请先选择类别', 'error'); return; } const tag = await dbCreateTag(name, '#4CC3FF'); await dbUpdateTag(tag.id, { category_id: catId }); await w.dbAddTagToQuestion(qId, tag.id); input.value = ''; w.allTags.push(tag); showAddedTag(qId, tag); onInlineTagSearch(qId); };
     resultsDiv.appendChild(createBtn);
   } else {
     matches.forEach((t: any) => {
@@ -332,7 +368,7 @@ export function showAddedTag(qId: string, tag: any): void {
   span.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:' + tag.color + '"></span> ' + tag.name + ' ✓';
   addedDiv.appendChild(span);
   const question = w.allQuestions.find((q: any) => q.id === qId);
-  if (question) question.question_tags.push({ tags: tag });
+  if (question) question.question_tags.push(tag);
   const card = document.querySelector('[data-id="' + qId + '"]');
   if (card) { const tagsWrap = card.querySelector('.tags'); if (tagsWrap) { const addBtnEl = tagsWrap.querySelector('.tag-add-btn'); const te = document.createElement('span'); te.className = 'tag'; te.style.background = tag.color + '20'; te.textContent = tag.name; if (addBtnEl) tagsWrap.insertBefore(te, addBtnEl); else tagsWrap.appendChild(te); } }
 }
@@ -348,6 +384,92 @@ export function updateSelectedCount(): void {
   const el = document.getElementById('selected-count')!;
   if (w.selectedQuestions.size > 0) { el.style.display = 'inline'; document.getElementById('selected-num')!.textContent = String(w.selectedQuestions.size); }
   else el.style.display = 'none';
+}
+
+// ========== 2.10 加入/移出专题：写入/移除该专题的系统成员标签 ==========
+let _assignQids: string[] = [];
+let _assignScope = '';
+
+export async function openGroupAssignModal(): Promise<void> {
+  const ids = Array.from(w.selectedQuestions as Set<string>);
+  if (!ids.length) { w.showStatus('请先勾选题目', 'error'); return; }
+  _assignQids = ids;
+  _assignScope = `批量：已勾选 ${ids.length} 题`;
+  await renderGroupAssignModal();
+  openModal('group-assign-modal');
+}
+
+export async function openDetailGroupAssign(): Promise<void> {
+  if (!w.currentQuestionId) return;
+  _assignQids = [w.currentQuestionId];
+  _assignScope = '当前题';
+  await renderGroupAssignModal();
+  openModal('group-assign-modal');
+}
+
+export function closeGroupAssignModal(): void {
+  _assignQids = [];
+  closeModal('group-assign-modal');
+}
+
+async function renderGroupAssignModal(): Promise<void> {
+  const scopeEl = document.getElementById('group-assign-scope');
+  if (scopeEl) scopeEl.textContent = _assignScope;
+  const list = document.getElementById('group-assign-list');
+  if (!list) return;
+  list.replaceChildren();
+  const topics = await dbGetAllGroups('topic');
+  if (!topics.length) {
+    const empty = document.createElement('div');
+    empty.className = 'empty-state';
+    empty.textContent = '暂无专题，请到「标签管理」新建';
+    list.appendChild(empty);
+    return;
+  }
+  for (const g of topics) {
+    const row = document.createElement('div');
+    row.className = 'gassign-row';
+    row.dataset.topicId = g.id;
+    const name = document.createElement('span');
+    name.className = 'gassign-name';
+    name.textContent = g.name;
+    const meta = document.createElement('span');
+    meta.className = 'gassign-meta';
+    meta.textContent = (await getGroupManualMemberCount(g.id)) + ' 题';
+    const add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'btn-mini';
+    add.dataset.action = 'add';
+    add.textContent = '加入';
+    add.onclick = () => { void applyGroupAssign(g.id, 'add'); };
+    const rm = document.createElement('button');
+    rm.type = 'button';
+    rm.className = 'btn-mini';
+    rm.dataset.action = 'remove';
+    rm.textContent = '移出';
+    rm.onclick = () => { void applyGroupAssign(g.id, 'remove'); };
+    row.append(name, meta, add, rm);
+    list.appendChild(row);
+  }
+}
+
+export async function applyGroupAssign(topicId: string, mode: 'add' | 'remove'): Promise<void> {
+  if (!_assignQids.length) return;
+  const g = await dbGetGroup(topicId);
+  if (!g || !g.member_tag_id) { w.showStatus('该专题缺少系统成员标签', 'error'); return; }
+  for (const qid of _assignQids) {
+    if (mode === 'add') await w.dbAddTagToQuestion(qid, g.member_tag_id);
+    else await w.dbRemoveTagFromQuestion(qid, g.member_tag_id);
+  }
+  const n = _assignQids.length;
+  w.showStatus(mode === 'add' ? `已加入「${g.name}」：${n} 题` : `已移出「${g.name}」：${n} 题`, 'success');
+  await w.loadQuestions?.();
+  await renderGroupAssignModal();
+  const cur = w.currentQuestionId;
+  if (cur && document.getElementById('question-modal')?.classList.contains('active')) {
+    const q = (w.allQuestions as any[]).find((x) => x.id === cur);
+    if (q) w.renderDetailContent(q);
+  }
 }
 
 // 删除/垃圾篓
